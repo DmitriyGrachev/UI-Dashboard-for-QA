@@ -3,7 +3,14 @@ package com.introlabsystems.recognitionvalidator.image;
 import java.time.Instant;
 import java.util.UUID;
 
-public record ParsedFilename(
+public record ImageMetadata(
+        String id,
+        String fileName,
+        String relativePath,
+        Instant fileCreatedAt,
+        Instant fileModifiedAt,
+        Instant discoveredAt,
+        Instant lastSeenAt,
         String gameCode,
         Long tokenId,
         UUID sessionUuid,
@@ -22,17 +29,4 @@ public record ParsedFilename(
         Long recognitionDurationMs,
         ParseStatus parseStatus
 ) {
-
-    public static ParsedFilename error() {
-        return error(null);
-    }
-
-    public static ParsedFilename error(String gameCode) {
-        return new ParsedFilename(
-                gameCode, null, null, null,
-                null, null, null, null, null,
-                false, false, false, false, false,
-                null, null, ParseStatus.ERROR
-        );
-    }
 }

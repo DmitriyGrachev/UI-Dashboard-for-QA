@@ -34,14 +34,6 @@ public class FilenameParser {
     }
 
     public ParsedFilename parse(String fileName) {
-        try {
-            return parseValidName(fileName);
-        } catch (RuntimeException exception) {
-            return ParsedFilename.error();
-        }
-    }
-
-    private ParsedFilename parseValidName(String fileName) {
         if (fileName == null || !fileName.endsWith(".png")) {
             return ParsedFilename.error();
         }
@@ -51,18 +43,26 @@ public class FilenameParser {
             return ParsedFilename.error();
         }
 
+        try {
+            return parseValidName(fileName, gameCode);
+        } catch (RuntimeException exception) {
+            return ParsedFilename.error(gameCode);
+        }
+    }
+
+    private ParsedFilename parseValidName(String fileName, String gameCode) {
         String withoutExtension = fileName.substring(0, fileName.length() - ".png".length());
         String afterGame = withoutExtension.substring(gameCode.length() + 1);
         Matcher sessionMatcher = SESSION_PATTERN.matcher(afterGame);
         if (!sessionMatcher.matches()) {
-            return ParsedFilename.error();
+            return ParsedFilename.error(gameCode);
         }
 
         long tokenId = Long.parseLong(sessionMatcher.group("token"));
         UUID sessionUuid = UUID.fromString(sessionMatcher.group("uuid"));
         Matcher tailMatcher = TAIL_PATTERN.matcher(sessionMatcher.group("rest"));
         if (!tailMatcher.matches()) {
-            return ParsedFilename.error();
+            return ParsedFilename.error(gameCode);
         }
 
         String payload = tailMatcher.group("payload");
