@@ -1,14 +1,26 @@
 package com.introlabsystems.recognitionvalidator.review;
 
+import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
+import com.introlabsystems.recognitionvalidator.maintenance.RetentionCleanupService;
+import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
+import com.introlabsystems.recognitionvalidator.statistics.StatisticsRepository;
+import com.introlabsystems.recognitionvalidator.statistics.StatisticsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -33,6 +45,18 @@ class ReviewWorkflowTest {
 
     @Autowired
     private DecisionService decisionService;
+
+    @Autowired
+    private NamedParameterJdbcTemplate namedJdbc;
+
+    @Autowired
+    private StatisticsRepository statisticsRepository;
+
+    @Autowired
+    private ValidatorProperties properties;
+
+    @TempDir
+    Path temporaryDirectory;
 
     @BeforeEach
     void cleanDatabase() {
@@ -182,6 +206,111 @@ class ReviewWorkflowTest {
         assertThat(queueService.claim(stranger, ReviewFilters.none())).isEmpty();
     }
 
+    @Test
+    void calculatesUtcOperatorStatisticsForSelectedPeriod() {
+        Clock fixedClock = Clock.fixed(
+                Instant.parse("2026-07-30T12:00:00Z"),
+                ZoneOffset.UTC
+        );
+        StatisticsService service = new StatisticsService(statisticsRepository, fixedClock);
+        UUID operatorId = insertOperator("statistics");
+        UUID otherOperator = insertOperator("statistics-other");
+
+        completeReview(
+                insertImage(70, Instant.parse("2026-07-27T12:00:00Z"),
+                        "bj_igt", "session", false, true),
+                operatorId,
+                Decision.ACCEPTED,
+                Instant.parse("2026-07-29T01:00:00Z")
+        );
+        completeReview(
+                insertImage(71, Instant.parse("2026-07-27T13:00:00Z"),
+                        "bj_igt", "session", false, true),
+                operatorId,
+                Decision.ACCEPTED,
+                Instant.parse("2026-07-29T02:00:00Z")
+        );
+        completeReview(
+                insertImage(72, Instant.parse("2026-07-27T14:00:00Z"),
+                        "bj_igt", "session", false, true),
+                operatorId,
+                Decision.REJECTED,
+                Instant.parse("2026-07-29T03:00:00Z")
+        );
+        completeReview(
+                insertImage(73, Instant.parse("2026-07-27T15:00:00Z"),
+                        "bj_igt", "session", false, true),
+                operatorId,
+                Decision.ACCEPTED,
+                Instant.parse("2026-07-30T00:00:00Z")
+        );
+        completeReview(
+                insertImage(74, Instant.parse("2026-07-27T16:00:00Z"),
+                        "bj_igt", "session", false, true),
+                otherOperator,
+                Decision.REJECTED,
+                Instant.parse("2026-07-30T01:00:00Z")
+        );
+
+        OperatorStatistics statistics = service.forOperator(
+                operatorId,
+                Instant.parse("2026-07-29T00:00:00Z"),
+                Instant.parse("2026-07-30T00:00:00Z")
+        );
+
+        assertThat(statistics.today()).isEqualTo(1);
+        assertThat(statistics.retainedTotal()).isEqualTo(4);
+        assertThat(statistics.periodTotal()).isEqualTo(3);
+        assertThat(statistics.accepted()).isEqualTo(2);
+        assertThat(statistics.rejected()).isEqualTo(1);
+        assertThat(statistics.acceptedPercent()).isEqualByComparingTo(new BigDecimal("66.67"));
+        assertThat(statistics.rejectedPercent()).isEqualByComparingTo(new BigDecimal("33.33"));
+
+        OperatorStatistics emptyPeriod = service.forOperator(
+                operatorId,
+                Instant.parse("2026-07-25T00:00:00Z"),
+                Instant.parse("2026-07-26T00:00:00Z")
+        );
+        assertThat(emptyPeriod.periodTotal()).isZero();
+        assertThat(emptyPeriod.acceptedPercent()).isEqualByComparingTo("0.00");
+        assertThat(emptyPeriod.rejectedPercent()).isEqualByComparingTo("0.00");
+    }
+
+    @Test
+    void retentionDeletesOnlyDatabaseRecordsOlderThanSevenDays() throws Exception {
+        Instant now = Instant.parse("2026-07-30T12:00:00Z");
+        Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
+        RetentionCleanupService service =
+                new RetentionCleanupService(namedJdbc, properties, fixedClock);
+        String oldImageId = insertImage(
+                80,
+                now.minus(properties.retention()).minusSeconds(1),
+                "bj_igt",
+                "old-session",
+                false,
+                true
+        );
+        String boundaryImageId = insertImage(
+                81,
+                now.minus(properties.retention()),
+                "bj_igt",
+                "boundary-session",
+                false,
+                true
+        );
+        Path physicalFile = temporaryDirectory.resolve(oldImageId + ".png");
+        Files.writeString(physicalFile, "not touched by retention");
+
+        int deleted = service.runOnce();
+
+        assertThat(deleted).isEqualTo(1);
+        assertThat(rowCount("image_asset", oldImageId)).isZero();
+        assertThat(rowCount("review_task", oldImageId)).isZero();
+        assertThat(rowCount("image_asset", boundaryImageId)).isOne();
+        assertThat(rowCount("review_task", boundaryImageId)).isOne();
+        assertThat(physicalFile).exists();
+    }
+
     private Boolean tableExists(String tableName) {
         return jdbc.queryForObject(
                 "select to_regclass('public." + tableName + "') is not null",
@@ -232,6 +361,38 @@ class ReviewWorkflowTest {
                 id
         );
         return id;
+    }
+
+    private void completeReview(
+            String imageId,
+            UUID operatorId,
+            Decision decision,
+            Instant reviewedAt
+    ) {
+        jdbc.update("""
+                UPDATE review_task
+                SET status = 'COMPLETED',
+                    assigned_to = ?,
+                    assigned_at = ?,
+                    decision = ?,
+                    reviewed_at = ?
+                WHERE image_id = ?
+                """,
+                operatorId,
+                Timestamp.from(reviewedAt.minusSeconds(30)),
+                decision.name(),
+                Timestamp.from(reviewedAt),
+                imageId
+        );
+    }
+
+    private long rowCount(String tableName, String imageId) {
+        String idColumn = "image_asset".equals(tableName) ? "id" : "image_id";
+        return jdbc.queryForObject(
+                "SELECT count(*) FROM " + tableName + " WHERE " + idColumn + " = ?",
+                Long.class,
+                imageId
+        );
     }
 
     private List<Optional<ReviewItem>> claimConcurrently(UUID first, UUID second) throws Exception {

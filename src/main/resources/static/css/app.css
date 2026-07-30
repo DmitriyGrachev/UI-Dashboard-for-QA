@@ -501,6 +501,210 @@ select:focus-visible {
     font-size: 12px;
 }
 
+.statistics-shell {
+    max-width: 1280px;
+}
+
+.statistics-main {
+    padding: 48px 0;
+}
+
+.statistics-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 32px;
+    padding-bottom: 28px;
+    border-bottom: 1px solid var(--line);
+}
+
+.statistics-heading h1,
+.decision-breakdown h2 {
+    margin: 7px 0 0;
+    font-family: Bahnschrift, "Arial Narrow", sans-serif;
+    font-weight: 600;
+}
+
+.statistics-heading h1 {
+    font-size: clamp(28px, 4vw, 46px);
+    letter-spacing: -0.025em;
+}
+
+.statistics-heading p {
+    margin: 10px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.period-form {
+    display: flex;
+    align-items: end;
+    gap: 12px;
+}
+
+.period-form label {
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.period-form input {
+    display: block;
+    height: 40px;
+    margin-top: 7px;
+    padding: 0 11px;
+    border: 1px solid var(--line);
+    border-radius: 0;
+    background: var(--ink-900);
+    color: var(--text);
+}
+
+.period-form .button {
+    height: 40px;
+}
+
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    margin-top: 28px;
+    border: 1px solid var(--line);
+    background: var(--line);
+}
+
+.metric-card {
+    min-height: 190px;
+    padding: 28px;
+    background: var(--ink-900);
+}
+
+.metric-card.signal-card {
+    box-shadow: inset 3px 0 var(--signal);
+}
+
+.metric-card span,
+.metric-card strong,
+.metric-card small {
+    display: block;
+}
+
+.metric-card span {
+    color: var(--muted);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.metric-card strong {
+    margin-top: 20px;
+    font-family: Bahnschrift, "Arial Narrow", sans-serif;
+    font-size: clamp(52px, 7vw, 78px);
+    font-weight: 600;
+    line-height: 0.9;
+}
+
+.metric-card small {
+    margin-top: 18px;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.decision-breakdown {
+    margin-top: 24px;
+    padding: 28px;
+    border: 1px solid var(--line);
+    background: var(--ink-900);
+}
+
+.decision-breakdown > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 26px;
+}
+
+.decision-breakdown h2 {
+    font-size: 22px;
+}
+
+.total-chip {
+    padding: 9px 12px;
+    border: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+}
+
+.total-chip strong {
+    margin-left: 8px;
+    color: var(--text);
+    font-size: 15px;
+}
+
+.decision-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 0.7fr) minmax(180px, 2fr) 80px;
+    align-items: center;
+    gap: 22px;
+    padding: 18px 0;
+    border-top: 1px solid var(--line);
+}
+
+.decision-row > div:first-child {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.decision-row span {
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.decision-row strong,
+.decision-row output {
+    font-family: Consolas, "Courier New", monospace;
+}
+
+.decision-row strong {
+    font-size: 21px;
+}
+
+.decision-row output {
+    text-align: right;
+    font-size: 16px;
+}
+
+.share-track {
+    height: 8px;
+    overflow: hidden;
+    background: var(--ink-800);
+}
+
+.share-track span {
+    width: var(--share);
+    height: 100%;
+    display: block;
+}
+
+.accepted-row .share-track span {
+    background: var(--accept);
+}
+
+.rejected-row .share-track span {
+    background: var(--reject);
+}
+
+.retention-note {
+    margin: 18px 0 0;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+}
+
 @media (max-width: 1180px) {
     .filter-strip {
         grid-template-columns: 1fr;
@@ -575,6 +779,32 @@ select:focus-visible {
     .verdict {
         flex: 1 1 220px;
     }
+
+    .statistics-main {
+        padding: 30px 0;
+    }
+
+    .statistics-heading {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .period-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .period-form .button {
+        grid-column: 1 / -1;
+    }
+
+    .metric-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .metric-card {
+        min-height: 150px;
+    }
 }
 
 @media (max-width: 520px) {
@@ -589,6 +819,23 @@ select:focus-visible {
 
     .filter-actions .button {
         flex: 1;
+    }
+
+    .period-form,
+    .decision-row {
+        grid-template-columns: 1fr;
+    }
+
+    .decision-breakdown {
+        padding: 20px;
+    }
+
+    .decision-row {
+        gap: 12px;
+    }
+
+    .decision-row output {
+        text-align: left;
     }
 }
 

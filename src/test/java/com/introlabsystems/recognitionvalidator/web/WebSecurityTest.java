@@ -74,6 +74,12 @@ class WebSecurityTest {
         mockMvc.perform(get("/api/images/missing/content"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string("Location", endsWith("/login")));
+        mockMvc.perform(get("/statistics"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", endsWith("/login")));
+        mockMvc.perform(get("/api/statistics/me"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(header().string("Location", endsWith("/login")));
     }
 
     @Test
@@ -230,6 +236,26 @@ class WebSecurityTest {
         mockMvc.perform(get("/api/images/{imageId}/content", escaping)
                         .with(user(principal)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void statisticsPageAndApiRenderForAuthenticatedOperator() throws Exception {
+        UUID operatorId = insertOperator("statistics-operator", "password");
+        OperatorPrincipal principal = principal(operatorId, "statistics-operator");
+
+        mockMvc.perform(get("/statistics")
+                        .with(user(principal)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Статистика оператора")))
+                .andExpect(content().string(containsString("statistics-operator")));
+        mockMvc.perform(get("/api/statistics/me")
+                        .param("from", "2026-07-29")
+                        .param("to", "2026-07-30")
+                        .with(user(principal)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.today").value(0))
+                .andExpect(jsonPath("$.periodTotal").value(0))
+                .andExpect(jsonPath("$.acceptedPercent").value(0.00));
     }
 
     private UUID insertOperator(String username, String password) {
