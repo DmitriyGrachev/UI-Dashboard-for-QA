@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: recognition-validator-app
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/recognition_validator}
+    username: ${DB_USERNAME:validator}
+    password: ${DB_PASSWORD:validator}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+  servlet:
+    session:
+      timeout: 24h
+
+validator:
+  image-root: ${VALIDATOR_IMAGE_ROOT:./data/images}
+  batch-size: 1000
+  lease-duration: 30m
+  retention: 7d
+  watch-enabled: true
+  games:
+    - bj_xchange
+    - bj_relax
+    - bj_igt
+    - bj_playtech
+    - bj_netent
+    - bj_poker_and_pairs
+    - bj_first_person
+    - bj_black_throne
+    - bj_double_deck_black_throne
+    - bj_single_deck_ags
+    - bj_side_bets_ags
+    - bj_atlantic_city
+    - bj_multihand_play_n_go

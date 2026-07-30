@@ -1,0 +1,12 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/recognition_validator_test
+    username: validator
+    password: validator
+
+validator:
+  image-root: ./target/test-images
+  batch-size: 10
+  lease-duration: 30m
+  retention: 7d
+  watch-enabled: false

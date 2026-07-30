@@ -1,0 +1,35 @@
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: recognition_validator
+      POSTGRES_USER: validator
+      POSTGRES_PASSWORD: validator
+    ports:
+      - "5432:5432"
+    volumes:
+      - recognition-validator-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U validator -d recognition_validator"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-test:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: recognition_validator_test
+      POSTGRES_USER: validator
+      POSTGRES_PASSWORD: validator
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U validator -d recognition_validator_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+volumes:
+  recognition-validator-postgres:
