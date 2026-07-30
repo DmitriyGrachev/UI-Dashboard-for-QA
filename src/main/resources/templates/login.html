@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Recognition Validator — вход</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            font-family: Inter, system-ui, sans-serif;
+            background: #10131a;
+            color: #f5f7fb;
+        }
+        body {
+            min-height: 100vh;
+            margin: 0;
+            display: grid;
+            place-items: center;
+        }
+        main {
+            width: min(360px, calc(100% - 40px));
+            padding: 32px;
+            border: 1px solid #2a3140;
+            border-radius: 16px;
+            background: #181d27;
+        }
+        h1 { margin-top: 0; font-size: 24px; }
+        label, input, button { display: block; width: 100%; box-sizing: border-box; }
+        label { margin-top: 18px; color: #bac3d4; }
+        input {
+            margin-top: 8px;
+            padding: 12px;
+            border: 1px solid #39445a;
+            border-radius: 9px;
+            background: #0f131b;
+            color: inherit;
+        }
+        button {
+            margin-top: 24px;
+            padding: 12px;
+            border: 0;
+            border-radius: 9px;
+            background: #5e8cff;
+            color: white;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .message { color: #ff9a9a; }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Вход оператора</h1>
+    <p class="message" th:if="${param.error}">Неверный логин или пароль.</p>
+    <p th:if="${param.logout}">Сессия завершена.</p>
+    <form method="post" th:action="@{/login}">
+        <label>
+            Логин
+            <input name="username" autocomplete="username" required autofocus>
+        </label>
+        <label>
+            Пароль
+            <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Войти</button>
+    </form>
+</main>
+</body>
+</html>
