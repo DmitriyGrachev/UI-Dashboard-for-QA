@@ -118,6 +118,11 @@
                     body: JSON.stringify({decision})
                 }
             );
+            if (response.status === 409) {
+                state.item = null;
+                await claim();
+                return;
+            }
             if (!response.ok) {
                 throw new Error(await errorMessage(response));
             }
@@ -154,7 +159,7 @@
         setText(elements.activeCards, item.activeUserCards);
         setText(elements.inactiveCards, item.inactiveUserCards);
         setText(elements.notificationValue, item.notification ? "Yes" : "No");
-        setText(elements.buttons, item.buttonsRaw);
+        setText(elements.buttons, item.notification ? null : item.buttonsRaw);
         setText(elements.flags, actionFlags(item));
         setText(elements.parseStatus, item.parseStatus);
         elements.viewerMessage.hidden = true;
