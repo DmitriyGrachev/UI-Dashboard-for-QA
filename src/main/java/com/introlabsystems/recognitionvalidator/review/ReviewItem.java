@@ -19,6 +19,7 @@ public record ReviewItem(
         boolean hit,
         boolean doubleAction,
         boolean split,
+        boolean surrender,
         Instant fileCreatedAt,
         Instant processedAt,
         Long recognitionDurationMs,

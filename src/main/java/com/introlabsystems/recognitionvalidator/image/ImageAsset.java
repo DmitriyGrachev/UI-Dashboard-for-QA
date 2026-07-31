@@ -94,6 +94,13 @@ public class ImageAsset {
     @Column(name = "has_split", nullable = false)
     private boolean split;
 
+    @Column(
+            name = "has_surrender",
+            nullable = false,
+            columnDefinition = "boolean default false"
+    )
+    private boolean surrender;
+
     @Column(name = "processed_at")
     private Instant processedAt;
 
@@ -281,6 +288,14 @@ public class ImageAsset {
 
     public void setSplit(boolean split) {
         this.split = split;
+    }
+
+    public boolean hasSurrender() {
+        return surrender;
+    }
+
+    public void setSurrender(boolean surrender) {
+        this.surrender = surrender;
     }
 
     public Instant getProcessedAt() {

@@ -24,6 +24,9 @@ class ImageIndexingTest {
 
     private static final String VALID_FILE = "bj_igt_39_850746c3-874d-495d-aefa-5ea3636cfb51"
             + "_u_Jack_bSbH_27-07-2026-22-48-01_754.png";
+    private static final String SURRENDER_FILE = "bj_double_deck_black_throne_36_"
+            + "2e8c1326-fb86-4c51-8e45-8bc65e6d33ee"
+            + "_d_Four_u_Nine_Seven_bSbHbDbSR_27-07-2026-12-36-56_481.png";
 
     @TempDir
     private Path imageRoot;
@@ -116,5 +119,38 @@ class ImageIndexingTest {
 
         assertThat(taskRepository.findById(imageId).orElseThrow().getStatus())
                 .isEqualTo(ReviewStatus.COMPLETED);
+    }
+
+    @Test
+    void fileEventsIndexCreatedMarkDeletedAndRecoverAfterOverflow() throws Exception {
+        ImageFileEventHandler eventHandler = new ImageFileEventHandler(indexer);
+        Path file = imageRoot.resolve(VALID_FILE);
+
+        Files.write(file, new byte[]{1});
+        eventHandler.created(file);
+        ImageAsset created = imageRepository.findAll().getFirst();
+        assertThat(created.isFileAvailable()).isTrue();
+
+        Files.delete(file);
+        eventHandler.deleted(file);
+        assertThat(imageRepository.findById(created.getId()).orElseThrow().isFileAvailable())
+                .isFalse();
+
+        Files.write(file, new byte[]{2});
+        eventHandler.overflow();
+        assertThat(imageRepository.findById(created.getId()).orElseThrow().isFileAvailable())
+                .isTrue();
+    }
+
+    @Test
+    void reindexBackfillsSurrenderForExistingMetadata() throws Exception {
+        Files.write(imageRoot.resolve(SURRENDER_FILE), new byte[]{1});
+        indexer.scanRoot();
+        String imageId = imageRepository.findAll().getFirst().getId();
+        jdbc.update("UPDATE image_asset SET has_surrender = FALSE WHERE id = ?", imageId);
+
+        indexer.scanRoot();
+
+        assertThat(imageRepository.findById(imageId).orElseThrow().hasSurrender()).isTrue();
     }
 }

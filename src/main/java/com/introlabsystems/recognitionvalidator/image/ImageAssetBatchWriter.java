@@ -23,21 +23,22 @@ public class ImageAssetBatchWriter {
                 discovered_at, last_seen_at, file_available, game_code, token_id,
                 session_uuid, session_id, dealer_cards, active_user_cards,
                 inactive_user_cards, payload_raw, buttons_raw, is_notification,
-                has_stand, has_hit, has_double, has_split, processed_at,
-                recognition_duration_ms, parse_status
+                has_stand, has_hit, has_double, has_split, has_surrender,
+                processed_at, recognition_duration_ms, parse_status
             ) VALUES (
                 :id, :fileName, :relativePath, :fileCreatedAt, :fileModifiedAt,
                 :discoveredAt, :lastSeenAt, TRUE, :gameCode, :tokenId,
                 :sessionUuid, :sessionId, :dealerCards, :activeUserCards,
                 :inactiveUserCards, :payloadRaw, :buttonsRaw, :notification,
-                :stand, :hit, :doubleAction, :split, :processedAt,
-                :recognitionDurationMs, :parseStatus
+                :stand, :hit, :doubleAction, :split, :surrender,
+                :processedAt, :recognitionDurationMs, :parseStatus
             )
             ON CONFLICT (id) DO UPDATE SET
                 file_name = EXCLUDED.file_name,
                 file_modified_at = EXCLUDED.file_modified_at,
                 last_seen_at = EXCLUDED.last_seen_at,
-                file_available = TRUE
+                file_available = TRUE,
+                has_surrender = EXCLUDED.has_surrender
             """;
     private static final String INSERT_TASK = """
             INSERT INTO review_task (image_id, status)
@@ -125,6 +126,7 @@ public class ImageAssetBatchWriter {
                 .addValue("hit", metadata.hit())
                 .addValue("doubleAction", metadata.doubleAction())
                 .addValue("split", metadata.split())
+                .addValue("surrender", metadata.surrender())
                 .addValue("processedAt", timestamp(metadata.processedAt()))
                 .addValue("recognitionDurationMs", metadata.recognitionDurationMs())
                 .addValue("parseStatus", metadata.parseStatus().name());

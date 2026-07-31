@@ -87,6 +87,7 @@ public class FilenameParser {
                 fields.hit(),
                 fields.doubleAction(),
                 fields.split(),
+                fields.surrender(),
                 processedAt,
                 duration,
                 fields.partial() ? ParseStatus.PARTIAL : ParseStatus.SUCCESS
@@ -138,6 +139,7 @@ public class FilenameParser {
         private boolean hit;
         private boolean doubleAction;
         private boolean split;
+        private boolean surrender;
         private boolean partial;
 
         void addCards(CardGroup group, String value) {
@@ -162,9 +164,7 @@ public class FilenameParser {
                     case "bH" -> hit = true;
                     case "bD" -> doubleAction = true;
                     case "bP" -> split = true;
-                    case "bSR" -> {
-                        // Raw code is intentionally preserved without invented semantics.
-                    }
+                    case "bSR" -> surrender = true;
                     default -> partial = true;
                 }
             }
@@ -184,6 +184,7 @@ public class FilenameParser {
                     hit,
                     doubleAction,
                     split,
+                    surrender,
                     partial
             );
         }
@@ -210,6 +211,7 @@ public class FilenameParser {
             boolean hit,
             boolean doubleAction,
             boolean split,
+            boolean surrender,
             boolean partial
     ) {
     }

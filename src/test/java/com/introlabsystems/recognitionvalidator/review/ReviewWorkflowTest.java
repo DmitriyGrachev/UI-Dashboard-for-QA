@@ -214,6 +214,32 @@ class ReviewWorkflowTest {
     }
 
     @Test
+    void firstRejectedDecisionIsStoredAndCompletesTask() {
+        UUID operatorId = insertOperator("rejected");
+        String imageId = insertImage(61, Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt", "session", false, true);
+        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+
+        decisionService.decide(imageId, operatorId, Decision.REJECTED);
+
+        assertThat(jdbc.queryForObject(
+                "select decision from review_task where image_id = ?",
+                String.class,
+                imageId
+        )).isEqualTo("REJECTED");
+        assertThat(jdbc.queryForObject(
+                "select status from review_task where image_id = ?",
+                String.class,
+                imageId
+        )).isEqualTo("COMPLETED");
+        assertThat(jdbc.queryForObject(
+                "select reviewed_at is not null from review_task where image_id = ?",
+                Boolean.class,
+                imageId
+        )).isTrue();
+    }
+
+    @Test
     void calculatesUtcOperatorStatisticsForSelectedPeriod() {
         Clock fixedClock = Clock.fixed(
                 Instant.parse("2026-07-30T12:00:00Z"),

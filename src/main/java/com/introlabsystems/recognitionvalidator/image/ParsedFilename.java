@@ -18,6 +18,7 @@ public record ParsedFilename(
         boolean hit,
         boolean doubleAction,
         boolean split,
+        boolean surrender,
         Instant processedAt,
         Long recognitionDurationMs,
         ParseStatus parseStatus
@@ -31,7 +32,7 @@ public record ParsedFilename(
         return new ParsedFilename(
                 gameCode, null, null, null,
                 null, null, null, null, null,
-                false, false, false, false, false,
+                false, false, false, false, false, false,
                 null, null, ParseStatus.ERROR
         );
     }

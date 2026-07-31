@@ -2,26 +2,32 @@ package com.introlabsystems.recognitionvalidator.web;
 
 import com.introlabsystems.recognitionvalidator.auth.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
+import com.introlabsystems.recognitionvalidator.image.ImageIndexer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.context.ActiveProfiles;
+import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.util.FileSystemUtils;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Timestamp;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -45,6 +51,12 @@ class WebSecurityTest {
 
     @Autowired
     private ValidatorProperties properties;
+
+    @Autowired
+    private ImageIndexer imageIndexer;
+
+    @Autowired
+    private ServerProperties serverProperties;
 
     private Path imageRoot;
 
@@ -107,6 +119,56 @@ class WebSecurityTest {
     }
 
     @Test
+    void disabledOperatorCannotLogIn() throws Exception {
+        UUID operatorId = insertOperator("disabled", "correct-password");
+        jdbc.update("UPDATE app_user SET enabled = FALSE WHERE id = ?", operatorId);
+
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "disabled")
+                        .param("password", "correct-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?error"));
+    }
+
+    @Test
+    void logoutInvalidatesTheOperatorSession() throws Exception {
+        insertOperator("logout-operator", "password");
+        MvcResult login = mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "logout-operator")
+                        .param("password", "password"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        MockHttpSession session = (MockHttpSession) login.getRequest().getSession(false);
+
+        mockMvc.perform(post("/logout")
+                        .session(session)
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?logout"));
+
+        assertThat(session.isInvalid()).isTrue();
+    }
+
+    @Test
+    void sessionTimeoutIsConfiguredForTwentyFourHours() {
+        assertThat(serverProperties.getServlet().getSession().getTimeout())
+                .isEqualTo(Duration.ofHours(24));
+    }
+
+    @Test
+    void authenticatedPostWithoutCsrfIsRejected() throws Exception {
+        UUID operatorId = insertOperator("csrf-operator", "password");
+
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal(operatorId, "csrf-operator")))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void claimReturnsParsedMetadataWithoutAbsolutePath() throws Exception {
         UUID operatorId = insertOperator("api-operator", "password");
         String imageId = insertReviewImage(
@@ -137,6 +199,26 @@ class WebSecurityTest {
     }
 
     @Test
+    void claimExposesParsedSurrenderFlag() throws Exception {
+        UUID operatorId = insertOperator("surrender-operator", "password");
+        String fileName = "bj_double_deck_black_throne_36_"
+                + "2e8c1326-fb86-4c51-8e45-8bc65e6d33ee"
+                + "_d_Four_u_Nine_Seven_bSbHbDbSR_27-07-2026-12-36-56_481.png";
+        Files.write(imageRoot.resolve(fileName), new byte[]{1, 2, 3});
+        imageIndexer.scanRoot();
+
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal(operatorId, "surrender-operator")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fileName").value(fileName))
+                .andExpect(jsonPath("$.buttonsRaw").value("bSbHbDbSR"))
+                .andExpect(jsonPath("$.surrender").value(true));
+    }
+
+    @Test
     void emptyQueueReturnsNoContent() throws Exception {
         UUID operatorId = insertOperator("empty-operator", "password");
 
@@ -163,7 +245,7 @@ class WebSecurityTest {
                         .content("{}"))
                 .andExpect(status().isOk());
 
-        String decision = "{\"decision\":\"ACCEPTED\"}";
+        String decision = "{\"decision\":\"REJECTED\"}";
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
                         .with(user(principal))
                         .with(csrf())
@@ -174,7 +256,7 @@ class WebSecurityTest {
                         .with(user(principal))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(decision))
+                        .content("{\"decision\":\"ACCEPTED\"}"))
                 .andExpect(status().isConflict());
     }
 

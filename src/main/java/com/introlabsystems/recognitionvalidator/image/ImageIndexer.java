@@ -157,6 +157,7 @@ public class ImageIndexer {
                 parsed.hit(),
                 parsed.doubleAction(),
                 parsed.split(),
+                parsed.surrender(),
                 parsed.processedAt(),
                 parsed.recognitionDurationMs(),
                 parsed.parseStatus()

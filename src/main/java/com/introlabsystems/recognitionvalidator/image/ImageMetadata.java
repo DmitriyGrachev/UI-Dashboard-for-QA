@@ -25,6 +25,7 @@ public record ImageMetadata(
         boolean hit,
         boolean doubleAction,
         boolean split,
+        boolean surrender,
         Instant processedAt,
         Long recognitionDurationMs,
         ParseStatus parseStatus

@@ -24,7 +24,7 @@ public class ReviewClaimRepository {
                    ia.dealer_cards, ia.active_user_cards, ia.inactive_user_cards,
                    ia.payload_raw, ia.buttons_raw, ia.is_notification,
                    ia.has_stand, ia.has_hit, ia.has_double, ia.has_split,
-                   ia.file_created_at, ia.processed_at,
+                   ia.has_surrender, ia.file_created_at, ia.processed_at,
                    ia.recognition_duration_ms, ia.parse_status
             FROM review_task rt
             JOIN image_asset ia ON ia.id = rt.image_id
@@ -195,6 +195,7 @@ public class ReviewClaimRepository {
                 resultSet.getBoolean("has_hit"),
                 resultSet.getBoolean("has_double"),
                 resultSet.getBoolean("has_split"),
+                resultSet.getBoolean("has_surrender"),
                 resultSet.getTimestamp("file_created_at").toInstant(),
                 processedAt == null ? null : processedAt.toInstant(),
                 resultSet.getObject("recognition_duration_ms", Long.class),

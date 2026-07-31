@@ -203,6 +203,7 @@
         if (item.hit) values.push("hit");
         if (item.doubleAction) values.push("double");
         if (item.split) values.push("split");
+        if (item.surrender) values.push("surrender");
         return values.length ? values.join(" · ") : "—";
     }
 
