@@ -19,12 +19,24 @@ public final class OperatorPrincipal implements UserDetails, Serializable {
     private final String username;
     private final String password;
     private final boolean enabled;
+    private final UserRole role;
 
     public OperatorPrincipal(UUID id, String username, String password, boolean enabled) {
+        this(id, username, password, enabled, UserRole.OPERATOR);
+    }
+
+    public OperatorPrincipal(
+            UUID id,
+            String username,
+            String password,
+            boolean enabled,
+            UserRole role
+    ) {
         this.id = id;
         this.username = username;
         this.password = password;
         this.enabled = enabled;
+        this.role = role;
     }
 
     public UUID id() {
@@ -33,7 +45,7 @@ public final class OperatorPrincipal implements UserDetails, Serializable {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_OPERATOR"));
+        return List.of(new SimpleGrantedAuthority("ROLE_" + role.name()));
     }
 
     @Override

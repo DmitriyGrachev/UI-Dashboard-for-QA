@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Operator management — Recognition Validator</title>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body>
+<div class="app-shell admin-shell">
+    <header class="topbar">
+        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
+            <span class="brand-mark" aria-hidden="true">RV</span>
+            <span>
+                <strong>Recognition Validator</strong>
+                <small>Admin control desk</small>
+            </span>
+        </a>
+        <nav class="topbar-actions" aria-label="Navigation">
+            <span class="signed-in-user" th:text="${adminName}">admin</span>
+            <form method="post" th:action="@{/logout}">
+                <button class="link-button" type="submit">Sign out</button>
+            </form>
+        </nav>
+    </header>
+
+    <main class="admin-main">
+        <header class="admin-heading">
+            <div>
+                <span class="section-kicker">Access and output</span>
+                <h1>Operator management</h1>
+                <p>
+                    Manage operator access and compare completed reviews from the last 7 days.
+                    Time boundaries use UTC.
+                </p>
+            </div>
+            <div class="retention-badge">
+                <span>Statistics window</span>
+                <strong>7 days</strong>
+            </div>
+        </header>
+
+        <p class="admin-notice success" th:if="${param.created}">
+            Operator created. Share the temporary password securely.
+        </p>
+        <p class="admin-notice success" th:if="${param.deactivated}">
+            Operator deactivated and unfinished work returned to the queue.
+        </p>
+        <p class="admin-notice success" th:if="${param.restored}">
+            Operator access restored.
+        </p>
+        <p class="admin-notice success" th:if="${param.passwordChanged}">
+            Password changed. Existing operator sessions were closed.
+        </p>
+        <p class="admin-notice error" th:if="${param.error != null and param.error[0] == 'username'}">
+            Enter a unique username.
+        </p>
+        <p class="admin-notice error" th:if="${param.error != null and param.error[0] == 'password'}">
+            Password must contain at least 8 characters.
+        </p>
+        <p class="admin-notice error" th:if="${param.error != null and param.error[0] == 'operator'}">
+            The selected operator is no longer available.
+        </p>
+
+        <div class="admin-layout">
+            <aside class="admin-create-panel" aria-labelledby="create-operator-title">
+                <span class="section-kicker">New account</span>
+                <h2 id="create-operator-title">Create operator</h2>
+                <p>
+                    New accounts can review screenshots immediately. Administrators are created
+                    only from the server.
+                </p>
+                <form class="admin-create-form" method="post" th:action="@{/admin/operators}">
+                    <label>
+                        Username
+                        <input type="text"
+                               name="username"
+                               maxlength="100"
+                               autocomplete="off"
+                               required>
+                    </label>
+                    <label>
+                        Temporary password
+                        <input type="password"
+                               name="password"
+                               minlength="8"
+                               maxlength="100"
+                               autocomplete="new-password"
+                               required>
+                    </label>
+                    <button class="button primary" type="submit">Create operator</button>
+                </form>
+            </aside>
+
+            <section class="operator-roster" aria-labelledby="operator-roster-title">
+                <header class="roster-heading">
+                    <div>
+                        <span class="section-kicker">Current roster</span>
+                        <h2 id="operator-roster-title">Operators</h2>
+                    </div>
+                    <span class="operator-count">
+                        Accounts
+                        <strong th:text="${#lists.size(operators)}">0</strong>
+                    </span>
+                </header>
+
+                <div class="table-scroll" th:if="${not #lists.isEmpty(operators)}">
+                    <table class="operator-table">
+                        <thead>
+                        <tr>
+                            <th scope="col">Operator</th>
+                            <th scope="col">Status</th>
+                            <th scope="col">Today</th>
+                            <th scope="col">Last 7 days</th>
+                            <th scope="col">Accepted</th>
+                            <th scope="col">Rejected</th>
+                            <th scope="col">Actions</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        <tr th:each="operator : ${operators}"
+                            th:classappend="${operator.enabled()} ? '' : 'is-disabled'"
+                            th:attr="data-operator=${operator.username()},
+                                     data-today=${operator.today()},
+                                     data-total=${operator.total()},
+                                     data-accepted=${operator.accepted()},
+                                     data-rejected=${operator.rejected()}">
+                            <th scope="row">
+                                <span class="operator-avatar"
+                                      th:text="${#strings.substring(operator.username(), 0, 1).toUpperCase()}">O</span>
+                                <span class="operator-identity">
+                                    <strong th:text="${operator.username()}">operator</strong>
+                                    <small th:text="${operator.operatorId()}">UUID</small>
+                                </span>
+                            </th>
+                            <td>
+                                <span class="status-pill"
+                                      th:classappend="${operator.enabled()} ? 'active' : 'inactive'"
+                                      th:text="${operator.enabled()} ? 'Active' : 'Inactive'">
+                                    Active
+                                </span>
+                            </td>
+                            <td class="number-cell" th:text="${operator.today()}">0</td>
+                            <td class="number-cell total-cell" th:text="${operator.total()}">0</td>
+                            <td class="number-cell accepted-cell" th:text="${operator.accepted()}">0</td>
+                            <td class="number-cell rejected-cell" th:text="${operator.rejected()}">0</td>
+                            <td>
+                                <div class="operator-actions">
+                                    <details class="password-reset">
+                                        <summary>Change password</summary>
+                                        <form method="post"
+                                              th:action="@{/admin/operators/{id}/password(id=${operator.operatorId()})}">
+                                            <label>
+                                                New password
+                                                <input type="password"
+                                                       name="password"
+                                                       minlength="8"
+                                                       maxlength="100"
+                                                       autocomplete="new-password"
+                                                       required>
+                                            </label>
+                                            <button class="button secondary" type="submit">
+                                                Save password
+                                            </button>
+                                        </form>
+                                    </details>
+                                    <form th:if="${operator.enabled()}"
+                                          method="post"
+                                          th:action="@{/admin/operators/{id}/deactivate(id=${operator.operatorId()})}">
+                                        <button class="action-button danger" type="submit">Deactivate</button>
+                                    </form>
+                                    <form th:unless="${operator.enabled()}"
+                                          method="post"
+                                          th:action="@{/admin/operators/{id}/restore(id=${operator.operatorId()})}">
+                                        <button class="action-button restore" type="submit">Restore</button>
+                                    </form>
+                                </div>
+                            </td>
+                        </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="admin-empty" th:if="${#lists.isEmpty(operators)}">
+                    <strong>No operator accounts yet</strong>
+                    <p>Create the first operator using the form on the left.</p>
+                </div>
+            </section>
+        </div>
+
+        <section class="workload-panel" aria-labelledby="workload-title">
+            <header>
+                <div>
+                    <span class="section-kicker">Workload comparison</span>
+                    <h2 id="workload-title">Reviews in the last 7 days</h2>
+                </div>
+                <p>Relative to the most active operator</p>
+            </header>
+            <div class="workload-list" th:if="${not #lists.isEmpty(operators)}">
+                <div class="workload-row" th:each="operator : ${operators}">
+                    <span th:text="${operator.username()}">operator</span>
+                    <div class="workload-track" aria-hidden="true">
+                        <i th:style="|--workload: ${operator.barPercent()}%|"></i>
+                    </div>
+                    <strong th:text="${operator.total()}">0</strong>
+                </div>
+            </div>
+            <p class="admin-empty compact" th:if="${#lists.isEmpty(operators)}">
+                Workload data will appear after operators complete reviews.
+            </p>
+        </section>
+    </main>
+</div>
+</body>
+</html>

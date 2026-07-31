@@ -6,8 +6,11 @@ MVP QA-застосунку для ручної перевірки резуль�
 
 ## Що реалізовано
 
-- вхід оператора через звичайну сесію Spring Security та BCrypt;
+- вхід оператора й адміністратора через звичайну сесію Spring Security та BCrypt;
 - сесія тривалістю 24 години;
+- розмежування доступу за ролями `ADMIN` і `OPERATOR`;
+- адміністрування операторів: створення, деактивація, відновлення та зміна пароля;
+- адміністративна статистика операторів за останні 7 днів;
 - первинна індексація наявних PNG з однієї папки;
 - відстеження створення та видалення файлів через `WatchService`;
 - розбір гри, session ID, карт, кнопок, часу OCR і duration з імені PNG;
@@ -60,19 +63,19 @@ $env:DB_PASSWORD='validator'
 .\mvnw.cmd spring-boot:run
 ```
 
-Перший запуск створить таблиці через Hibernate `ddl-auto=update`. Flyway у проєкті
-не використовується. Поки застосунок працює, у другому вікні PowerShell створити
-оператора:
+Перший запуск створить таблиці через Hibernate `ddl-auto=update`. Поки застосунок працює, у другому вікні PowerShell створити
+першого адміністратора:
 
 ```powershell
-$validatorPasswordHash = .\mvnw.cmd -q org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=com.introlabsystems.recognitionvalidator.auth.PasswordHashCli" "-Dexec.args=change-me" | Select-Object -Last 1
-$validatorUserId = [guid]::NewGuid()
-$validatorSql = "INSERT INTO app_user (id, username, password_hash, enabled, created_at) VALUES ('$validatorUserId', 'operator', '$validatorPasswordHash', TRUE, now());"
-docker compose exec -T postgres psql -U validator -d recognition_validator -v ON_ERROR_STOP=1 -c $validatorSql
+$adminPasswordHash = .\mvnw.cmd -q org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=com.introlabsystems.recognitionvalidator.auth.PasswordHashCli" "-Dexec.args=change-me-now" | Select-Object -Last 1
+$adminUserId = [guid]::NewGuid()
+$adminSql = "INSERT INTO app_user (id, username, password_hash, enabled, role, created_at) VALUES ('$adminUserId', 'admin', '$adminPasswordHash', TRUE, 'ADMIN', now());"
+docker compose exec -T postgres psql -U validator -d recognition_validator -v ON_ERROR_STOP=1 -c $adminSql
 ```
 
 Після цього відкрити [http://localhost:8080/login](http://localhost:8080/login) і
-увійти як `operator` з паролем `change-me`.
+увійти як `admin` з паролем `change-me-now`. На сторінці `/admin` створити
+операторів та передати їм тимчасові паролі безпечним каналом.
 
 ## Тести
 
@@ -109,6 +112,7 @@ docker compose exec postgres-test pg_isready -U validator -d recognition_validat
 ## Основні URL
 
 - `/login` — вхід;
+- `/admin` — керування операторами та статистика за останні 7 днів;
 - `/review` — черга, фільтри та рішення;
 - `/statistics` — особиста статистика;
 - `POST /api/review-tasks/claim` — отримати поточне/наступне завдання;
@@ -119,9 +123,9 @@ docker compose exec postgres-test pg_isready -U validator -d recognition_validat
 ## Обмеження MVP
 
 - підтримується один плоский каталог і формат PNG;
-- оператори додаються безпосередньо до БД, адміністративного UI немає;
 - рішення одного оператора остаточне;
-- ролі та аудит змін користувачів не реалізовані;
+- адміністратори створюються безпосередньо в БД; UI створює лише операторів;
+- аудит адміністративних змін не реалізований;
 - застосунок не виконує OCR і не читає карти із зображення — він лише парсить уже
   розпізнані значення з імені файлу;
 - невідомі ігри та невідповідні файли не потрапляють до черги;

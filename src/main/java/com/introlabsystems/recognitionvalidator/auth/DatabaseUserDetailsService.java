@@ -24,7 +24,8 @@ public class DatabaseUserDetailsService implements UserDetailsService {
                 user.getId(),
                 user.getUsername(),
                 user.getPasswordHash(),
-                user.isEnabled()
+                user.isEnabled(),
+                user.getRole()
         );
     }
 }

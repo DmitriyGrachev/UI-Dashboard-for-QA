@@ -76,6 +76,15 @@ class WebSecurityTest {
     }
 
     @Test
+    void loginPageExplainsExpiredSession() throws Exception {
+        mockMvc.perform(get("/login").param("expired", ""))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "Your session was closed. Sign in again to continue."
+                )));
+    }
+
+    @Test
     void reviewApiAndImagesRequireAuthentication() throws Exception {
         mockMvc.perform(get("/review"))
                 .andExpect(status().is3xxRedirection())
@@ -95,6 +104,18 @@ class WebSecurityTest {
     }
 
     @Test
+    void adminPageRequiresAdminRole() throws Exception {
+        mockMvc.perform(get("/admin")
+                        .with(user("operator").roles("OPERATOR")))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get("/admin")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Operator management")));
+    }
+
+    @Test
     void validBcryptPasswordLogsOperatorIn() throws Exception {
         insertOperator("operator", "correct-password");
 
@@ -104,6 +125,209 @@ class WebSecurityTest {
                         .param("password", "correct-password"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/review"));
+    }
+
+    @Test
+    void adminLoginRedirectsToAdminAndCannotOpenReviewQueue() throws Exception {
+        insertUser("admin", "correct-password", "ADMIN");
+
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "admin")
+                        .param("password", "correct-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin"));
+
+        mockMvc.perform(get("/review")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminCreatesEnabledOperatorWithHashedPassword() throws Exception {
+        mockMvc.perform(post("/admin/operators")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("username", "new-operator")
+                        .param("password", "new-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin?created"));
+
+        var created = jdbc.queryForMap("""
+                SELECT username, password_hash, enabled, role
+                FROM app_user
+                WHERE username = 'new-operator'
+                """);
+        assertThat(created.get("username")).isEqualTo("new-operator");
+        assertThat(created.get("enabled")).isEqualTo(true);
+        assertThat(created.get("role")).isEqualTo("OPERATOR");
+        assertThat(new BCryptPasswordEncoder(12).matches(
+                "new-password",
+                (String) created.get("password_hash")
+        )).isTrue();
+    }
+
+    @Test
+    void duplicateUsernameReturnsFriendlyAdminError() throws Exception {
+        insertOperator("existing-operator", "operator-password");
+
+        mockMvc.perform(post("/admin/operators")
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("username", "existing-operator")
+                        .param("password", "new-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin?error=username"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT count(*) FROM app_user WHERE username = 'existing-operator'",
+                Integer.class
+        )).isEqualTo(1);
+    }
+
+    @Test
+    void deactivatingOperatorExpiresSessionAndReleasesAssignment() throws Exception {
+        UUID operatorId = insertOperator("active-operator", "operator-password");
+        String imageId = insertReviewImage(
+                120, "assigned.png", true, "bj_igt", "session",
+                null, "Jack", null
+        );
+        jdbc.update("""
+                UPDATE review_task
+                SET status = 'ASSIGNED',
+                    assigned_to = ?,
+                    assigned_at = now(),
+                    lease_expires_at = now() + interval '30 minutes'
+                WHERE image_id = ?
+                """, operatorId, imageId);
+
+        MvcResult login = mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "active-operator")
+                        .param("password", "operator-password"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        MockHttpSession operatorSession =
+                (MockHttpSession) login.getRequest().getSession(false);
+
+        mockMvc.perform(post("/admin/operators/{id}/deactivate", operatorId)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin?deactivated"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT enabled FROM app_user WHERE id = ?",
+                Boolean.class,
+                operatorId
+        )).isFalse();
+        var released = jdbc.queryForMap("""
+                SELECT status, assigned_to
+                FROM review_task
+                WHERE image_id = ?
+                """, imageId);
+        assertThat(released.get("status")).isEqualTo("PENDING");
+        assertThat(released.get("assigned_to")).isNull();
+
+        mockMvc.perform(get("/review").session(operatorSession))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?expired"));
+    }
+
+    @Test
+    void adminRestoresDeactivatedOperator() throws Exception {
+        UUID operatorId = insertOperator("disabled-operator", "operator-password");
+        jdbc.update("UPDATE app_user SET enabled = FALSE WHERE id = ?", operatorId);
+
+        mockMvc.perform(post("/admin/operators/{id}/restore", operatorId)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf()))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin?restored"));
+
+        assertThat(jdbc.queryForObject(
+                "SELECT enabled FROM app_user WHERE id = ?",
+                Boolean.class,
+                operatorId
+        )).isTrue();
+    }
+
+    @Test
+    void changingPasswordExpiresSessionAndReplacesOldPassword() throws Exception {
+        UUID operatorId = insertOperator("password-operator", "old-password");
+        MvcResult login = mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "password-operator")
+                        .param("password", "old-password"))
+                .andExpect(status().is3xxRedirection())
+                .andReturn();
+        MockHttpSession operatorSession =
+                (MockHttpSession) login.getRequest().getSession(false);
+
+        mockMvc.perform(post("/admin/operators/{id}/password", operatorId)
+                        .with(user("admin").roles("ADMIN"))
+                        .with(csrf())
+                        .param("password", "new-password"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin?passwordChanged"));
+
+        String passwordHash = jdbc.queryForObject(
+                "SELECT password_hash FROM app_user WHERE id = ?",
+                String.class,
+                operatorId
+        );
+        BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
+        assertThat(encoder.matches("new-password", passwordHash)).isTrue();
+        assertThat(encoder.matches("old-password", passwordHash)).isFalse();
+
+        mockMvc.perform(get("/review").session(operatorSession))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/login?expired"));
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "password-operator")
+                        .param("password", "old-password"))
+                .andExpect(redirectedUrl("/login?error"));
+        mockMvc.perform(post("/login")
+                        .with(csrf())
+                        .param("username", "password-operator")
+                        .param("password", "new-password"))
+                .andExpect(redirectedUrl("/review"));
+    }
+
+    @Test
+    void adminDashboardShowsOperatorStatisticsForLastSevenDays() throws Exception {
+        UUID operatorId = insertOperator("operator-one", "operator-password");
+        UUID inactiveId = insertOperator("operator-two", "operator-password");
+        jdbc.update("UPDATE app_user SET enabled = FALSE WHERE id = ?", inactiveId);
+
+        String acceptedToday = insertReviewImage(
+                130, "accepted-today.png", true, "bj_igt", "session-1",
+                null, "Jack", null
+        );
+        String rejectedRecent = insertReviewImage(
+                131, "rejected-recent.png", true, "bj_igt", "session-2",
+                null, "Nine", null
+        );
+        String acceptedOld = insertReviewImage(
+                132, "accepted-old.png", true, "bj_igt", "session-3",
+                null, "Seven", null
+        );
+        completeReview(acceptedToday, operatorId, "ACCEPTED", "1 hour");
+        completeReview(rejectedRecent, operatorId, "REJECTED", "2 days");
+        completeReview(acceptedOld, operatorId, "ACCEPTED", "8 days");
+
+        mockMvc.perform(get("/admin")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "data-operator=\"operator-one\" data-today=\"1\" "
+                                + "data-total=\"2\" data-accepted=\"1\" data-rejected=\"1\""
+                )))
+                .andExpect(content().string(containsString(
+                        "data-operator=\"operator-two\" data-today=\"0\" "
+                                + "data-total=\"0\" data-accepted=\"0\" data-rejected=\"0\""
+                )));
     }
 
     @Test
@@ -346,12 +570,16 @@ class WebSecurityTest {
     }
 
     private UUID insertOperator(String username, String password) {
+        return insertUser(username, password, "OPERATOR");
+    }
+
+    private UUID insertUser(String username, String password, String role) {
         UUID id = UUID.randomUUID();
         String hash = new BCryptPasswordEncoder(12).encode(password);
         jdbc.update("""
-                INSERT INTO app_user (id, username, password_hash, enabled, created_at)
-                VALUES (?, ?, ?, TRUE, now())
-                """, id, username, hash);
+                INSERT INTO app_user (id, username, password_hash, enabled, created_at, role)
+                VALUES (?, ?, ?, TRUE, now(), ?)
+                """, id, username, hash, role);
         return id;
     }
 
@@ -398,6 +626,22 @@ class WebSecurityTest {
                 id
         );
         return id;
+    }
+
+    private void completeReview(
+            String imageId,
+            UUID operatorId,
+            String decision,
+            String age
+    ) {
+        jdbc.update("""
+                UPDATE review_task
+                SET status = 'COMPLETED',
+                    assigned_to = ?,
+                    decision = ?,
+                    reviewed_at = now() - CAST(? AS interval)
+                WHERE image_id = ?
+                """, operatorId, decision, age, imageId);
     }
 
     private OperatorPrincipal principal(UUID id, String username) {

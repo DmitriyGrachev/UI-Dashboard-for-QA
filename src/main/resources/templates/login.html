@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
     <title>Recognition Validator — Sign in</title>
     <style>
         :root {
@@ -52,6 +53,9 @@
 <main>
     <h1>Operator sign in</h1>
     <p class="message" th:if="${param.error}">Invalid username or password.</p>
+    <p class="message" th:if="${param.expired}">
+        Your session was closed. Sign in again to continue.
+    </p>
     <p th:if="${param.logout}">You have been signed out.</p>
     <form method="post" th:action="@{/login}">
         <label>
