@@ -74,7 +74,7 @@ public class StatisticsController {
         if (actualTo.isBefore(actualFrom)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Дата окончания не может быть раньше даты начала"
+                    "End date cannot be earlier than start date"
             );
         }
         return new DateRange(actualFrom, actualTo);

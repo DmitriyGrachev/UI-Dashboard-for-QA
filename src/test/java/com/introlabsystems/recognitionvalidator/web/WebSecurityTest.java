@@ -60,7 +60,7 @@ class WebSecurityTest {
     void loginPageIsPublic() throws Exception {
         mockMvc.perform(get("/login"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("Вход")));
+                .andExpect(content().string(containsString("Operator sign in")));
     }
 
     @Test
@@ -243,10 +243,15 @@ class WebSecurityTest {
         UUID operatorId = insertOperator("statistics-operator", "password");
         OperatorPrincipal principal = principal(operatorId, "statistics-operator");
 
+        mockMvc.perform(get("/review")
+                        .with(user(principal)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Review filters")))
+                .andExpect(content().string(containsString("Matches")));
         mockMvc.perform(get("/statistics")
                         .with(user(principal)))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Статистика оператора")))
+                .andExpect(content().string(containsString("Operator statistics")))
                 .andExpect(content().string(containsString("statistics-operator")));
         mockMvc.perform(get("/api/statistics/me")
                         .param("from", "2026-07-29")

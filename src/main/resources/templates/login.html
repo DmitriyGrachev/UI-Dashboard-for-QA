@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Recognition Validator — вход</title>
+    <title>Recognition Validator — Sign in</title>
     <style>
         :root {
             color-scheme: dark;
@@ -50,19 +50,19 @@
 </head>
 <body>
 <main>
-    <h1>Вход оператора</h1>
-    <p class="message" th:if="${param.error}">Неверный логин или пароль.</p>
-    <p th:if="${param.logout}">Сессия завершена.</p>
+    <h1>Operator sign in</h1>
+    <p class="message" th:if="${param.error}">Invalid username or password.</p>
+    <p th:if="${param.logout}">You have been signed out.</p>
     <form method="post" th:action="@{/login}">
         <label>
-            Логин
+            Username
             <input name="username" autocomplete="username" required autofocus>
         </label>
         <label>
-            Пароль
+            Password
             <input name="password" type="password" autocomplete="current-password" required>
         </label>
-        <button type="submit">Войти</button>
+        <button type="submit">Sign in</button>
     </form>
 </main>
 </body>

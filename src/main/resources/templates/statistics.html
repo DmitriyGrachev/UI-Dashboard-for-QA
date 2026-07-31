@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Моя статистика — Recognition Validator</title>
+    <title>My statistics — Recognition Validator</title>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
@@ -16,10 +16,10 @@
                 <small>OCR inspection desk</small>
             </span>
         </a>
-        <nav class="topbar-actions" aria-label="Навигация">
-            <a th:href="@{/review}">К проверке</a>
+        <nav class="topbar-actions" aria-label="Navigation">
+            <a th:href="@{/review}">Back to review</a>
             <form method="post" th:action="@{/logout}">
-                <button class="link-button" type="submit">Выйти</button>
+                <button class="link-button" type="submit">Sign out</button>
             </form>
         </nav>
     </header>
@@ -27,39 +27,39 @@
     <main class="statistics-main">
         <section class="statistics-heading">
             <div>
-                <span class="section-kicker">Личный результат</span>
-                <h1>Статистика оператора</h1>
+                <span class="section-kicker">Personal performance</span>
+                <h1>Operator statistics</h1>
                 <p>
                     <span th:text="${operatorName}">operator</span>
-                    · время и границы дней считаются в UTC
+                    · days and date boundaries are calculated in UTC
                 </p>
             </div>
             <form class="period-form" method="get" th:action="@{/statistics}">
                 <label>
-                    Период от
+                    Period from
                     <input type="date" name="from" th:value="${from}" required>
                 </label>
                 <label>
-                    Период до
+                    Period to
                     <input type="date" name="to" th:value="${to}" required>
                 </label>
-                <button class="button primary" type="submit">Показать</button>
+                <button class="button primary" type="submit">Show</button>
             </form>
         </section>
 
-        <section class="metric-grid" aria-label="Количество проверок">
+        <section class="metric-grid" aria-label="Review count">
             <article class="metric-card signal-card">
-                <span>Сегодня, UTC</span>
+                <span>Today, UTC</span>
                 <strong th:text="${statistics.today()}">0</strong>
-                <small>проверено изображений</small>
+                <small>images reviewed</small>
             </article>
             <article class="metric-card">
-                <span>Сохранено в БД</span>
+                <span>Stored in database</span>
                 <strong th:text="${statistics.retainedTotal()}">0</strong>
-                <small>результатов за текущие 7 дней</small>
+                <small>results from the current 7 days</small>
             </article>
             <article class="metric-card">
-                <span>Выбранный период</span>
+                <span>Selected period</span>
                 <strong th:text="${statistics.periodTotal()}">0</strong>
                 <small th:text="|${from} — ${to}|">period</small>
             </article>
@@ -68,18 +68,18 @@
         <section class="decision-breakdown" aria-labelledby="breakdown-title">
             <header>
                 <div>
-                    <span class="section-kicker">Решения за период</span>
-                    <h2 id="breakdown-title">Совпадение распознавания</h2>
+                    <span class="section-kicker">Decisions for the period</span>
+                    <h2 id="breakdown-title">Recognition match</h2>
                 </div>
                 <span class="total-chip">
-                    Всего
+                    Total
                     <strong th:text="${statistics.periodTotal()}">0</strong>
                 </span>
             </header>
 
             <div class="decision-row accepted-row">
                 <div>
-                    <span>Совпадает</span>
+                    <span>Matches</span>
                     <strong th:text="${statistics.accepted()}">0</strong>
                 </div>
                 <div class="share-track" aria-hidden="true">
@@ -90,7 +90,7 @@
 
             <div class="decision-row rejected-row">
                 <div>
-                    <span>Не совпадает</span>
+                    <span>Does not match</span>
                     <strong th:text="${statistics.rejected()}">0</strong>
                 </div>
                 <div class="share-track" aria-hidden="true">
@@ -100,8 +100,8 @@
             </div>
 
             <p class="retention-note">
-                Приложение удаляет из PostgreSQL метаданные старше 7 дней.
-                Исходные изображения на диске не изменяются.
+                The application deletes metadata older than 7 days from PostgreSQL.
+                Source images on disk are not modified.
             </p>
         </section>
     </main>

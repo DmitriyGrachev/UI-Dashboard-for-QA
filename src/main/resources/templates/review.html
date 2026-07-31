@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ru" xmlns:th="http://www.thymeleaf.org">
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -19,143 +19,143 @@
                 <small>OCR inspection desk</small>
             </span>
         </a>
-        <nav class="topbar-actions" aria-label="Навигация">
-            <a th:href="@{/statistics}">Моя статистика</a>
+        <nav class="topbar-actions" aria-label="Navigation">
+            <a th:href="@{/statistics}">My statistics</a>
             <form method="post" th:action="@{/logout}">
-                <button class="link-button" type="submit">Выйти</button>
+                <button class="link-button" type="submit">Sign out</button>
             </form>
         </nav>
     </header>
 
     <section class="filter-strip" aria-labelledby="filter-title">
         <div class="filter-heading">
-            <span class="section-kicker">Очередь</span>
-            <h1 id="filter-title">Фильтры проверки</h1>
+            <span class="section-kicker">Queue</span>
+            <h1 id="filter-title">Review filters</h1>
         </div>
         <form id="filter-form" class="filters">
             <label>
-                Создано от
+                Created from
                 <input id="created-from" type="datetime-local">
             </label>
             <label>
-                Создано до
+                Created to
                 <input id="created-to" type="datetime-local">
             </label>
             <label>
-                Сессия
+                Session
                 <input id="session-id" type="search" placeholder="token_UUID" autocomplete="off">
             </label>
             <label>
-                Игра
+                Game
                 <select id="game-code">
-                    <option value="">Все игры</option>
+                    <option value="">All games</option>
                     <option th:each="game : ${games}" th:value="${game}" th:text="${game}"></option>
                 </select>
             </label>
             <label>
                 Notification
                 <select id="notification">
-                    <option value="">Все</option>
-                    <option value="true">Да</option>
-                    <option value="false">Нет</option>
+                    <option value="">All</option>
+                    <option value="true">Yes</option>
+                    <option value="false">No</option>
                 </select>
             </label>
             <div class="filter-actions">
-                <button class="button secondary" type="button" id="clear-filters">Сбросить</button>
-                <button class="button primary" type="submit">Применить</button>
+                <button class="button secondary" type="button" id="clear-filters">Reset</button>
+                <button class="button primary" type="submit">Apply</button>
             </div>
         </form>
     </section>
 
     <main class="review-grid">
-        <section class="viewer-panel" aria-label="Проверяемый скриншот">
+        <section class="viewer-panel" aria-label="Screenshot under review">
             <div class="viewer-bar">
                 <div>
-                    <span class="section-kicker">Скриншот</span>
-                    <strong id="file-name">Ожидание задания</strong>
+                    <span class="section-kicker">Screenshot</span>
+                    <strong id="file-name">Waiting for assignment</strong>
                 </div>
-                <div class="viewer-tools" aria-label="Масштаб изображения">
-                    <button type="button" id="zoom-out" aria-label="Уменьшить">−</button>
+                <div class="viewer-tools" aria-label="Image zoom">
+                    <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
                     <output id="zoom-value">100%</output>
-                    <button type="button" id="zoom-in" aria-label="Увеличить">+</button>
-                    <button type="button" id="zoom-reset">Сброс</button>
-                    <button type="button" id="fullscreen">На весь экран</button>
+                    <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
+                    <button type="button" id="zoom-reset">Reset</button>
+                    <button type="button" id="fullscreen">Fullscreen</button>
                 </div>
             </div>
 
             <div class="image-stage" id="image-stage">
-                <img id="review-image" alt="Скриншот для проверки" draggable="false" hidden>
+                <img id="review-image" alt="Screenshot to review" draggable="false" hidden>
                 <div class="viewer-message" id="viewer-message" role="status" aria-live="polite">
-                    Получаем первое задание…
+                    Loading the first assignment…
                 </div>
             </div>
-            <p class="viewer-hint">Колесо — масштаб · перетаскивание — перемещение · 0 — сброс</p>
+            <p class="viewer-hint">Wheel — zoom · drag — pan · 0 — reset</p>
         </section>
 
         <aside class="transcript-panel" aria-labelledby="transcript-title">
             <div class="panel-heading">
-                <span class="section-kicker">Результат распознавания</span>
-                <h2 id="transcript-title">Что нужно сверить</h2>
+                <span class="section-kicker">Recognition result</span>
+                <h2 id="transcript-title">What to verify</h2>
             </div>
 
             <dl class="metadata-list">
                 <div>
-                    <dt>Игра</dt>
+                    <dt>Game</dt>
                     <dd id="game-value">—</dd>
                 </div>
                 <div>
-                    <dt>Сессия</dt>
+                    <dt>Session</dt>
                     <dd id="session-value" class="mono">—</dd>
                 </div>
                 <div>
-                    <dt>Создан</dt>
+                    <dt>Created</dt>
                     <dd id="created-value">—</dd>
                 </div>
                 <div>
-                    <dt>OCR завершён</dt>
+                    <dt>OCR completed</dt>
                     <dd id="processed-value">—</dd>
                 </div>
                 <div>
-                    <dt>Время OCR</dt>
+                    <dt>OCR duration</dt>
                     <dd id="duration-value">—</dd>
                 </div>
             </dl>
 
-            <section class="cards-block" aria-label="Распознанные карты">
+            <section class="cards-block" aria-label="Recognized cards">
                 <article>
-                    <span>Дилер</span>
+                    <span>Dealer</span>
                     <strong id="dealer-cards">—</strong>
                 </article>
                 <article class="active-hand">
-                    <span>Активная рука</span>
+                    <span>Active hand</span>
                     <strong id="active-cards">—</strong>
                 </article>
                 <article>
-                    <span>Другие руки</span>
+                    <span>Other hands</span>
                     <strong id="inactive-cards">—</strong>
                 </article>
             </section>
 
-            <section class="flags-block" aria-label="Дополнительные признаки">
+            <section class="flags-block" aria-label="Additional attributes">
                 <div><span>Notification</span><strong id="notification-value">—</strong></div>
-                <div><span>Кнопки</span><strong id="buttons-value" class="mono">—</strong></div>
-                <div><span>Флаги</span><strong id="flags-value">—</strong></div>
-                <div><span>Статус парсинга</span><strong id="parse-value">—</strong></div>
+                <div><span>Buttons</span><strong id="buttons-value" class="mono">—</strong></div>
+                <div><span>Flags</span><strong id="flags-value">—</strong></div>
+                <div><span>Parse status</span><strong id="parse-value">—</strong></div>
             </section>
         </aside>
     </main>
 
-    <section class="verdict-dock" aria-label="Решение оператора">
+    <section class="verdict-dock" aria-label="Operator decision">
         <button class="verdict reject" id="reject-button" type="button" disabled>
             <span class="verdict-symbol" aria-hidden="true">×</span>
-            <span><strong>Не совпадает</strong><small>← или R</small></span>
+            <span><strong>Does not match</strong><small>← or R</small></span>
         </button>
         <div class="decision-status">
-            <span class="section-kicker">Окончательное решение</span>
-            <p id="decision-message" aria-live="polite">Сначала дождитесь задания</p>
+            <span class="section-kicker">Final decision</span>
+            <p id="decision-message" aria-live="polite">Wait for an assignment first</p>
         </div>
         <button class="verdict accept" id="accept-button" type="button" disabled>
-            <span><strong>Совпадает</strong><small>→ или A</small></span>
+            <span><strong>Matches</strong><small>→ or A</small></span>
             <span class="verdict-symbol" aria-hidden="true">✓</span>
         </button>
     </section>

@@ -79,7 +79,7 @@
     }
 
     async function claim() {
-        setBusy(true, "Получаем задание…");
+        setBusy(true, "Loading assignment…");
         try {
             const response = await fetch("/api/review-tasks/claim", {
                 method: "POST",
@@ -87,7 +87,7 @@
                 body: JSON.stringify(filters())
             });
             if (response.status === 204) {
-                showEmpty("По этим фильтрам сейчас нет доступных скриншотов.");
+                showEmpty("No screenshots are available for these filters.");
                 return;
             }
             if (!response.ok) {
@@ -97,7 +97,7 @@
         } catch (error) {
             elements.decisionMessage.textContent = error.message;
             if (!state.item) {
-                showEmpty("Не удалось получить задание. Обновите страницу или измените фильтры.");
+                showEmpty("Could not load an assignment. Refresh the page or change the filters.");
             }
         } finally {
             setBusy(false);
@@ -108,7 +108,7 @@
         if (!state.item || state.busy) {
             return;
         }
-        setBusy(true, "Сохраняем решение…");
+        setBusy(true, "Saving decision…");
         try {
             const response = await fetch(
                 `/api/review-tasks/${encodeURIComponent(state.item.imageId)}/decision`,
@@ -133,9 +133,9 @@
     async function errorMessage(response) {
         try {
             const problem = await response.json();
-            return problem.detail || "Операция не выполнена.";
+            return problem.detail || "Operation failed.";
         } catch {
-            return "Операция не выполнена.";
+            return "Operation failed.";
         }
     }
 
@@ -149,18 +149,18 @@
         setText(elements.processed, formatDate(item.processedAt));
         setText(elements.duration, item.recognitionDurationMs == null
             ? null
-            : `${item.recognitionDurationMs} мс`);
+            : `${item.recognitionDurationMs} ms`);
         setText(elements.dealer, item.dealerCards);
         setText(elements.activeCards, item.activeUserCards);
         setText(elements.inactiveCards, item.inactiveUserCards);
-        setText(elements.notificationValue, item.notification ? "Да" : "Нет");
+        setText(elements.notificationValue, item.notification ? "Yes" : "No");
         setText(elements.buttons, item.buttonsRaw);
         setText(elements.flags, actionFlags(item));
         setText(elements.parseStatus, item.parseStatus);
         elements.viewerMessage.hidden = true;
         elements.image.hidden = false;
         elements.image.src = item.imageUrl;
-        elements.decisionMessage.textContent = "Сверьте карты на изображении с распознанными значениями";
+        elements.decisionMessage.textContent = "Compare the cards in the screenshot with the recognized values";
         updateActions();
     }
 
@@ -170,9 +170,9 @@
         elements.image.removeAttribute("src");
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = message;
-        elements.fileName.textContent = "Очередь пуста";
+        elements.fileName.textContent = "Queue is empty";
         clearMetadata();
-        elements.decisionMessage.textContent = "Измените фильтры или дождитесь новых файлов";
+        elements.decisionMessage.textContent = "Change the filters or wait for new files";
         updateActions();
     }
 
@@ -208,7 +208,7 @@
 
     function formatDate(value) {
         if (!value) return null;
-        return new Intl.DateTimeFormat("ru-RU", {
+        return new Intl.DateTimeFormat("en-GB", {
             timeZone: "UTC",
             year: "numeric",
             month: "2-digit",
@@ -318,7 +318,7 @@
     elements.image.addEventListener("error", () => {
         if (!state.item) return;
         state.item = null;
-        showEmpty("Файл больше недоступен. Получаем следующее задание…");
+        showEmpty("The file is no longer available. Loading the next assignment…");
         claim();
     });
 
