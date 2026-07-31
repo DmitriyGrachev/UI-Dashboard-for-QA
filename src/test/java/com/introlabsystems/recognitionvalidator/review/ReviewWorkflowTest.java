@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -23,6 +24,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -55,6 +57,9 @@ class ReviewWorkflowTest {
     @Autowired
     private ValidatorProperties properties;
 
+    @Autowired
+    private ApplicationContext applicationContext;
+
     @TempDir
     Path temporaryDirectory;
 
@@ -64,10 +69,12 @@ class ReviewWorkflowTest {
     }
 
     @Test
-    void flywayCreatesValidatorTables() {
+    void hibernateCreatesValidatorTablesWithoutFlyway() {
         assertThat(tableExists("app_user")).isTrue();
         assertThat(tableExists("image_asset")).isTrue();
         assertThat(tableExists("review_task")).isTrue();
+        assertThat(applicationContext.getBeanDefinitionNames())
+                .noneMatch(name -> name.toLowerCase(Locale.ROOT).contains("flyway"));
     }
 
     @Test

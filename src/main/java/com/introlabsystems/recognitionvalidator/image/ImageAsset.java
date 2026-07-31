@@ -5,13 +5,26 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "image_asset")
+@Table(
+        name = "image_asset",
+        indexes = {
+                @Index(
+                        name = "ix_image_queue_order",
+                        columnList = "file_available,file_created_at,id"
+                ),
+                @Index(name = "ix_image_game", columnList = "game_code"),
+                @Index(name = "ix_image_session", columnList = "session_id"),
+                @Index(name = "ix_image_notification", columnList = "is_notification"),
+                @Index(name = "ix_image_retention", columnList = "file_created_at")
+        }
+)
 public class ImageAsset {
 
     @Id

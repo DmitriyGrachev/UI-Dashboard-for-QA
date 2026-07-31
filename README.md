@@ -60,8 +60,9 @@ $env:DB_PASSWORD='validator'
 .\mvnw.cmd spring-boot:run
 ```
 
-Первый запуск создаст таблицы через Flyway. Пока приложение работает, во втором
-PowerShell-окне создать оператора:
+Первый запуск создаст таблицы через Hibernate `ddl-auto=update`. Flyway в проекте
+не используется. Пока приложение работает, во втором PowerShell-окне создать
+оператора:
 
 ```powershell
 $validatorPasswordHash = .\mvnw.cmd -q org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=com.introlabsystems.recognitionvalidator.auth.PasswordHashCli" "-Dexec.args=change-me" | Select-Object -Last 1

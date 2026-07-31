@@ -8,9 +8,7 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      ddl-auto: validate
-  flyway:
-    enabled: true
+      ddl-auto: update
   servlet:
     session:
       timeout: 24h

@@ -8,16 +8,26 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.Instant;
 
 @Entity
-@Table(name = "review_task")
+@Table(
+        name = "review_task",
+        indexes = {
+                @Index(name = "ix_review_queue", columnList = "status,image_id"),
+                @Index(name = "ix_review_assignee", columnList = "assigned_to,status"),
+                @Index(name = "ix_review_expired", columnList = "status,lease_expires_at")
+        }
+)
 public class ReviewTask {
 
     @Id
@@ -27,6 +37,7 @@ public class ReviewTask {
     @MapsId
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "image_id")
+    @OnDelete(action = OnDeleteAction.CASCADE)
     private ImageAsset image;
 
     @Enumerated(EnumType.STRING)
