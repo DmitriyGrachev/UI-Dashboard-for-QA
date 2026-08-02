@@ -9,4 +9,8 @@ validator:
   batch-size: 10
   lease-duration: 30m
   retention: 7d
+  cleanup-batch-size: 2
+  cleanup-max-batches: 2
   watch-enabled: false
+  watch-flush-interval: 10ms
+  watch-max-pending-events: 100

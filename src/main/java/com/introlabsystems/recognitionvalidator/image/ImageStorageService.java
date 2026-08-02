@@ -25,7 +25,7 @@ public class ImageStorageService {
         this.images = images;
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ImageNotFoundException.class)
     public ImageContent open(String imageId) {
         ImageAsset asset = images.findById(imageId)
                 .orElseThrow(() -> new ImageNotFoundException(imageId));

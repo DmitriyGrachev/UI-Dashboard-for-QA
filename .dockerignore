@@ -1,0 +1,9 @@
+.git
+.idea
+.vscode
+.worktrees
+.env
+*.iml
+data
+docs
+target

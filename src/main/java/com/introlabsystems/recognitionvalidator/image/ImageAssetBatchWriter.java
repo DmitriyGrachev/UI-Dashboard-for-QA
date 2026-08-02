@@ -1,8 +1,5 @@
 package com.introlabsystems.recognitionvalidator.image;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Component;
@@ -11,12 +8,14 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Component
 public class ImageAssetBatchWriter {
 
-    private static final Logger log = LoggerFactory.getLogger(ImageAssetBatchWriter.class);
     private static final String UPSERT_ASSET = """
             INSERT INTO image_asset (
                 id, file_name, relative_path, file_created_at, file_modified_at,
@@ -39,6 +38,9 @@ public class ImageAssetBatchWriter {
                 last_seen_at = EXCLUDED.last_seen_at,
                 file_available = TRUE,
                 has_surrender = EXCLUDED.has_surrender
+            WHERE image_asset.file_available = FALSE
+               OR image_asset.file_modified_at IS DISTINCT FROM EXCLUDED.file_modified_at
+               OR image_asset.has_surrender IS DISTINCT FROM EXCLUDED.has_surrender
             """;
     private static final String INSERT_TASK = """
             INSERT INTO review_task (image_id, status)
@@ -57,42 +59,67 @@ public class ImageAssetBatchWriter {
         this.transactions = new TransactionTemplate(transactionManager);
     }
 
+    public boolean hasAvailableAssets() {
+        Boolean present = jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM image_asset
+                    WHERE file_available = TRUE
+                )
+                """, new MapSqlParameterSource(), Boolean.class);
+        return Boolean.TRUE.equals(present);
+    }
+
+    public Set<String> findAvailableIds(Collection<String> imageIds) {
+        if (imageIds.isEmpty()) {
+            return Set.of();
+        }
+        return new HashSet<>(jdbc.queryForList("""
+                SELECT id
+                FROM image_asset
+                WHERE file_available = TRUE
+                  AND id IN (:ids)
+                """, new MapSqlParameterSource("ids", imageIds), String.class));
+    }
+
+    public List<AvailableImageFile> findAvailableFilesAfter(String afterId, int limit) {
+        return jdbc.query("""
+                SELECT id, relative_path
+                FROM image_asset
+                WHERE file_available = TRUE
+                  AND id > :afterId
+                ORDER BY id
+                LIMIT :limit
+                """, new MapSqlParameterSource()
+                .addValue("afterId", afterId)
+                .addValue("limit", limit),
+                (resultSet, rowNumber) -> new AvailableImageFile(
+                        resultSet.getString("id"),
+                        resultSet.getString("relative_path")
+                ));
+    }
+
     public void upsert(List<ImageMetadata> batch) {
         if (batch.isEmpty()) {
             return;
         }
 
-        try {
-            transactions.executeWithoutResult(status -> write(batch));
-        } catch (DataAccessException batchError) {
-            log.warn("Image metadata batch failed; retrying {} rows separately", batch.size());
-            for (ImageMetadata metadata : batch) {
-                try {
-                    transactions.executeWithoutResult(status -> write(List.of(metadata)));
-                } catch (DataAccessException rowError) {
-                    log.error("Cannot index image metadata for {}", metadata.relativePath(), rowError);
-                }
-            }
-        }
-    }
-
-    public void markMissingBefore(Instant scanStartedAt) {
-        jdbc.update("""
-                UPDATE image_asset
-                SET file_available = FALSE
-                WHERE file_available = TRUE
-                  AND last_seen_at < :scanStartedAt
-                """, new MapSqlParameterSource(
-                "scanStartedAt", Timestamp.from(scanStartedAt)
-        ));
+        transactions.executeWithoutResult(status -> write(batch));
     }
 
     public void markUnavailable(String imageId) {
+        markUnavailable(List.of(imageId));
+    }
+
+    public void markUnavailable(List<String> imageIds) {
+        if (imageIds.isEmpty()) {
+            return;
+        }
         jdbc.update("""
                 UPDATE image_asset
                 SET file_available = FALSE
-                WHERE id = :id
-                """, new MapSqlParameterSource("id", imageId));
+                WHERE id IN (:ids)
+                """, new MapSqlParameterSource("ids", imageIds));
     }
 
     private void write(List<ImageMetadata> batch) {
@@ -134,5 +161,8 @@ public class ImageAssetBatchWriter {
 
     private static Timestamp timestamp(Instant value) {
         return value == null ? null : Timestamp.from(value);
+    }
+
+    record AvailableImageFile(String id, String relativePath) {
     }
 }
