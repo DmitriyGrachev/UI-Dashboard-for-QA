@@ -3,14 +3,17 @@ package com.introlabsystems.recognitionvalidator.auth;
 import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 @Configuration
@@ -48,7 +51,7 @@ public class SecurityConfig {
     ) throws Exception {
         return http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/login", "/css/**").permitAll()
+                        .requestMatchers("/login", "/css/**", "/js/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/review",
@@ -58,6 +61,16 @@ public class SecurityConfig {
                                 "/api/statistics/**"
                         ).hasRole("OPERATOR")
                         .anyRequest().authenticated()
+                )
+                .exceptionHandling(exceptions -> exceptions
+                        .defaultAuthenticationEntryPointFor(
+                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                                request -> request.getRequestURI().startsWith("/api/")
+                        )
+                        .defaultAuthenticationEntryPointFor(
+                                new LoginUrlAuthenticationEntryPoint("/login"),
+                                request -> true
+                        )
                 )
                 .formLogin(form -> form
                         .loginPage("/login")

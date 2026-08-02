@@ -25,11 +25,22 @@ public class ReviewQueueService {
     }
 
     public Optional<ReviewItem> claim(UUID operatorId, ReviewFilters filters) {
+        return claim(operatorId, filters, false, false).item();
+    }
+
+    public ReviewQueueResult claim(
+            UUID operatorId,
+            ReviewFilters filters,
+            boolean replaceCurrent,
+            boolean includeRemaining
+    ) {
         return claimRepository.claim(
                 operatorId,
                 filters == null ? ReviewFilters.none() : filters,
                 clock.instant(),
-                properties.leaseDuration()
+                properties.leaseDuration(),
+                replaceCurrent,
+                includeRemaining && properties.countRemainingScreenshots()
         );
     }
 }

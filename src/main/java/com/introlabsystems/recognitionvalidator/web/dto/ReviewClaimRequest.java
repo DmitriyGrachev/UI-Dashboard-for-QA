@@ -1,14 +1,14 @@
 package com.introlabsystems.recognitionvalidator.web.dto;
 
-import com.introlabsystems.recognitionvalidator.review.Decision;
 import com.introlabsystems.recognitionvalidator.review.ReviewFilters;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 
-public record DecisionRequest(
-        @NotNull Decision decision,
-        @Valid ReviewFilterRequest filters
+public record ReviewClaimRequest(
+        @Valid ReviewFilterRequest filters,
+        boolean replaceCurrent,
+        boolean includeRemaining
 ) {
+
     public ReviewFilters toFilters() {
         return filters == null ? ReviewFilters.none() : filters.toFilters();
     }

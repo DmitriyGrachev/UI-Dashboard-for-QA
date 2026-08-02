@@ -7,20 +7,30 @@
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
     <link rel="stylesheet" th:href="@{/css/app.css}">
     <script defer th:src="@{/js/review.js}"></script>
 </head>
 <body>
-<div class="app-shell">
-    <header class="topbar">
+<div class="app-shell review-shell">
+    <header class="topbar review-topbar">
         <a class="brand" th:href="@{/review}" aria-label="Recognition Validator">
             <span class="brand-mark" aria-hidden="true">RV</span>
             <span>
                 <strong>Recognition Validator</strong>
-                <small>OCR inspection desk</small>
+                <small>Recognition review desk</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Navigation">
+            <button class="topbar-help" id="faq-open" type="button"
+                    aria-haspopup="dialog" aria-controls="faq-dialog">
+                FAQ
+            </button>
+            <button class="theme-toggle" type="button" data-theme-toggle
+                    aria-label="Switch to light theme" title="Switch to light theme">
+                <span aria-hidden="true" data-theme-icon>☀</span>
+                <span data-theme-label>Light</span>
+            </button>
             <a th:href="@{/statistics}">My statistics</a>
             <form method="post" th:action="@{/logout}">
                 <button class="link-button" type="submit">Sign out</button>
@@ -28,52 +38,71 @@
         </nav>
     </header>
 
-    <section class="filter-strip" aria-labelledby="filter-title">
-        <div class="filter-heading">
-            <span class="section-kicker">Queue</span>
-            <h1 id="filter-title">Review filters</h1>
-        </div>
-        <form id="filter-form" class="filters">
-            <label>
-                Created from
-                <input id="created-from" type="datetime-local">
-            </label>
-            <label>
-                Created to
-                <input id="created-to" type="datetime-local">
-            </label>
-            <label>
-                Session
-                <input id="session-id" type="search" placeholder="token_UUID" autocomplete="off">
-            </label>
-            <label>
-                Game
-                <select id="game-code">
-                    <option value="">All games</option>
-                    <option th:each="game : ${games}" th:value="${game}" th:text="${game}"></option>
-                </select>
-            </label>
-            <label>
-                Notification
-                <select id="notification">
-                    <option value="">All</option>
-                    <option value="true">Yes</option>
-                    <option value="false">No</option>
-                </select>
-            </label>
-            <div class="filter-actions">
-                <button class="button secondary" type="button" id="clear-filters">Reset</button>
-                <button class="button primary" type="submit">Apply</button>
+    <main class="review-workspace" data-filters-collapsed="true">
+        <aside class="filter-sidebar" aria-labelledby="filter-title">
+            <div class="filter-sidebar-header">
+                <div class="filter-sidebar-heading">
+                    <span>
+                        <span class="section-kicker">Queue controls</span>
+                        <strong id="filter-title">Review filters</strong>
+                    </span>
+                    <small>Changes apply automatically</small>
+                </div>
+                <button class="filter-toggle" id="filter-toggle" type="button"
+                        aria-expanded="false" aria-controls="filter-panel"
+                        title="Show filters">
+                    <span class="filter-toggle-glyph" aria-hidden="true">&#9776;</span>
+                    <span class="filter-toggle-label" data-filter-toggle-label>Show</span>
+                    <span class="active-filter-count" id="active-filter-count" hidden>0</span>
+                </button>
             </div>
-        </form>
-    </section>
+            <div class="filter-sidebar-content" id="filter-panel">
+                <form id="filter-form" class="filters">
+                <label>
+                    Created from
+                    <input id="created-from" type="datetime-local">
+                </label>
+                <label>
+                    Created to
+                    <input id="created-to" type="datetime-local">
+                </label>
+                <label>
+                    Session
+                    <input id="session-id" type="search" placeholder="token_UUID" autocomplete="off">
+                </label>
+                <label>
+                    Game
+                    <select id="game-code">
+                        <option value="">All games</option>
+                        <option th:each="game : ${games}" th:value="${game}" th:text="${game}"></option>
+                    </select>
+                </label>
+                <label>
+                    Notification
+                    <select id="notification">
+                        <option value="">All</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </label>
+                <div class="filter-actions">
+                    <button class="button secondary" type="button" id="clear-filters">Reset</button>
+                </div>
+                </form>
+                <div class="queue-remaining" aria-live="polite"
+                     th:if="${countRemainingScreenshots}">
+                    <span>Matching screenshots</span>
+                    <output id="remaining-count">—</output>
+                    <small>including the current screenshot</small>
+                </div>
+            </div>
+        </aside>
 
-    <main class="review-grid">
         <section class="viewer-panel" aria-label="Screenshot under review">
             <div class="viewer-bar">
                 <div>
                     <span class="section-kicker">Screenshot</span>
-                    <strong id="file-name">Waiting for assignment</strong>
+                    <strong id="game-summary">Waiting for assignment</strong>
                 </div>
                 <div class="viewer-tools" aria-label="Image zoom">
                     <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
@@ -99,26 +128,14 @@
                 <h2 id="transcript-title">What to verify</h2>
             </div>
 
-            <dl class="metadata-list">
+            <dl class="primary-context">
                 <div>
                     <dt>Game</dt>
                     <dd id="game-value">—</dd>
                 </div>
                 <div>
-                    <dt>Session</dt>
-                    <dd id="session-value" class="mono">—</dd>
-                </div>
-                <div>
-                    <dt>Created</dt>
-                    <dd id="created-value">—</dd>
-                </div>
-                <div>
-                    <dt>OCR completed</dt>
-                    <dd id="processed-value">—</dd>
-                </div>
-                <div>
-                    <dt>OCR duration</dt>
-                    <dd id="duration-value">—</dd>
+                    <dt>Notification</dt>
+                    <dd id="notification-value">—</dd>
                 </div>
             </dl>
 
@@ -137,29 +154,107 @@
                 </article>
             </section>
 
-            <section class="flags-block" aria-label="Additional attributes">
-                <div><span>Notification</span><strong id="notification-value">—</strong></div>
-                <div><span>Buttons</span><strong id="buttons-value" class="mono">—</strong></div>
-                <div><span>Flags</span><strong id="flags-value">—</strong></div>
-                <div><span>Parse status</span><strong id="parse-value">—</strong></div>
+            <section class="flags-block" aria-label="Available actions">
+                <div><span>Available actions</span><strong id="flags-value">—</strong></div>
             </section>
+
+            <details class="technical-disclosure">
+                <summary>Technical details</summary>
+                <dl class="metadata-list">
+                    <div>
+                        <dt>File name</dt>
+                        <dd id="file-name" class="mono">—</dd>
+                    </div>
+                    <div>
+                        <dt>Session</dt>
+                        <dd id="session-value" class="mono">—</dd>
+                    </div>
+                    <div>
+                        <dt>Screenshot captured</dt>
+                        <dd id="created-value">—</dd>
+                    </div>
+                    <div>
+                        <dt>Recognition completed</dt>
+                        <dd id="processed-value">—</dd>
+                    </div>
+                    <div>
+                        <dt>Recognition time</dt>
+                        <dd id="duration-value">—</dd>
+                    </div>
+                    <div>
+                        <dt>Raw buttons</dt>
+                        <dd id="buttons-value" class="mono">—</dd>
+                    </div>
+                    <div>
+                        <dt>Parse status</dt>
+                        <dd id="parse-value">—</dd>
+                    </div>
+                </dl>
+            </details>
         </aside>
     </main>
 
     <section class="verdict-dock" aria-label="Operator decision">
         <button class="verdict reject" id="reject-button" type="button" disabled>
             <span class="verdict-symbol" aria-hidden="true">×</span>
-            <span><strong>Does not match</strong><small>← or R</small></span>
+            <span><strong>Does not match</strong><small>R or ←</small></span>
         </button>
         <div class="decision-status">
             <span class="section-kicker">Final decision</span>
             <p id="decision-message" aria-live="polite">Wait for an assignment first</p>
         </div>
         <button class="verdict accept" id="accept-button" type="button" disabled>
-            <span><strong>Matches</strong><small>→ or A</small></span>
+            <span><strong>Matches</strong><small>A or →</small></span>
             <span class="verdict-symbol" aria-hidden="true">✓</span>
         </button>
     </section>
+
+    <dialog class="faq-dialog" id="faq-dialog" aria-labelledby="faq-title">
+        <div class="faq-dialog-frame">
+            <header class="faq-dialog-header">
+                <div>
+                    <span class="section-kicker">Operator guide</span>
+                    <h2 id="faq-title">How to use the review desk</h2>
+                </div>
+                <button class="faq-close" id="faq-close" type="button"
+                        aria-label="Close FAQ">Close</button>
+            </header>
+            <div class="faq-dialog-content">
+                <section>
+                    <h3>Review a screenshot</h3>
+                    <p>Compare the screenshot with the recognition result. Choose
+                        <strong>Matches</strong> when the displayed values agree, or
+                        <strong>Does not match</strong> when they do not. The next assignment
+                        loads automatically.</p>
+                </section>
+                <section>
+                    <h3>Filters and queue</h3>
+                    <p>Filters apply automatically. The counter includes the screenshot
+                        currently assigned to you. Reset the filters or refresh the page
+                        when the queue is empty and you want to check for newly arrived files.</p>
+                </section>
+                <section>
+                    <h3>Image controls</h3>
+                    <p>Use the mouse wheel or <kbd>+</kbd>/<kbd>-</kbd> to zoom, drag to pan,
+                        <kbd>0</kbd> to reset, and Fullscreen for a closer inspection.</p>
+                </section>
+                <section>
+                    <h3>Decision shortcuts</h3>
+                    <dl class="faq-shortcuts">
+                        <div><dt><kbd>A</kbd> or <kbd>&rarr;</kbd></dt><dd>Matches</dd></div>
+                        <div><dt><kbd>R</kbd> or <kbd>&larr;</kbd></dt><dd>Does not match</dd></div>
+                    </dl>
+                </section>
+                <section>
+                    <h3>Parse status and assignment</h3>
+                    <p><strong>SUCCESS</strong> means the supported filename was parsed.
+                        <strong>PARTIAL</strong> means some metadata is incomplete and needs
+                        extra attention. A screenshot is reserved for one operator for up to
+                        30 minutes; if that assignment expires, the page loads another item.</p>
+                </section>
+            </div>
+        </div>
+    </dialog>
 </div>
 </body>
 </html>

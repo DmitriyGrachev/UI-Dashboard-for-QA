@@ -38,24 +38,34 @@ public class ReviewClaimRepository {
     }
 
     @Transactional
-    public Optional<ReviewItem> claim(
+    public ReviewQueueResult claim(
             UUID operatorId,
             ReviewFilters filters,
             Instant now,
-            Duration leaseDuration
+            Duration leaseDuration,
+            boolean replaceCurrent,
+            boolean includeRemaining
     ) {
         lockOperator(operatorId);
         releaseExpiredAndUnavailable(now);
 
-        Optional<ReviewItem> active = activeAssignment(operatorId);
-        if (active.isPresent()) {
-            return active;
+        if (replaceCurrent) {
+            releaseActiveAssignment(operatorId);
+        } else {
+            Optional<ReviewItem> active = activeAssignment(operatorId);
+            if (active.isPresent()) {
+                Long remaining = includeRemaining
+                        ? countPending(filters, new MapSqlParameterSource()) + 1
+                        : null;
+                return new ReviewQueueResult(active, remaining);
+            }
         }
 
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("operatorId", operatorId)
                 .addValue("now", Timestamp.from(now))
                 .addValue("leaseExpiresAt", Timestamp.from(now.plus(leaseDuration)));
+        Long remaining = includeRemaining ? countPending(filters, parameters) : null;
         String candidateSql = candidateSql(filters, parameters);
         List<String> candidates = jdbc.query(
                 candidateSql,
@@ -63,7 +73,7 @@ public class ReviewClaimRepository {
                 (resultSet, rowNumber) -> resultSet.getString("image_id")
         );
         if (candidates.isEmpty()) {
-            return Optional.empty();
+            return new ReviewQueueResult(Optional.empty(), remaining);
         }
 
         String imageId = candidates.getFirst();
@@ -75,7 +85,7 @@ public class ReviewClaimRepository {
                     lease_expires_at = :leaseExpiresAt
                 WHERE image_id = :imageId
                 """, parameters.addValue("imageId", imageId));
-        return findItem(imageId);
+        return new ReviewQueueResult(findItem(imageId), remaining);
     }
 
     public Optional<ReviewItem> findItem(String imageId) {
@@ -135,17 +145,57 @@ public class ReviewClaimRepository {
         return items.stream().findFirst();
     }
 
+    private void releaseActiveAssignment(UUID operatorId) {
+        jdbc.update("""
+                UPDATE review_task
+                SET status = 'PENDING',
+                    assigned_to = NULL,
+                    assigned_at = NULL,
+                    lease_expires_at = NULL
+                WHERE status = 'ASSIGNED'
+                  AND assigned_to = :operatorId
+                """, new MapSqlParameterSource("operatorId", operatorId));
+    }
+
+    private long countPending(
+            ReviewFilters filters,
+            MapSqlParameterSource parameters
+    ) {
+        StringBuilder sql = pendingSql("COUNT(*)");
+        appendFilters(sql, filters, parameters);
+        Long count = jdbc.queryForObject(sql.toString(), parameters, Long.class);
+        return count == null ? 0 : count;
+    }
+
     private String candidateSql(
             ReviewFilters filters,
             MapSqlParameterSource parameters
     ) {
-        StringBuilder sql = new StringBuilder("""
-                SELECT rt.image_id
+        StringBuilder sql = pendingSql("rt.image_id");
+        appendFilters(sql, filters, parameters);
+        sql.append("""
+                 ORDER BY ia.file_created_at ASC, ia.id ASC
+                 FOR UPDATE OF rt SKIP LOCKED
+                 LIMIT 1
+                """);
+        return sql.toString();
+    }
+
+    private StringBuilder pendingSql(String projection) {
+        return new StringBuilder("""
+                SELECT %s
                 FROM review_task rt
                 JOIN image_asset ia ON ia.id = rt.image_id
                 WHERE rt.status = 'PENDING'
                   AND ia.file_available = TRUE
-                """);
+                """.formatted(projection));
+    }
+
+    private void appendFilters(
+            StringBuilder sql,
+            ReviewFilters filters,
+            MapSqlParameterSource parameters
+    ) {
         if (filters.createdFrom() != null) {
             sql.append(" AND ia.file_created_at >= :createdFrom");
             parameters.addValue("createdFrom", Timestamp.from(filters.createdFrom()));
@@ -166,12 +216,6 @@ public class ReviewClaimRepository {
             sql.append(" AND ia.is_notification = :notification");
             parameters.addValue("notification", filters.notification());
         }
-        sql.append("""
-                 ORDER BY ia.file_created_at, ia.id
-                 FOR UPDATE OF rt SKIP LOCKED
-                 LIMIT 1
-                """);
-        return sql.toString();
     }
 
     private static boolean hasText(String value) {

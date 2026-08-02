@@ -17,6 +17,10 @@ public class ReviewPageController {
     @GetMapping("/review")
     String review(Model model) {
         model.addAttribute("games", properties.games());
+        model.addAttribute(
+                "countRemainingScreenshots",
+                properties.countRemainingScreenshots()
+        );
         return "review";
     }
 }

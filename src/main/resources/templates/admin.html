@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
     <title>Operator management — Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
@@ -18,6 +19,11 @@
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Navigation">
+            <button class="theme-toggle" type="button" data-theme-toggle
+                    aria-label="Switch to light theme" title="Switch to light theme">
+                <span aria-hidden="true" data-theme-icon>☀</span>
+                <span data-theme-label>Light</span>
+            </button>
             <span class="signed-in-user" th:text="${adminName}">admin</span>
             <form method="post" th:action="@{/logout}">
                 <button class="link-button" type="submit">Sign out</button>
@@ -63,10 +69,15 @@
             The selected operator is no longer available.
         </p>
 
-        <div class="admin-layout">
+        <details class="admin-create-disclosure">
+            <summary>
+                <span>
+                    <span class="section-kicker">New account</span>
+                    <strong id="create-operator-title">Create operator</strong>
+                </span>
+                <small>Open account form</small>
+            </summary>
             <aside class="admin-create-panel" aria-labelledby="create-operator-title">
-                <span class="section-kicker">New account</span>
-                <h2 id="create-operator-title">Create operator</h2>
                 <p>
                     New accounts can review screenshots immediately. Administrators are created
                     only from the server.
@@ -92,7 +103,9 @@
                     <button class="button primary" type="submit">Create operator</button>
                 </form>
             </aside>
+        </details>
 
+        <div class="admin-layout roster-only">
             <section class="operator-roster" aria-labelledby="operator-roster-title">
                 <header class="roster-heading">
                     <div>
@@ -101,7 +114,7 @@
                     </div>
                     <span class="operator-count">
                         Accounts
-                        <strong th:text="${#lists.size(operators)}">0</strong>
+                        <strong th:text="${totalOperators}">0</strong>
                     </span>
                 </header>
 
@@ -113,8 +126,10 @@
                             <th scope="col">Status</th>
                             <th scope="col">Today</th>
                             <th scope="col">Last 7 days</th>
-                            <th scope="col">Accepted</th>
-                            <th scope="col">Rejected</th>
+                            <th scope="col">All time</th>
+                            <th scope="col">Matches</th>
+                            <th scope="col">Does not match</th>
+                            <th scope="col">Daily trend</th>
                             <th scope="col">Actions</th>
                         </tr>
                         </thead>
@@ -123,9 +138,10 @@
                             th:classappend="${operator.enabled()} ? '' : 'is-disabled'"
                             th:attr="data-operator=${operator.username()},
                                      data-today=${operator.today()},
-                                     data-total=${operator.total()},
-                                     data-accepted=${operator.accepted()},
-                                     data-rejected=${operator.rejected()}">
+                                     data-last-seven-days=${operator.lastSevenDays()},
+                                     data-all-time=${operator.allTime()},
+                                     data-matched=${operator.matched()},
+                                     data-not-matched=${operator.notMatched()}">
                             <th scope="row">
                                 <span class="operator-avatar"
                                       th:text="${#strings.substring(operator.username(), 0, 1).toUpperCase()}">O</span>
@@ -142,9 +158,31 @@
                                 </span>
                             </td>
                             <td class="number-cell" th:text="${operator.today()}">0</td>
-                            <td class="number-cell total-cell" th:text="${operator.total()}">0</td>
-                            <td class="number-cell accepted-cell" th:text="${operator.accepted()}">0</td>
-                            <td class="number-cell rejected-cell" th:text="${operator.rejected()}">0</td>
+                            <td class="number-cell total-cell" th:text="${operator.lastSevenDays()}">0</td>
+                            <td class="number-cell" th:text="${operator.allTime()}">0</td>
+                            <td class="number-cell accepted-cell" th:text="${operator.matched()}">0</td>
+                            <td class="number-cell rejected-cell" th:text="${operator.notMatched()}">0</td>
+                            <td>
+                                <div class="admin-daily-chart" aria-label="Reviews by day">
+                                    <article class="admin-daily-day"
+                                             th:each="day : ${operator.daily()}"
+                                             th:attr="aria-label=|${day.date()}: ${day.total()} checked; ${day.matched()} matches; ${day.notMatched()} does not match|">
+                                        <strong class="admin-daily-value" th:text="${day.total()}">0</strong>
+                                        <span class="admin-daily-plot" aria-hidden="true">
+                                            <i class="admin-daily-bar"
+                                               th:style="|--bar-height: ${day.relativePercent(operator.maxDaily())}%|">
+                                                <span class="admin-daily-matched"
+                                                      th:style="|--segment: ${day.matchedPercent()}%|"></span>
+                                                <span class="admin-daily-not-matched"
+                                                      th:style="|--segment: ${day.notMatchedPercent()}%|"></span>
+                                            </i>
+                                        </span>
+                                        <time class="admin-daily-date"
+                                              th:datetime="${day.date()}"
+                                              th:text="${day.shortDate()}">Sat 01</time>
+                                    </article>
+                                </div>
+                            </td>
                             <td>
                                 <div class="operator-actions">
                                     <details class="password-reset">
@@ -186,6 +224,16 @@
                     <strong>No operator accounts yet</strong>
                     <p>Create the first operator using the form on the left.</p>
                 </div>
+
+                <nav class="admin-pagination" th:if="${totalPages > 1}" aria-label="Operator pages">
+                    <a class="button secondary"
+                       th:if="${hasPrevious}"
+                       th:href="@{/admin(page=${page - 1})}">Previous</a>
+                    <span th:text="|Page ${page + 1} of ${totalPages}|">Page 1 of 1</span>
+                    <a class="button secondary"
+                       th:if="${hasNext}"
+                       th:href="@{/admin(page=${page + 1})}">Next</a>
+                </nav>
             </section>
         </div>
 
@@ -203,7 +251,7 @@
                     <div class="workload-track" aria-hidden="true">
                         <i th:style="|--workload: ${operator.barPercent()}%|"></i>
                     </div>
-                    <strong th:text="${operator.total()}">0</strong>
+                    <strong th:text="${operator.lastSevenDays()}">0</strong>
                 </div>
             </div>
             <p class="admin-empty compact" th:if="${#lists.isEmpty(operators)}">

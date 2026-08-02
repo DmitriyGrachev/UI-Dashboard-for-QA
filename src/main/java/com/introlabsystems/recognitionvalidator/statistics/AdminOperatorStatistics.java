@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.statistics;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 public record AdminOperatorStatistics(
@@ -9,9 +10,14 @@ public record AdminOperatorStatistics(
         boolean enabled,
         Instant createdAt,
         long today,
-        long total,
-        long accepted,
-        long rejected,
+        long lastSevenDays,
+        long allTime,
+        long matched,
+        long notMatched,
+        List<DailyReviewCount> daily,
         int barPercent
 ) {
+    public long maxDaily() {
+        return daily.stream().mapToLong(DailyReviewCount::total).max().orElse(0);
+    }
 }

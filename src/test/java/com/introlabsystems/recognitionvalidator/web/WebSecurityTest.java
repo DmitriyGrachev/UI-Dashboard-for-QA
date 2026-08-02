@@ -23,6 +23,8 @@ import java.nio.file.Path;
 import java.sql.Timestamp;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.hamcrest.Matchers.containsString;
@@ -62,7 +64,7 @@ class WebSecurityTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        jdbc.execute("TRUNCATE TABLE review_task, image_asset, app_user CASCADE");
+        jdbc.execute("TRUNCATE TABLE operator_daily_statistics, review_task, image_asset, app_user CASCADE");
         imageRoot = properties.imageRoot().toAbsolutePath().normalize();
         FileSystemUtils.deleteRecursively(imageRoot);
         Files.createDirectories(imageRoot);
@@ -76,6 +78,20 @@ class WebSecurityTest {
     }
 
     @Test
+    void loginPageRendersPersistentThemeControl() throws Exception {
+        mockMvc.perform(get("/login"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/js/theme.js")))
+                .andExpect(content().string(containsString("data-theme-toggle")));
+    }
+
+    @Test
+    void themeScriptIsPublic() throws Exception {
+        mockMvc.perform(get("/js/theme.js"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
     void loginPageExplainsExpiredSession() throws Exception {
         mockMvc.perform(get("/login").param("expired", ""))
                 .andExpect(status().isOk())
@@ -85,22 +101,19 @@ class WebSecurityTest {
     }
 
     @Test
-    void reviewApiAndImagesRequireAuthentication() throws Exception {
+    void reviewPageRedirectsButApisReturnUnauthorizedWithoutAuthentication() throws Exception {
         mockMvc.perform(get("/review"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string("Location", endsWith("/login")));
         mockMvc.perform(post("/api/review-tasks/claim").with(csrf()))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", endsWith("/login")));
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/images/missing/content"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", endsWith("/login")));
+                .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/statistics"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(header().string("Location", endsWith("/login")));
         mockMvc.perform(get("/api/statistics/me"))
-                .andExpect(status().is3xxRedirection())
-                .andExpect(header().string("Location", endsWith("/login")));
+                .andExpect(status().isUnauthorized());
     }
 
     @Test
@@ -113,6 +126,36 @@ class WebSecurityTest {
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Operator management")));
+    }
+
+    @Test
+    void adminPageProgressivelyDisclosesOperatorCreation() throws Exception {
+        mockMvc.perform(get("/admin")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "<details class=\"admin-create-disclosure\""
+                )))
+                .andExpect(content().string(containsString("Create operator")));
+    }
+
+    @Test
+    void authenticatedPagesRenderPersistentThemeControl() throws Exception {
+        UUID operatorId = insertOperator("theme-operator", "password");
+        OperatorPrincipal operator = principal(operatorId, "theme-operator");
+
+        mockMvc.perform(get("/review").with(user(operator)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/js/theme.js")))
+                .andExpect(content().string(containsString("data-theme-toggle")));
+        mockMvc.perform(get("/statistics").with(user(operator)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/js/theme.js")))
+                .andExpect(content().string(containsString("data-theme-toggle")));
+        mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("/js/theme.js")))
+                .andExpect(content().string(containsString("data-theme-toggle")));
     }
 
     @Test
@@ -301,33 +344,70 @@ class WebSecurityTest {
         UUID inactiveId = insertOperator("operator-two", "operator-password");
         jdbc.update("UPDATE app_user SET enabled = FALSE WHERE id = ?", inactiveId);
 
-        String acceptedToday = insertReviewImage(
-                130, "accepted-today.png", true, "bj_igt", "session-1",
-                null, "Jack", null
-        );
-        String rejectedRecent = insertReviewImage(
-                131, "rejected-recent.png", true, "bj_igt", "session-2",
-                null, "Nine", null
-        );
-        String acceptedOld = insertReviewImage(
-                132, "accepted-old.png", true, "bj_igt", "session-3",
-                null, "Seven", null
-        );
-        completeReview(acceptedToday, operatorId, "ACCEPTED", "1 hour");
-        completeReview(rejectedRecent, operatorId, "REJECTED", "2 days");
-        completeReview(acceptedOld, operatorId, "ACCEPTED", "8 days");
+        LocalDate today = Instant.now().atZone(ZoneOffset.UTC).toLocalDate();
+        insertDailyStatistics(operatorId, today, 1, 1, 0);
+        insertDailyStatistics(operatorId, today.minusDays(2), 1, 0, 1);
+        insertDailyStatistics(operatorId, today.minusDays(8), 1, 1, 0);
 
-        mockMvc.perform(get("/admin")
+        MvcResult result = mockMvc.perform(get("/admin")
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(
                         "data-operator=\"operator-one\" data-today=\"1\" "
-                                + "data-total=\"2\" data-accepted=\"1\" data-rejected=\"1\""
+                                + "data-last-seven-days=\"2\" data-all-time=\"3\" "
+                                + "data-matched=\"1\" data-not-matched=\"1\""
                 )))
                 .andExpect(content().string(containsString(
                         "data-operator=\"operator-two\" data-today=\"0\" "
-                                + "data-total=\"0\" data-accepted=\"0\" data-rejected=\"0\""
-                )));
+                                + "data-last-seven-days=\"0\" data-all-time=\"0\" "
+                                + "data-matched=\"0\" data-not-matched=\"0\""
+                )))
+                .andReturn();
+        assertThat(countOccurrences(
+                result.getResponse().getContentAsString(),
+                "class=\"admin-daily-bar\""
+        )).isEqualTo(14);
+        assertThat(countOccurrences(
+                result.getResponse().getContentAsString(),
+                "class=\"admin-daily-value\""
+        )).isEqualTo(14);
+        assertThat(countOccurrences(
+                result.getResponse().getContentAsString(),
+                "class=\"admin-daily-date\""
+        )).isEqualTo(14);
+        assertThat(result.getResponse().getContentAsString())
+                .contains("1 checked; 1 matches; 0 does not match")
+                .contains("1 checked; 0 matches; 1 does not match");
+    }
+
+    @Test
+    void adminDashboardPaginatesOperatorsTenAtATime() throws Exception {
+        for (int index = 0; index < 11; index++) {
+            insertOperatorWithoutHash("paged-%02d".formatted(index));
+        }
+
+        MvcResult firstPage = mockMvc.perform(get("/admin")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("paged-00")))
+                .andExpect(content().string(containsString("/admin?page=1")))
+                .andReturn();
+        assertThat(countOccurrences(
+                firstPage.getResponse().getContentAsString(),
+                "data-operator=\"paged-"
+        )).isEqualTo(10);
+
+        MvcResult secondPage = mockMvc.perform(get("/admin")
+                        .param("page", "1")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("paged-10")))
+                .andExpect(content().string(containsString("/admin?page=0")))
+                .andReturn();
+        assertThat(countOccurrences(
+                secondPage.getResponse().getContentAsString(),
+                "data-operator=\"paged-"
+        )).isEqualTo(1);
     }
 
     @Test
@@ -412,11 +492,11 @@ class WebSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.imageId").value(imageId))
-                .andExpect(jsonPath("$.fileName").value("screen.png"))
-                .andExpect(jsonPath("$.dealerCards").value("Eight"))
-                .andExpect(jsonPath("$.activeUserCards").value("Seven_Jack"))
-                .andExpect(jsonPath("$.inactiveUserCards").value("A10J3"))
+                .andExpect(jsonPath("$.item.imageId").value(imageId))
+                .andExpect(jsonPath("$.item.fileName").value("screen.png"))
+                .andExpect(jsonPath("$.item.dealerCards").value("Eight"))
+                .andExpect(jsonPath("$.item.activeUserCards").value("Seven_Jack"))
+                .andExpect(jsonPath("$.item.inactiveUserCards").value("A10J3"))
                 .andExpect(content().string(org.hamcrest.Matchers.not(
                         containsString(imageRoot.toString())
                 )));
@@ -437,13 +517,13 @@ class WebSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.fileName").value(fileName))
-                .andExpect(jsonPath("$.buttonsRaw").value("bSbHbDbSR"))
-                .andExpect(jsonPath("$.surrender").value(true));
+                .andExpect(jsonPath("$.item.fileName").value(fileName))
+                .andExpect(jsonPath("$.item.buttonsRaw").value("bSbHbDbSR"))
+                .andExpect(jsonPath("$.item.surrender").value(true));
     }
 
     @Test
-    void emptyQueueReturnsNoContent() throws Exception {
+    void emptyQueueReturnsStableWrapper() throws Exception {
         UUID operatorId = insertOperator("empty-operator", "password");
 
         mockMvc.perform(post("/api/review-tasks/claim")
@@ -451,7 +531,9 @@ class WebSecurityTest {
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isNoContent());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item").doesNotExist())
+                .andExpect(jsonPath("$.remaining").value(0));
     }
 
     @Test
@@ -460,6 +542,10 @@ class WebSecurityTest {
         String imageId = insertReviewImage(
                 101, "decision.png", true, "bj_igt", "session",
                 null, "Jack", null
+        );
+        String nextImageId = insertReviewImage(
+                105, "decision-next.png", true, "bj_igt", "session",
+                null, "Nine", null
         );
         OperatorPrincipal principal = principal(operatorId, "decision-operator");
         mockMvc.perform(post("/api/review-tasks/claim")
@@ -472,10 +558,12 @@ class WebSecurityTest {
         String decision = "{\"decision\":\"REJECTED\"}";
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
                         .with(user(principal))
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(decision))
-                .andExpect(status().isNoContent());
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(decision))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.imageId").value(nextImageId))
+                .andExpect(jsonPath("$.remaining").doesNotExist());
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
                         .with(user(principal))
                         .with(csrf())
@@ -494,8 +582,10 @@ class WebSecurityTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "createdFrom": "2026-07-31T00:00:00Z",
-                                  "createdTo": "2026-07-30T00:00:00Z"
+                                  "filters": {
+                                    "createdFrom": "2026-07-31T00:00:00Z",
+                                    "createdTo": "2026-07-30T00:00:00Z"
+                                  }
                                 }
                                 """))
                 .andExpect(status().isBadRequest());
@@ -553,7 +643,15 @@ class WebSecurityTest {
                         .with(user(principal)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Review filters")))
-                .andExpect(content().string(containsString("Matches")));
+                .andExpect(content().string(containsString("Recognition review desk")))
+                .andExpect(content().string(containsString("Matches")))
+                .andExpect(content().string(containsString("Does not match")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        containsString("OCR correct")
+                )))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        containsString("OCR incorrect")
+                )));
         mockMvc.perform(get("/statistics")
                         .with(user(principal)))
                 .andExpect(status().isOk())
@@ -565,8 +663,58 @@ class WebSecurityTest {
                         .with(user(principal)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.today").value(0))
-                .andExpect(jsonPath("$.periodTotal").value(0))
-                .andExpect(jsonPath("$.acceptedPercent").value(0.00));
+                .andExpect(jsonPath("$.lastSevenDays").value(0))
+                .andExpect(jsonPath("$.allTime").value(0))
+                .andExpect(jsonPath("$.daily.length()").value(7));
+    }
+
+    @Test
+    void reviewPageProvidesCompactWorkspaceControlsAndTechnicalDetails() throws Exception {
+        UUID operatorId = insertOperator("review-layout-operator", "password");
+
+        mockMvc.perform(get("/review")
+                        .with(user(principal(operatorId, "review-layout-operator"))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "<div class=\"app-shell review-shell\""
+                )))
+                .andExpect(content().string(containsString(
+                        "<main class=\"review-workspace\""
+                )))
+                .andExpect(content().string(containsString(
+                        "<aside class=\"filter-sidebar\""
+                )))
+                .andExpect(content().string(containsString("id=\"filter-toggle\"")))
+                .andExpect(content().string(containsString("id=\"faq-open\"")))
+                .andExpect(content().string(containsString("id=\"faq-dialog\"")))
+                .andExpect(content().string(containsString(
+                        "<output id=\"remaining-count\""
+                )))
+                .andExpect(content().string(containsString(
+                        "<details class=\"technical-disclosure\""
+                )))
+                .andExpect(content().string(containsString("Does not match")))
+                .andExpect(content().string(containsString("Matches")));
+    }
+
+    @Test
+    void statisticsPageUsesFocusedRecognitionSummary() throws Exception {
+        UUID operatorId = insertOperator("focused-statistics", "password");
+
+        mockMvc.perform(get("/statistics")
+                        .with(user(principal(operatorId, "focused-statistics"))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Today, UTC")))
+                .andExpect(content().string(containsString("Last 7 days")))
+                .andExpect(content().string(containsString("All time")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        containsString("Stored in database")
+                )))
+                .andExpect(content().string(containsString("Matches")))
+                .andExpect(content().string(containsString("Does not match")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(
+                        containsString("OCR inspection desk")
+                )));
     }
 
     private UUID insertOperator(String username, String password) {
@@ -628,20 +776,31 @@ class WebSecurityTest {
         return id;
     }
 
-    private void completeReview(
-            String imageId,
+    private void insertDailyStatistics(
             UUID operatorId,
-            String decision,
-            String age
+            LocalDate date,
+            long total,
+            long matched,
+            long notMatched
     ) {
         jdbc.update("""
-                UPDATE review_task
-                SET status = 'COMPLETED',
-                    assigned_to = ?,
-                    decision = ?,
-                    reviewed_at = now() - CAST(? AS interval)
-                WHERE image_id = ?
-                """, operatorId, decision, age, imageId);
+                INSERT INTO operator_daily_statistics (
+                    operator_id, statistics_date, total_checked,
+                    matched_count, not_matched_count
+                ) VALUES (?, ?, ?, ?, ?)
+                """, operatorId, date, total, matched, notMatched);
+    }
+
+    private void insertOperatorWithoutHash(String username) {
+        jdbc.update("""
+                INSERT INTO app_user (
+                    id, username, password_hash, enabled, created_at, role
+                ) VALUES (?, ?, 'unused', TRUE, now(), 'OPERATOR')
+                """, UUID.randomUUID(), username);
+    }
+
+    private int countOccurrences(String text, String fragment) {
+        return text.split(java.util.regex.Pattern.quote(fragment), -1).length - 1;
     }
 
     private OperatorPrincipal principal(UUID id, String username) {

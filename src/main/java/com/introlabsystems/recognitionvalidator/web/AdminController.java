@@ -29,8 +29,18 @@ public class AdminController {
     }
 
     @GetMapping("/admin")
-    String admin(Model model, Principal principal) {
-        model.addAttribute("operators", statistics.lastSevenDays());
+    String admin(
+            @RequestParam(defaultValue = "0") int page,
+            Model model,
+            Principal principal
+    ) {
+        var dashboard = statistics.page(page);
+        model.addAttribute("operators", dashboard.operators());
+        model.addAttribute("page", dashboard.page());
+        model.addAttribute("totalPages", dashboard.totalPages());
+        model.addAttribute("totalOperators", dashboard.totalOperators());
+        model.addAttribute("hasPrevious", dashboard.hasPrevious());
+        model.addAttribute("hasNext", dashboard.hasNext());
         model.addAttribute("adminName", principal.getName());
         return "admin";
     }
