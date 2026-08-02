@@ -4,8 +4,8 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.Timestamp;
-import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -19,58 +19,72 @@ public class StatisticsRepository {
 
     public StatisticsCounts countForOperator(
             UUID operatorId,
-            Instant todayStart,
-            Instant tomorrowStart,
-            Instant from,
-            Instant to
+            LocalDate today,
+            LocalDate from,
+            LocalDate to
     ) {
         return jdbc.queryForObject("""
                 SELECT
-                    COUNT(*) FILTER (
-                        WHERE rt.reviewed_at >= :todayStart
-                          AND rt.reviewed_at < :tomorrowStart
-                    ) AS today,
-                    COUNT(*) AS retained_total,
-                    COUNT(*) FILTER (
-                        WHERE rt.reviewed_at >= :from
-                          AND rt.reviewed_at < :to
-                    ) AS period_total,
-                    COUNT(*) FILTER (
-                        WHERE rt.reviewed_at >= :from
-                          AND rt.reviewed_at < :to
-                          AND rt.decision = 'ACCEPTED'
-                    ) AS accepted,
-                    COUNT(*) FILTER (
-                        WHERE rt.reviewed_at >= :from
-                          AND rt.reviewed_at < :to
-                          AND rt.decision = 'REJECTED'
-                    ) AS rejected
-                FROM review_task rt
-                WHERE rt.status = 'COMPLETED'
-                  AND rt.assigned_to = :operatorId
+                    COALESCE(SUM(total_checked) FILTER (
+                        WHERE statistics_date = :today
+                    ), 0) AS today,
+                    COALESCE(SUM(total_checked) FILTER (
+                        WHERE statistics_date BETWEEN :from AND :to
+                    ), 0) AS last_seven_days,
+                    COALESCE(SUM(total_checked), 0) AS all_time,
+                    COALESCE(SUM(matched_count) FILTER (
+                        WHERE statistics_date BETWEEN :from AND :to
+                    ), 0) AS matched,
+                    COALESCE(SUM(not_matched_count) FILTER (
+                        WHERE statistics_date BETWEEN :from AND :to
+                    ), 0) AS not_matched
+                FROM operator_daily_statistics
+                WHERE operator_id = :operatorId
                 """,
                 new MapSqlParameterSource()
                         .addValue("operatorId", operatorId)
-                        .addValue("todayStart", Timestamp.from(todayStart))
-                        .addValue("tomorrowStart", Timestamp.from(tomorrowStart))
-                        .addValue("from", Timestamp.from(from))
-                        .addValue("to", Timestamp.from(to)),
+                        .addValue("today", today)
+                        .addValue("from", from)
+                        .addValue("to", to),
                 (resultSet, rowNumber) -> new StatisticsCounts(
                         resultSet.getLong("today"),
-                        resultSet.getLong("retained_total"),
-                        resultSet.getLong("period_total"),
-                        resultSet.getLong("accepted"),
-                        resultSet.getLong("rejected")
+                        resultSet.getLong("last_seven_days"),
+                        resultSet.getLong("all_time"),
+                        resultSet.getLong("matched"),
+                        resultSet.getLong("not_matched")
                 )
         );
     }
 
+    public List<DailyReviewCount> dailyForOperator(
+            UUID operatorId,
+            LocalDate from,
+            LocalDate to
+    ) {
+        return jdbc.query("""
+                SELECT statistics_date, total_checked, matched_count, not_matched_count
+                FROM operator_daily_statistics
+                WHERE operator_id = :operatorId
+                  AND statistics_date BETWEEN :from AND :to
+                ORDER BY statistics_date
+                """, new MapSqlParameterSource()
+                        .addValue("operatorId", operatorId)
+                        .addValue("from", from)
+                        .addValue("to", to),
+                (resultSet, rowNumber) -> new DailyReviewCount(
+                        resultSet.getObject("statistics_date", LocalDate.class),
+                        resultSet.getLong("total_checked"),
+                        resultSet.getLong("matched_count"),
+                        resultSet.getLong("not_matched_count")
+                ));
+    }
+
     public record StatisticsCounts(
             long today,
-            long retainedTotal,
-            long periodTotal,
-            long accepted,
-            long rejected
+            long lastSevenDays,
+            long allTime,
+            long matched,
+            long notMatched
     ) {
     }
 }

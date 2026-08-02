@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.review;
 
+import com.introlabsystems.recognitionvalidator.statistics.DailyStatisticsRepository;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -8,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Service
@@ -15,10 +17,16 @@ public class DecisionService {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
+    private final DailyStatisticsRepository dailyStatistics;
 
-    public DecisionService(NamedParameterJdbcTemplate jdbc, Clock clock) {
+    public DecisionService(
+            NamedParameterJdbcTemplate jdbc,
+            Clock clock,
+            DailyStatisticsRepository dailyStatistics
+    ) {
         this.jdbc = jdbc;
         this.clock = clock;
+        this.dailyStatistics = dailyStatistics;
     }
 
     @Transactional
@@ -41,5 +49,10 @@ public class DecisionService {
         if (updated != 1) {
             throw new DecisionConflictException(imageId);
         }
+        dailyStatistics.increment(
+                operatorId,
+                reviewedAt.atZone(ZoneOffset.UTC).toLocalDate(),
+                decision
+        );
     }
 }

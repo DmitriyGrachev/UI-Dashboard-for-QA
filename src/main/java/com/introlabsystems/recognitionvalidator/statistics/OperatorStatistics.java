@@ -1,14 +1,16 @@
 package com.introlabsystems.recognitionvalidator.statistics;
 
-import java.math.BigDecimal;
+import java.util.List;
 
 public record OperatorStatistics(
         long today,
-        long retainedTotal,
-        long periodTotal,
-        long accepted,
-        long rejected,
-        BigDecimal acceptedPercent,
-        BigDecimal rejectedPercent
+        long lastSevenDays,
+        long allTime,
+        long matched,
+        long notMatched,
+        List<DailyReviewCount> daily
 ) {
+    public long maxDaily() {
+        return daily.stream().mapToLong(DailyReviewCount::total).max().orElse(0);
+    }
 }

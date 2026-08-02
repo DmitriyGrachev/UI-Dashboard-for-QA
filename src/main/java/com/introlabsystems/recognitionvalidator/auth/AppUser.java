@@ -2,6 +2,8 @@ package com.introlabsystems.recognitionvalidator.auth;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
@@ -24,6 +26,14 @@ public class AppUser {
     @Column(nullable = false)
     private boolean enabled;
 
+    @Enumerated(EnumType.STRING)
+    @Column(
+            nullable = false,
+            length = 16,
+            columnDefinition = "varchar(16) default 'OPERATOR'"
+    )
+    private UserRole role;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -31,10 +41,22 @@ public class AppUser {
     }
 
     public AppUser(UUID id, String username, String passwordHash, boolean enabled, Instant createdAt) {
+        this(id, username, passwordHash, enabled, UserRole.OPERATOR, createdAt);
+    }
+
+    public AppUser(
+            UUID id,
+            String username,
+            String passwordHash,
+            boolean enabled,
+            UserRole role,
+            Instant createdAt
+    ) {
         this.id = id;
         this.username = username;
         this.passwordHash = passwordHash;
         this.enabled = enabled;
+        this.role = role;
         this.createdAt = createdAt;
     }
 
@@ -50,8 +72,20 @@ public class AppUser {
         return passwordHash;
     }
 
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public UserRole getRole() {
+        return role;
     }
 
     public Instant getCreatedAt() {

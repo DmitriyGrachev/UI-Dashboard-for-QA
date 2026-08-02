@@ -3,7 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
     <title>My statistics — Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
     <link rel="stylesheet" th:href="@{/css/app.css}">
 </head>
 <body>
@@ -13,10 +15,15 @@
             <span class="brand-mark" aria-hidden="true">RV</span>
             <span>
                 <strong>Recognition Validator</strong>
-                <small>OCR inspection desk</small>
+                <small>Recognition review desk</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Navigation">
+            <button class="theme-toggle" type="button" data-theme-toggle
+                    aria-label="Switch to light theme" title="Switch to light theme">
+                <span aria-hidden="true" data-theme-icon>☀</span>
+                <span data-theme-label>Light</span>
+            </button>
             <a th:href="@{/review}">Back to review</a>
             <form method="post" th:action="@{/logout}">
                 <button class="link-button" type="submit">Sign out</button>
@@ -31,78 +38,81 @@
                 <h1>Operator statistics</h1>
                 <p>
                     <span th:text="${operatorName}">operator</span>
-                    · days and date boundaries are calculated in UTC
+                    · daily boundaries are calculated in UTC
                 </p>
             </div>
-            <form class="period-form" method="get" th:action="@{/statistics}">
-                <label>
-                    Period from
-                    <input type="date" name="from" th:value="${from}" required>
-                </label>
-                <label>
-                    Period to
-                    <input type="date" name="to" th:value="${to}" required>
-                </label>
-                <button class="button primary" type="submit">Show</button>
-            </form>
+            <div class="retention-badge">
+                <span>Daily trend</span>
+                <strong>Last 7 days</strong>
+            </div>
         </section>
 
-        <section class="metric-grid" aria-label="Review count">
+        <section class="metric-grid statistics-kpis" aria-label="Review totals">
             <article class="metric-card signal-card">
                 <span>Today, UTC</span>
                 <strong th:text="${statistics.today()}">0</strong>
-                <small>images reviewed</small>
+                <small>screenshots checked</small>
             </article>
             <article class="metric-card">
-                <span>Stored in database</span>
-                <strong th:text="${statistics.retainedTotal()}">0</strong>
-                <small>results from the current 7 days</small>
+                <span>Last 7 days</span>
+                <strong th:text="${statistics.lastSevenDays()}">0</strong>
+                <small>rolling UTC week</small>
             </article>
             <article class="metric-card">
-                <span>Selected period</span>
-                <strong th:text="${statistics.periodTotal()}">0</strong>
-                <small th:text="|${from} — ${to}|">period</small>
+                <span>All time</span>
+                <strong th:text="${statistics.allTime()}">0</strong>
+                <small>permanent total</small>
             </article>
         </section>
 
-        <section class="decision-breakdown" aria-labelledby="breakdown-title">
+        <section class="daily-performance" aria-labelledby="daily-performance-title">
             <header>
                 <div>
-                    <span class="section-kicker">Decisions for the period</span>
-                    <h2 id="breakdown-title">Recognition match</h2>
+                    <span class="section-kicker">Daily output</span>
+                    <h2 id="daily-performance-title">Reviews by day</h2>
                 </div>
-                <span class="total-chip">
-                    Total
-                    <strong th:text="${statistics.periodTotal()}">0</strong>
-                </span>
+                <div class="chart-legend" aria-label="Chart legend">
+                    <span class="matched-key">Matches</span>
+                    <span class="not-matched-key">Does not match</span>
+                </div>
             </header>
-
-            <div class="decision-row accepted-row">
-                <div>
-                    <span>Matches</span>
-                    <strong th:text="${statistics.accepted()}">0</strong>
+            <div class="daily-chart-frame">
+                <div class="daily-scale" aria-hidden="true">
+                    <span th:text="${statistics.maxDaily()}">30</span>
+                    <span th:text="${(statistics.maxDaily() + 1) / 2}">15</span>
+                    <span>0</span>
                 </div>
-                <div class="share-track" aria-hidden="true">
-                    <span th:style="|--share: ${statistics.acceptedPercent()}%|"></span>
+                <div class="daily-chart" th:classappend="${statistics.maxDaily() == 0} ? ' is-empty'">
+                    <article class="daily-bar" th:each="day : ${statistics.daily()}">
+                        <div class="daily-bar-plot">
+                            <div class="daily-bar-stack"
+                                 th:style="|--bar-height: ${day.relativePercent(statistics.maxDaily())}%|"
+                                 th:title="|${day.date()}: ${day.total()} checked; ${day.matched()} matches; ${day.notMatched()} does not match|">
+                                <i class="matched-segment"
+                                   th:style="|--segment: ${day.matchedPercent()}%|"></i>
+                                <i class="not-matched-segment"
+                                   th:style="|--segment: ${day.notMatchedPercent()}%|"></i>
+                            </div>
+                        </div>
+                        <strong th:text="${day.total()}">0</strong>
+                        <time th:datetime="${day.date()}" th:text="${day.shortDate()}">Sat 01</time>
+                    </article>
                 </div>
-                <output th:text="|${statistics.acceptedPercent()}%|">0.00%</output>
             </div>
-
-            <div class="decision-row rejected-row">
-                <div>
-                    <span>Does not match</span>
-                    <strong th:text="${statistics.rejected()}">0</strong>
-                </div>
-                <div class="share-track" aria-hidden="true">
-                    <span th:style="|--share: ${statistics.rejectedPercent()}%|"></span>
-                </div>
-                <output th:text="|${statistics.rejectedPercent()}%|">0.00%</output>
-            </div>
-
-            <p class="retention-note">
-                The application deletes metadata older than 7 days from PostgreSQL.
-                Source images on disk are not modified.
+            <p class="daily-zero-message" th:if="${statistics.maxDaily() == 0}">
+                Completed reviews will appear here as daily columns.
             </p>
+        </section>
+
+        <section class="decision-totals" aria-label="Decisions in the last seven days">
+            <article>
+                <span>Matches</span>
+                <strong th:text="${statistics.matched()}">0</strong>
+            </article>
+            <article>
+                <span>Does not match</span>
+                <strong th:text="${statistics.notMatched()}">0</strong>
+            </article>
         </section>
     </main>
 </div>

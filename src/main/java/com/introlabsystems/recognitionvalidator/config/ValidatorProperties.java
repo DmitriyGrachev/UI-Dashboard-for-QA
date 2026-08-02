@@ -18,6 +18,11 @@ public record ValidatorProperties(
         @Min(1) int batchSize,
         @NotNull Duration leaseDuration,
         @NotNull Duration retention,
-        boolean watchEnabled
+        @Min(1) int cleanupBatchSize,
+        @Min(1) int cleanupMaxBatches,
+        boolean watchEnabled,
+        @NotNull Duration watchFlushInterval,
+        @Min(1) int watchMaxPendingEvents,
+        boolean countRemainingScreenshots
 ) {
 }
