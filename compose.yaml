@@ -31,6 +31,8 @@ services:
 
   app:
     image: recognition-validator-app:local
+    # Hard limit for the whole JVM process: heap, metaspace, threads and native buffers.
+    mem_limit: ${APP_MEMORY_LIMIT:-5g}
     build:
       context: .
       dockerfile: Dockerfile
