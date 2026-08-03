@@ -143,11 +143,13 @@
                                      data-matched=${operator.matched()},
                                      data-not-matched=${operator.notMatched()}">
                             <th scope="row">
-                                <span class="operator-avatar"
-                                      th:text="${#strings.substring(operator.username(), 0, 1).toUpperCase()}">O</span>
-                                <span class="operator-identity">
-                                    <strong th:text="${operator.username()}">operator</strong>
-                                    <small th:text="${operator.operatorId()}">UUID</small>
+                                <span class="operator-summary">
+                                    <span class="operator-avatar"
+                                          th:text="${#strings.substring(operator.username(), 0, 1).toUpperCase()}">O</span>
+                                    <span class="operator-identity">
+                                        <strong th:text="${operator.username()}">operator</strong>
+                                        <small th:text="${operator.operatorId()}">UUID</small>
+                                    </span>
                                 </span>
                             </th>
                             <td>
