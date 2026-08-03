@@ -118,7 +118,8 @@ class ReviewWorkflowTest {
                 targetTime.plus(1, ChronoUnit.HOURS),
                 "39_target-session",
                 "bj_igt",
-                true
+                true,
+                null
         );
 
         assertThat(queueService.claim(operatorId, filters))
@@ -155,7 +156,7 @@ class ReviewWorkflowTest {
 
         ReviewQueueResult result = queueService.claim(
                 operatorId,
-                new ReviewFilters(null, null, null, "bj_igt", null),
+                new ReviewFilters(null, null, null, "bj_igt", null, null),
                 true,
                 true
         );
@@ -181,7 +182,7 @@ class ReviewWorkflowTest {
 
         ReviewQueueResult result = queueService.claim(
                 operatorId,
-                new ReviewFilters(null, null, null, "bj_igt", null),
+                new ReviewFilters(null, null, null, "bj_igt", null, null),
                 true,
                 true
         );

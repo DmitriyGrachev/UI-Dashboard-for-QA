@@ -230,6 +230,21 @@ public class ReviewClaimRepository {
             sql.append(" AND ia.is_notification = :notification");
             parameters.addValue("notification", filters.notification());
         }
+        if (filters.hasUserHand() != null) {
+            if (filters.hasUserHand()) {
+                sql.append("""
+                         AND (
+                             NULLIF(BTRIM(ia.active_user_cards), '') IS NOT NULL
+                             OR NULLIF(BTRIM(ia.inactive_user_cards), '') IS NOT NULL
+                         )
+                        """);
+            } else {
+                sql.append("""
+                         AND NULLIF(BTRIM(ia.active_user_cards), '') IS NULL
+                         AND NULLIF(BTRIM(ia.inactive_user_cards), '') IS NULL
+                        """);
+            }
+        }
     }
 
     private static boolean hasText(String value) {

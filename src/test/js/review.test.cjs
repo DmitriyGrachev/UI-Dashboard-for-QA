@@ -6,12 +6,19 @@ const {
     readStoredScale,
     readStoredFilters,
     toUtcIso,
+    toOptionalBoolean,
     writeStoredScale,
     writeStoredFilters
 } = require("../../main/resources/static/js/review.js");
 
 test("datetime-local value is treated as UTC without timezone conversion", () => {
     assert.equal(toUtcIso("2026-08-03T02:00"), "2026-08-03T02:00:00Z");
+});
+
+test("tri-state select value becomes an optional boolean filter", () => {
+    assert.equal(toOptionalBoolean(""), null);
+    assert.equal(toOptionalBoolean("true"), true);
+    assert.equal(toOptionalBoolean("false"), false);
 });
 
 test("review filters survive a page navigation through session storage", () => {

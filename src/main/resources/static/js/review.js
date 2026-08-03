@@ -4,6 +4,11 @@ function toUtcIso(value) {
     return `${withSeconds}Z`;
 }
 
+function toOptionalBoolean(value) {
+    if (value !== "true" && value !== "false") return null;
+    return value === "true";
+}
+
 function formatUtcDate(value) {
     if (!value) return null;
     return new Intl.DateTimeFormat("en-GB", {
@@ -63,6 +68,7 @@ if (typeof module !== "undefined" && module.exports) {
         readStoredFilters,
         readStoredScale,
         toUtcIso,
+        toOptionalBoolean,
         writeStoredFilters,
         writeStoredScale
     };
@@ -86,6 +92,7 @@ if (typeof document !== "undefined") {
         sessionId: document.getElementById("session-id"),
         gameCode: document.getElementById("game-code"),
         notification: document.getElementById("notification"),
+        hasUserHand: document.getElementById("has-user-hand"),
         remainingCount: document.getElementById("remaining-count"),
         queueOldestDate: document.getElementById("queue-oldest-date"),
         queueNewestDate: document.getElementById("queue-newest-date"),
@@ -152,9 +159,8 @@ if (typeof document !== "undefined") {
             createdTo: toUtcIso(elements.createdTo.value),
             sessionId: emptyToNull(elements.sessionId.value),
             gameCode: emptyToNull(elements.gameCode.value),
-            notification: elements.notification.value === ""
-                ? null
-                : elements.notification.value === "true"
+            notification: toOptionalBoolean(elements.notification.value),
+            hasUserHand: toOptionalBoolean(elements.hasUserHand.value)
         };
     }
 
@@ -164,7 +170,8 @@ if (typeof document !== "undefined") {
             createdTo: elements.createdTo.value,
             sessionId: elements.sessionId.value,
             gameCode: elements.gameCode.value,
-            notification: elements.notification.value
+            notification: elements.notification.value,
+            hasUserHand: elements.hasUserHand.value
         };
     }
 
@@ -180,6 +187,7 @@ if (typeof document !== "undefined") {
         elements.sessionId.value = stored.sessionId || "";
         elements.gameCode.value = stored.gameCode || "";
         elements.notification.value = stored.notification || "";
+        elements.hasUserHand.value = stored.hasUserHand || "";
     }
 
     function activeFilterTotal() {
@@ -518,7 +526,13 @@ if (typeof document !== "undefined") {
         applyFilters();
     });
 
-    [elements.createdFrom, elements.createdTo, elements.gameCode, elements.notification]
+    [
+        elements.createdFrom,
+        elements.createdTo,
+        elements.gameCode,
+        elements.notification,
+        elements.hasUserHand
+    ]
         .forEach(element => element.addEventListener("change", applyFilters));
 
     elements.sessionId.addEventListener("input", scheduleFilterApplication);

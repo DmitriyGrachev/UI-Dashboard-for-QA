@@ -7,10 +7,11 @@ public record ReviewFilters(
         Instant createdTo,
         String sessionId,
         String gameCode,
-        Boolean notification
+        Boolean notification,
+        Boolean hasUserHand
 ) {
 
     public static ReviewFilters none() {
-        return new ReviewFilters(null, null, null, null, null);
+        return new ReviewFilters(null, null, null, null, null, null);
     }
 }

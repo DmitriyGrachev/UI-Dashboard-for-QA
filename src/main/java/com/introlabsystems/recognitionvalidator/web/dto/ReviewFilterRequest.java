@@ -10,7 +10,8 @@ public record ReviewFilterRequest(
         Instant createdTo,
         String sessionId,
         String gameCode,
-        Boolean notification
+        Boolean notification,
+        Boolean hasUserHand
 ) {
 
     @AssertTrue(message = "createdFrom must be earlier than createdTo")
@@ -24,7 +25,8 @@ public record ReviewFilterRequest(
                 createdTo,
                 sessionId,
                 gameCode,
-                notification
+                notification,
+                hasUserHand
         );
     }
 }

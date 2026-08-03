@@ -85,6 +85,14 @@
                         <option value="false">No</option>
                     </select>
                 </label>
+                <label>
+                    Has user hand
+                    <select id="has-user-hand">
+                        <option value="">All</option>
+                        <option value="true">Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </label>
                 <div class="filter-actions">
                     <button class="button secondary" type="button" id="clear-filters">Reset</button>
                 </div>
@@ -241,6 +249,7 @@
                     <h3>Filters and queue</h3>
                     <p>Filters apply automatically and remain active when you visit Statistics.
                         Date inputs and the oldest/newest matching screenshot dates use UTC.
+                        Has user hand matches either active or other recognized user cards.
                         The counter includes the screenshot currently assigned to you. Reset
                         the filters or refresh the page when the queue is empty and you want
                         to check for newly arrived files.</p>

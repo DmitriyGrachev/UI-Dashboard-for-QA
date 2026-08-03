@@ -503,6 +503,70 @@ class WebSecurityTest {
     }
 
     @Test
+    void claimFiltersForScreenshotsWithAnyUserHand() throws Exception {
+        UUID operatorId = insertOperator("hand-present-operator", "password");
+        insertReviewImage(
+                200, "no-hand.png", true, "bj_igt", "session",
+                null, null, null
+        );
+        String activeHand = insertReviewImage(
+                201, "active-hand.png", true, "bj_igt", "session",
+                null, "Jack", null
+        );
+        insertReviewImage(
+                202, "other-hand.png", true, "bj_igt", "session",
+                null, null, "A10J3"
+        );
+
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal(operatorId, "hand-present-operator")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "replaceCurrent": true,
+                                  "includeRemaining": true,
+                                  "filters": {"hasUserHand": true}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.imageId").value(activeHand))
+                .andExpect(jsonPath("$.remaining").value(2));
+    }
+
+    @Test
+    void claimFiltersForScreenshotsWithoutUserHands() throws Exception {
+        UUID operatorId = insertOperator("hand-absent-operator", "password");
+        String noHand = insertReviewImage(
+                210, "no-hand.png", true, "bj_igt", "session",
+                null, null, null
+        );
+        insertReviewImage(
+                211, "active-hand.png", true, "bj_igt", "session",
+                null, "Jack", null
+        );
+        insertReviewImage(
+                212, "other-hand.png", true, "bj_igt", "session",
+                null, null, "A10J3"
+        );
+
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal(operatorId, "hand-absent-operator")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "replaceCurrent": true,
+                                  "includeRemaining": true,
+                                  "filters": {"hasUserHand": false}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.imageId").value(noHand))
+                .andExpect(jsonPath("$.remaining").value(1));
+    }
+
+    @Test
     void claimExposesParsedSurrenderFlag() throws Exception {
         UUID operatorId = insertOperator("surrender-operator", "password");
         String fileName = "bj_double_deck_black_throne_36_"
@@ -677,6 +741,7 @@ class WebSecurityTest {
                         .with(user(principal)))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Review filters")))
+                .andExpect(content().string(containsString("Has user hand")))
                 .andExpect(content().string(containsString("Recognition review desk")))
                 .andExpect(content().string(containsString("Matches")))
                 .andExpect(content().string(containsString("Does not match")))
