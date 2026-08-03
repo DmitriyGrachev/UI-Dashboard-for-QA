@@ -3,7 +3,6 @@ package com.introlabsystems.recognitionvalidator.review;
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import com.introlabsystems.recognitionvalidator.maintenance.RetentionCleanupService;
 import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
-import com.introlabsystems.recognitionvalidator.statistics.DailyStatisticsRepository;
 import com.introlabsystems.recognitionvalidator.statistics.StatisticsRepository;
 import com.introlabsystems.recognitionvalidator.statistics.StatisticsService;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,7 +38,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
-@SpringBootTest
+@SpringBootTest(properties = "validator.retention=4d")
 @ActiveProfiles("test")
 class ReviewWorkflowTest {
 
@@ -60,9 +59,6 @@ class ReviewWorkflowTest {
 
     @Autowired
     private StatisticsRepository statisticsRepository;
-
-    @Autowired
-    private DailyStatisticsRepository dailyStatisticsRepository;
 
     @Autowired
     private ValidatorProperties properties;
@@ -382,15 +378,16 @@ class ReviewWorkflowTest {
     }
 
     @Test
-    void retentionDeletesOnlyDatabaseRecordsOlderThanSevenDays() throws Exception {
-        Instant now = Instant.parse("2026-07-30T12:00:00Z");
-        Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
+    void retentionUsesStartOfCurrentUtcDateAsBoundaryAndLeavesPhysicalFiles()
+            throws Exception {
+        Instant now = Instant.parse("2026-08-03T02:00:00Z");
+        Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
+        Clock fixedClock = Clock.fixed(now, ZoneOffset.ofHours(-7));
         RetentionCleanupService service =
                 new RetentionCleanupService(namedJdbc, properties, fixedClock);
-        UUID operatorId = insertOperator("retention-statistics");
         String oldImageId = insertImage(
                 80,
-                now.minus(properties.retention()).minusSeconds(1),
+                cutoff.minusSeconds(1),
                 "bj_igt",
                 "old-session",
                 false,
@@ -398,7 +395,7 @@ class ReviewWorkflowTest {
         );
         String boundaryImageId = insertImage(
                 81,
-                now.minus(properties.retention()),
+                cutoff,
                 "bj_igt",
                 "boundary-session",
                 false,
@@ -406,37 +403,87 @@ class ReviewWorkflowTest {
         );
         Path physicalFile = temporaryDirectory.resolve(oldImageId + ".png");
         Files.writeString(physicalFile, "not touched by retention");
-        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
-        decisionService.decide(oldImageId, operatorId, Decision.ACCEPTED);
-        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
-        decisionService.decide(boundaryImageId, operatorId, Decision.REJECTED);
 
         int deleted = service.runOnce();
-        dailyStatisticsRepository.rebuildFromCompletedTasks();
 
         assertThat(deleted).isEqualTo(1);
         assertThat(rowCount("image_asset", oldImageId)).isZero();
         assertThat(rowCount("review_task", oldImageId)).isZero();
         assertThat(rowCount("image_asset", boundaryImageId)).isOne();
         assertThat(rowCount("review_task", boundaryImageId)).isOne();
-        assertThat(jdbc.queryForObject("""
-                SELECT total_checked
-                FROM operator_daily_statistics
-                WHERE operator_id = ?
-                """, Long.class, operatorId)).isEqualTo(2L);
         assertThat(physicalFile).exists();
     }
 
     @Test
+    void retentionDeletesEveryReviewStatusAndKeepsDailyStatistics() {
+        Instant now = Instant.parse("2026-08-03T12:00:00Z");
+        Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
+        Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
+        RetentionCleanupService service =
+                new RetentionCleanupService(namedJdbc, properties, fixedClock);
+        UUID operatorId = insertOperator("retention-statuses");
+        String pendingImageId = insertImage(
+                82, cutoff.minusSeconds(1), "bj_igt", "pending", false, true
+        );
+        String assignedImageId = insertImage(
+                83, cutoff.minusSeconds(2), "bj_igt", "assigned", false, true
+        );
+        String completedImageId = insertImage(
+                84, cutoff.minusSeconds(3), "bj_igt", "completed", false, true
+        );
+        jdbc.update("""
+                UPDATE review_task
+                SET status = 'ASSIGNED',
+                    assigned_to = ?,
+                    assigned_at = ?,
+                    lease_expires_at = ?
+                WHERE image_id = ?
+                """,
+                operatorId,
+                Timestamp.from(now.minusSeconds(60)),
+                Timestamp.from(now.plusSeconds(1800)),
+                assignedImageId
+        );
+        completeReview(
+                completedImageId,
+                operatorId,
+                Decision.ACCEPTED,
+                now.minusSeconds(30)
+        );
+        insertDailyStatistics(operatorId, "2026-08-03", 3, 2, 1);
+
+        int deleted = service.runOnce();
+
+        assertThat(deleted).isEqualTo(3);
+        for (String imageId : List.of(
+                pendingImageId,
+                assignedImageId,
+                completedImageId
+        )) {
+            assertThat(rowCount("image_asset", imageId)).isZero();
+            assertThat(rowCount("review_task", imageId)).isZero();
+        }
+        assertThat(jdbc.queryForMap("""
+                SELECT total_checked, matched_count, not_matched_count
+                FROM operator_daily_statistics
+                WHERE operator_id = ? AND statistics_date = DATE '2026-08-03'
+                """, operatorId))
+                .containsEntry("total_checked", 3L)
+                .containsEntry("matched_count", 2L)
+                .containsEntry("not_matched_count", 1L);
+    }
+
+    @Test
     void retentionDeletesOldRowsInShortDatabaseBatches() {
-        Instant now = Instant.parse("2026-07-30T12:00:00Z");
+        Instant now = Instant.parse("2026-08-03T12:00:00Z");
+        Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
         Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
         RetentionCleanupService service =
                 new RetentionCleanupService(namedJdbc, properties, fixedClock);
         for (int index = 0; index < 3; index++) {
             insertImage(
                     90 + index,
-                    now.minus(properties.retention()).minusSeconds(index + 1L),
+                    cutoff.minusSeconds(index + 1L),
                     "bj_igt",
                     "batched-retention-" + index,
                     false,
@@ -474,14 +521,15 @@ class ReviewWorkflowTest {
 
     @Test
     void retentionLimitsBatchesPerRunToProtectInteractiveTraffic() {
-        Instant now = Instant.parse("2026-07-30T12:00:00Z");
+        Instant now = Instant.parse("2026-08-03T12:00:00Z");
+        Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
         Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
         RetentionCleanupService service =
                 new RetentionCleanupService(namedJdbc, properties, fixedClock);
         for (int index = 0; index < 5; index++) {
             insertImage(
                     100 + index,
-                    now.minus(properties.retention()).minusSeconds(index + 1L),
+                    cutoff.minusSeconds(index + 1L),
                     "bj_igt",
                     "bounded-retention-" + index,
                     false,
@@ -495,7 +543,7 @@ class ReviewWorkflowTest {
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM image_asset WHERE file_created_at < ?",
                 Long.class,
-                Timestamp.from(now.minus(properties.retention()))
+                Timestamp.from(cutoff)
         )).isOne();
     }
 

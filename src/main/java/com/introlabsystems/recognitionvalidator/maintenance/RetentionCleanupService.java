@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import java.sql.Timestamp;
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 
 @Service
 public class RetentionCleanupService {
@@ -31,10 +33,13 @@ public class RetentionCleanupService {
         this.clock = clock;
     }
 
-    @Scheduled(cron = "${validator.cleanup-cron:0 15 * * * *}", zone = "UTC")
+    @Scheduled(cron = "${validator.cleanup-cron}", zone = "UTC")
     public int runOnce() {
         long startedAt = System.nanoTime();
-        Instant cutoff = clock.instant().minus(properties.retention());
+        Instant cutoff = LocalDate.now(clock.withZone(ZoneOffset.UTC))
+                .minusDays(properties.retention().toDays())
+                .atStartOfDay(ZoneOffset.UTC)
+                .toInstant();
         int totalDeleted = 0;
         int batches = 0;
         while (batches < properties.cleanupMaxBatches()) {

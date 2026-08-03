@@ -21,9 +21,10 @@ validator:
   image-root: ${VALIDATOR_IMAGE_ROOT:./data/images}
   batch-size: ${VALIDATOR_BATCH_SIZE:1000}
   lease-duration: ${VALIDATOR_LEASE_DURATION:30m}
-  retention: ${VALIDATOR_RETENTION:7d}
+  retention: ${VALIDATOR_RETENTION:4d}
+  cleanup-cron: "${VALIDATOR_CLEANUP_CRON:0 0 9 * * *}"
   cleanup-batch-size: ${VALIDATOR_CLEANUP_BATCH_SIZE:5000}
-  cleanup-max-batches: ${VALIDATOR_CLEANUP_MAX_BATCHES:20}
+  cleanup-max-batches: ${VALIDATOR_CLEANUP_MAX_BATCHES:40}
   watch-enabled: ${VALIDATOR_WATCH_ENABLED:true}
   watch-flush-interval: ${VALIDATOR_WATCH_FLUSH_INTERVAL:2s}
   watch-max-pending-events: ${VALIDATOR_WATCH_MAX_PENDING_EVENTS:50000}
