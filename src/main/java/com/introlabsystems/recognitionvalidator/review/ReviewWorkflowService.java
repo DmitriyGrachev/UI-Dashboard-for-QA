@@ -25,6 +25,6 @@ public class ReviewWorkflowService {
         ReviewFilters filters
     ) {
         decisionService.decide(imageId, operatorId, decision);
-        return queueService.claim(operatorId, filters, false, false);
+        return queueService.claim(operatorId, filters, false, true);
     }
 }

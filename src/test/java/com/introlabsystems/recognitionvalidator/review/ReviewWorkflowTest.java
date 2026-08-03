@@ -36,7 +36,6 @@ import java.util.concurrent.Future;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
@@ -172,6 +171,28 @@ class ReviewWorkflowTest {
                 released
         )).containsEntry("status", "PENDING")
                 .containsEntry("assigned_to", null);
+    }
+
+    @Test
+    void reportsCountAndCreatedAtRangeForTheFilteredQueue() {
+        UUID operatorId = insertOperator("queue-range");
+        Instant oldest = Instant.parse("2026-08-03T02:00:00Z");
+        Instant newest = Instant.parse("2026-08-03T05:00:00Z");
+        insertImage(25, oldest, "bj_igt", "target-session", false, true);
+        insertImage(26, newest, "bj_igt", "target-session", false, true);
+        insertImage(27, oldest.minusSeconds(3600),
+                "bj_relax", "target-session", false, true);
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(null, null, null, "bj_igt", null),
+                true,
+                true
+        );
+
+        assertThat(result.remaining()).isEqualTo(2L);
+        assertThat(result.oldestCreatedAt()).isEqualTo(oldest);
+        assertThat(result.newestCreatedAt()).isEqualTo(newest);
     }
 
     @Test
@@ -312,7 +333,7 @@ class ReviewWorkflowTest {
                         eq(operatorId),
                         any(ReviewFilters.class),
                         eq(false),
-                        anyBoolean()
+                        eq(true)
                 );
 
         assertThatThrownBy(() -> workflowService.decideAndClaimNext(

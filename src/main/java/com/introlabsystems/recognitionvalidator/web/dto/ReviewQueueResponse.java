@@ -2,7 +2,14 @@ package com.introlabsystems.recognitionvalidator.web.dto;
 
 import com.introlabsystems.recognitionvalidator.review.ReviewQueueResult;
 
-public record ReviewQueueResponse(ReviewItemResponse item, Long remaining) {
+import java.time.Instant;
+
+public record ReviewQueueResponse(
+        ReviewItemResponse item,
+        Long remaining,
+        Instant oldestCreatedAt,
+        Instant newestCreatedAt
+) {
 
     public static ReviewQueueResponse from(ReviewQueueResult result) {
         ReviewItemResponse item = result.item()
@@ -12,6 +19,11 @@ public record ReviewQueueResponse(ReviewItemResponse item, Long remaining) {
         if (item == null && remaining == null) {
             remaining = 0L;
         }
-        return new ReviewQueueResponse(item, remaining);
+        return new ReviewQueueResponse(
+                item,
+                remaining,
+                result.oldestCreatedAt(),
+                result.newestCreatedAt()
+        );
     }
 }

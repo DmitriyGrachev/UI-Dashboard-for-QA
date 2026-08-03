@@ -601,6 +601,30 @@ summary:focus-visible {
     color: var(--muted);
 }
 
+.queue-date-range {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 7px;
+    margin: 8px 0 0;
+    padding-top: 10px;
+    border-top: 1px solid var(--line);
+}
+
+.queue-date-range > div {
+    display: grid;
+    gap: 3px;
+}
+
+.queue-date-range dt,
+.queue-date-range dd {
+    margin: 0;
+}
+
+.queue-date-range dd {
+    color: var(--text);
+    font-family: Consolas, "Courier New", monospace;
+}
+
 .viewer-panel,
 .transcript-panel {
     min-height: 0;

@@ -54,10 +54,11 @@ public class ReviewClaimRepository {
         } else {
             Optional<ReviewItem> active = activeAssignment(operatorId);
             if (active.isPresent()) {
-                Long remaining = includeRemaining
-                        ? countPending(filters, new MapSqlParameterSource()) + 1
+                ReviewQueueSummary summary = includeRemaining
+                        ? summarizePending(filters, new MapSqlParameterSource())
+                                .including(active.orElseThrow().fileCreatedAt())
                         : null;
-                return new ReviewQueueResult(active, remaining);
+                return new ReviewQueueResult(active, summary);
             }
         }
 
@@ -65,7 +66,9 @@ public class ReviewClaimRepository {
                 .addValue("operatorId", operatorId)
                 .addValue("now", Timestamp.from(now))
                 .addValue("leaseExpiresAt", Timestamp.from(now.plus(leaseDuration)));
-        Long remaining = includeRemaining ? countPending(filters, parameters) : null;
+        ReviewQueueSummary summary = includeRemaining
+                ? summarizePending(filters, parameters)
+                : null;
         String candidateSql = candidateSql(filters, parameters);
         List<String> candidates = jdbc.query(
                 candidateSql,
@@ -73,7 +76,7 @@ public class ReviewClaimRepository {
                 (resultSet, rowNumber) -> resultSet.getString("image_id")
         );
         if (candidates.isEmpty()) {
-            return new ReviewQueueResult(Optional.empty(), remaining);
+            return new ReviewQueueResult(Optional.empty(), summary);
         }
 
         String imageId = candidates.getFirst();
@@ -85,7 +88,7 @@ public class ReviewClaimRepository {
                     lease_expires_at = :leaseExpiresAt
                 WHERE image_id = :imageId
                 """, parameters.addValue("imageId", imageId));
-        return new ReviewQueueResult(findItem(imageId), remaining);
+        return new ReviewQueueResult(findItem(imageId), summary);
     }
 
     public Optional<ReviewItem> findItem(String imageId) {
@@ -157,14 +160,25 @@ public class ReviewClaimRepository {
                 """, new MapSqlParameterSource("operatorId", operatorId));
     }
 
-    private long countPending(
+    private ReviewQueueSummary summarizePending(
             ReviewFilters filters,
             MapSqlParameterSource parameters
     ) {
-        StringBuilder sql = pendingSql("COUNT(*)");
+        StringBuilder sql = pendingSql("""
+                COUNT(*) AS remaining,
+                MIN(ia.file_created_at) AS oldest_created_at,
+                MAX(ia.file_created_at) AS newest_created_at
+                """);
         appendFilters(sql, filters, parameters);
-        Long count = jdbc.queryForObject(sql.toString(), parameters, Long.class);
-        return count == null ? 0 : count;
+        return jdbc.queryForObject(sql.toString(), parameters, (resultSet, rowNumber) -> {
+            Timestamp oldest = resultSet.getTimestamp("oldest_created_at");
+            Timestamp newest = resultSet.getTimestamp("newest_created_at");
+            return new ReviewQueueSummary(
+                    resultSet.getLong("remaining"),
+                    oldest == null ? null : oldest.toInstant(),
+                    newest == null ? null : newest.toInstant()
+            );
+        });
     }
 
     private String candidateSql(

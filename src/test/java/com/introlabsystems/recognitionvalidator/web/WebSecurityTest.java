@@ -537,6 +537,36 @@ class WebSecurityTest {
     }
 
     @Test
+    void claimReturnsTheActualUtcDateRangeWithTheRemainingCount() throws Exception {
+        UUID operatorId = insertOperator("range-operator", "password");
+        insertReviewImage(
+                106, "range-oldest.png", true, "bj_igt", "session",
+                null, "Jack", null
+        );
+        String newestId = insertReviewImage(
+                107, "range-newest.png", true, "bj_igt", "session",
+                null, "Nine", null
+        );
+        jdbc.update(
+                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                Timestamp.from(Instant.parse("2026-07-30T12:00:00Z")),
+                newestId
+        );
+
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal(operatorId, "range-operator")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"includeRemaining\":true}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.remaining").value(2))
+                .andExpect(jsonPath("$.oldestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"))
+                .andExpect(jsonPath("$.newestCreatedAt")
+                        .value("2026-07-30T12:00:00Z"));
+    }
+
+    @Test
     void repeatedDecisionReturnsConflict() throws Exception {
         UUID operatorId = insertOperator("decision-operator", "password");
         String imageId = insertReviewImage(
@@ -563,7 +593,11 @@ class WebSecurityTest {
                 .content(decision))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.item.imageId").value(nextImageId))
-                .andExpect(jsonPath("$.remaining").doesNotExist());
+                .andExpect(jsonPath("$.remaining").value(1))
+                .andExpect(jsonPath("$.oldestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"))
+                .andExpect(jsonPath("$.newestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"));
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
                         .with(user(principal))
                         .with(csrf())
@@ -690,6 +724,10 @@ class WebSecurityTest {
                 .andExpect(content().string(containsString(
                         "<output id=\"remaining-count\""
                 )))
+                .andExpect(content().string(containsString("Created from (UTC)")))
+                .andExpect(content().string(containsString("Created to (UTC)")))
+                .andExpect(content().string(containsString("id=\"queue-oldest-date\"")))
+                .andExpect(content().string(containsString("id=\"queue-newest-date\"")))
                 .andExpect(content().string(containsString(
                         "<details class=\"technical-disclosure\""
                 )))

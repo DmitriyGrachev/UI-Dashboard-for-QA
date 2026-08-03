@@ -59,11 +59,11 @@
             <div class="filter-sidebar-content" id="filter-panel">
                 <form id="filter-form" class="filters">
                 <label>
-                    Created from
+                    Created from (UTC)
                     <input id="created-from" type="datetime-local">
                 </label>
                 <label>
-                    Created to
+                    Created to (UTC)
                     <input id="created-to" type="datetime-local">
                 </label>
                 <label>
@@ -94,6 +94,16 @@
                     <span>Matching screenshots</span>
                     <output id="remaining-count">—</output>
                     <small>including the current screenshot</small>
+                    <dl class="queue-date-range" aria-label="Matching screenshot date range in UTC">
+                        <div>
+                            <dt>Oldest, UTC</dt>
+                            <dd><time id="queue-oldest-date">—</time></dd>
+                        </div>
+                        <div>
+                            <dt>Newest, UTC</dt>
+                            <dd><time id="queue-newest-date">—</time></dd>
+                        </div>
+                    </dl>
                 </div>
             </div>
         </aside>
@@ -229,14 +239,17 @@
                 </section>
                 <section>
                     <h3>Filters and queue</h3>
-                    <p>Filters apply automatically. The counter includes the screenshot
-                        currently assigned to you. Reset the filters or refresh the page
-                        when the queue is empty and you want to check for newly arrived files.</p>
+                    <p>Filters apply automatically and remain active when you visit Statistics.
+                        Date inputs and the oldest/newest matching screenshot dates use UTC.
+                        The counter includes the screenshot currently assigned to you. Reset
+                        the filters or refresh the page when the queue is empty and you want
+                        to check for newly arrived files.</p>
                 </section>
                 <section>
                     <h3>Image controls</h3>
                     <p>Use the mouse wheel or <kbd>+</kbd>/<kbd>-</kbd> to zoom, drag to pan,
-                        <kbd>0</kbd> to reset, and Fullscreen for a closer inspection.</p>
+                        <kbd>0</kbd> to reset, and Fullscreen for a closer inspection. Your zoom
+                        level remains active for the next screenshot.</p>
                 </section>
                 <section>
                     <h3>Decision shortcuts</h3>
