@@ -5,9 +5,11 @@ x-default-logging: &default-logging
     max-file: "3"
 
 services:
-  postgres:
+  validator-api-db:
     image: postgres:17
+    restart: unless-stopped
     shm_size: ${POSTGRES_SHM_SIZE:-256mb}
+    container_name: validator-api-db
     environment:
       POSTGRES_DB: ${DB_NAME:-recognition_validator}
       POSTGRES_USER: ${DB_USERNAME:-validator}
@@ -18,72 +20,58 @@ services:
       - max_connections=${POSTGRES_MAX_CONNECTIONS:-50}
       - -c
       - max_parallel_workers_per_gather=${POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER:-0}
+    ports:
+      - "5436:5432"
     volumes:
       - type: bind
         source: ${POSTGRES_DATA_ROOT_HOST:-./data/postgres}
         target: /var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"
+        ]
       interval: 5s
       timeout: 3s
       retries: 10
     logging: *default-logging
 
-  app:
-    image: recognition-validator-app:local
-    # Hard limit for the whole JVM process: heap, metaspace, threads and native buffers.
+  validator-api-app:
+    restart: unless-stopped
     mem_limit: ${APP_MEMORY_LIMIT:-5g}
     build:
       context: .
       dockerfile: Dockerfile
     depends_on:
-      postgres:
+      validator-api-db:
         condition: service_healthy
     environment:
-      DB_URL: jdbc:postgresql://postgres:5432/${DB_NAME:-recognition_validator}
+      DB_URL: jdbc:postgresql://validator-api-db:5432/${DB_NAME:-recognition_validator}
       DB_USERNAME: ${DB_USERNAME:-validator}
       DB_PASSWORD: ${DB_PASSWORD:-validator}
       DB_MAX_POOL_SIZE: ${DB_MAX_POOL_SIZE:-10}
       DB_MIN_IDLE: ${DB_MIN_IDLE:-2}
+
       VALIDATOR_IMAGE_ROOT: /data/images
       VALIDATOR_BATCH_SIZE: ${VALIDATOR_BATCH_SIZE:-1000}
       VALIDATOR_LEASE_DURATION: ${VALIDATOR_LEASE_DURATION:-30m}
-      VALIDATOR_RETENTION: ${VALIDATOR_RETENTION:-4d}
-      VALIDATOR_CLEANUP_CRON: "${VALIDATOR_CLEANUP_CRON:-0 0 9 * * *}"
+      VALIDATOR_RETENTION: ${VALIDATOR_RETENTION:-7d}
       VALIDATOR_CLEANUP_BATCH_SIZE: ${VALIDATOR_CLEANUP_BATCH_SIZE:-5000}
-      VALIDATOR_CLEANUP_MAX_BATCHES: ${VALIDATOR_CLEANUP_MAX_BATCHES:-0}
+      VALIDATOR_CLEANUP_MAX_BATCHES: ${VALIDATOR_CLEANUP_MAX_BATCHES:-20}
+
       VALIDATOR_WATCH_ENABLED: ${VALIDATOR_WATCH_ENABLED:-true}
       VALIDATOR_WATCH_FLUSH_INTERVAL: ${VALIDATOR_WATCH_FLUSH_INTERVAL:-2s}
       VALIDATOR_WATCH_MAX_PENDING_EVENTS: ${VALIDATOR_WATCH_MAX_PENDING_EVENTS:-50000}
+
       COUNT_REMAINING_SCREENSHOTS: ${COUNT_REMAINING_SCREENSHOTS:-true}
     ports:
-      - "127.0.0.1:${SERVER_PORT:-18080}:8080"
+      - "18080:8080"
+    expose:
+      - 18080
     volumes:
       - type: bind
         source: ${VALIDATOR_IMAGE_ROOT_HOST:-./data/images}
         target: /data/images
         read_only: true
-    logging: *default-logging
-
-  postgres-test:
-    image: postgres:17
-    shm_size: ${POSTGRES_SHM_SIZE:-256mb}
-    profiles: ["test"]
-    command:
-      - postgres
-      - -c
-      - max_parallel_workers_per_gather=${POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER:-0}
-    environment:
-      POSTGRES_DB: recognition_validator_test
-      POSTGRES_USER: validator
-      POSTGRES_PASSWORD: validator
-    ports:
-      - "5433:5432"
-    tmpfs:
-      - /var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U validator -d recognition_validator_test"]
-      interval: 2s
-      timeout: 3s
-      retries: 15
     logging: *default-logging
