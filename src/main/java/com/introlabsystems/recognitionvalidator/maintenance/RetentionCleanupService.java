@@ -42,7 +42,8 @@ public class RetentionCleanupService {
                 .toInstant();
         int totalDeleted = 0;
         int batches = 0;
-        while (batches < properties.cleanupMaxBatches()) {
+        while (properties.cleanupMaxBatches() == 0
+                || batches < properties.cleanupMaxBatches()) {
             int deleted = deleteBatch(cutoff);
             if (deleted == 0) {
                 break;

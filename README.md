@@ -174,10 +174,10 @@ docker compose exec postgres-test pg_isready -U validator -d recognition_validat
 | `VALIDATOR_IMAGE_ROOT_HOST` | `./data/images` | Папка скриншотів на Docker-host, що монтується read-only |
 | `VALIDATOR_BATCH_SIZE` | `1000` | Розмір DB-batch і поріг негайної обробки файлових подій |
 | `VALIDATOR_LEASE_DURATION` | `30m` | Час резервування завдання |
-| `VALIDATOR_RETENTION` | `7d` | Строк зберігання метаданих у БД |
-| `VALIDATOR_CLEANUP_CRON` | `0 15 * * * *` | Розклад очищення в UTC |
+| `VALIDATOR_RETENTION` | `4d` | Кількість календарних UTC-днів зберігання метаданих у БД |
+| `VALIDATOR_CLEANUP_CRON` | `0 0 9 * * *` | Розклад очищення в UTC |
 | `VALIDATOR_CLEANUP_BATCH_SIZE` | `5000` | Максимум рядків в одній короткій транзакції очищення |
-| `VALIDATOR_CLEANUP_MAX_BATCHES` | `20` | Максимум транзакцій очищення за один запуск |
+| `VALIDATOR_CLEANUP_MAX_BATCHES` | `0` | `0` — очистити всі прострочені записи пакетами; додатне число обмежує кількість пакетів за запуск |
 | `VALIDATOR_WATCH_ENABLED` | `true` | Увімкнення відстеження папки |
 | `VALIDATOR_WATCH_FLUSH_INTERVAL` | `2s` | Інтервал пакетної обробки файлових подій |
 | `VALIDATOR_WATCH_MAX_PENDING_EVENTS` | `50000` | Аварійний ліміт унікальних шляхів у буфері до повної звірки |

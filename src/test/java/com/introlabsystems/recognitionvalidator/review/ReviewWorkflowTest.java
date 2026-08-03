@@ -547,6 +547,37 @@ class ReviewWorkflowTest {
         )).isOne();
     }
 
+    @Test
+    void retentionDeletesAllEligibleRowsWhenBatchLimitIsZero() {
+        Instant now = Instant.parse("2026-08-03T12:00:00Z");
+        Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
+        Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
+        RetentionCleanupService service = new RetentionCleanupService(
+                namedJdbc,
+                propertiesWithCleanupMaxBatches(0),
+                fixedClock
+        );
+        for (int index = 0; index < 5; index++) {
+            insertImage(
+                    110 + index,
+                    cutoff.minusSeconds(index + 1L),
+                    "bj_igt",
+                    "unlimited-retention-" + index,
+                    false,
+                    true
+            );
+        }
+
+        int deleted = service.runOnce();
+
+        assertThat(deleted).isEqualTo(5);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM image_asset WHERE file_created_at < ?",
+                Long.class,
+                Timestamp.from(cutoff)
+        )).isZero();
+    }
+
     private Boolean tableExists(String tableName) {
         return jdbc.queryForObject(
                 "select to_regclass('public." + tableName + "') is not null",
@@ -643,6 +674,22 @@ class ReviewWorkflowTest {
                 "SELECT count(*) FROM " + tableName + " WHERE " + idColumn + " = ?",
                 Long.class,
                 imageId
+        );
+    }
+
+    private ValidatorProperties propertiesWithCleanupMaxBatches(int cleanupMaxBatches) {
+        return new ValidatorProperties(
+                properties.imageRoot(),
+                properties.games(),
+                properties.batchSize(),
+                properties.leaseDuration(),
+                properties.retention(),
+                properties.cleanupBatchSize(),
+                cleanupMaxBatches,
+                properties.watchEnabled(),
+                properties.watchFlushInterval(),
+                properties.watchMaxPendingEvents(),
+                properties.countRemainingScreenshots()
         );
     }
 
