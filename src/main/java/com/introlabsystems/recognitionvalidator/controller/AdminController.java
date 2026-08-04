@@ -5,6 +5,7 @@ import com.introlabsystems.recognitionvalidator.service.AdminStatisticsService;
 import com.introlabsystems.recognitionvalidator.service.AdminUserService;
 import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -24,21 +25,12 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Controller
+@RequiredArgsConstructor
 public class AdminController {
 
     private final AdminUserService users;
     private final AdminStatisticsService statistics;
     private final RejectedScreenshotExportService rejectedExports;
-
-    public AdminController(
-            AdminUserService users,
-            AdminStatisticsService statistics,
-            RejectedScreenshotExportService rejectedExports
-    ) {
-        this.users = users;
-        this.statistics = statistics;
-        this.rejectedExports = rejectedExports;
-    }
 
     @GetMapping("/admin")
     String admin(

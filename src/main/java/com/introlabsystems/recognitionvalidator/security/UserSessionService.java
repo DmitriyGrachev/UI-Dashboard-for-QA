@@ -1,18 +1,16 @@
 package com.introlabsystems.recognitionvalidator.security;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.session.SessionRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class UserSessionService {
 
     private final SessionRegistry sessions;
-
-    public UserSessionService(SessionRegistry sessions) {
-        this.sessions = sessions;
-    }
 
     public void expireFor(UUID userId) {
         sessions.getAllPrincipals().stream()

@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
 import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -15,13 +16,10 @@ import java.nio.charset.StandardCharsets;
 
 @RestController
 @RequestMapping("/api/images")
+@RequiredArgsConstructor
 public class ImageContentController {
 
     private final ImageStorageService storage;
-
-    public ImageContentController(ImageStorageService storage) {
-        this.storage = storage;
-    }
 
     @GetMapping("/{imageId}/content")
     ResponseEntity<?> content(@PathVariable String imageId) {

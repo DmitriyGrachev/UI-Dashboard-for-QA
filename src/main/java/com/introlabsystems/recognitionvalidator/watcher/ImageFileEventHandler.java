@@ -1,7 +1,7 @@
 package com.introlabsystems.recognitionvalidator.watcher;
 
 import com.introlabsystems.recognitionvalidator.indexing.ImageIndexer;
-
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -11,20 +11,13 @@ import java.util.List;
 import java.util.Map;
 
 @Component
+@RequiredArgsConstructor
 public class ImageFileEventHandler {
 
     private static final Logger log = LoggerFactory.getLogger(ImageFileEventHandler.class);
 
     private final ImageIndexer imageIndexer;
     private final ImageEventBuffer buffer;
-
-    public ImageFileEventHandler(
-            ImageIndexer imageIndexer,
-            ImageEventBuffer buffer
-    ) {
-        this.imageIndexer = imageIndexer;
-        this.buffer = buffer;
-    }
 
     public boolean created(Path path) {
         return buffer.record(path, ImageFileChange.CREATED);

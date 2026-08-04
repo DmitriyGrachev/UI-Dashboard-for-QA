@@ -3,6 +3,7 @@ package com.introlabsystems.recognitionvalidator.service.impl;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
 import com.introlabsystems.recognitionvalidator.exception.DecisionConflictException;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -15,21 +16,12 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class DecisionService {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
     private final DailyStatisticsRepository dailyStatistics;
-
-    public DecisionService(
-            NamedParameterJdbcTemplate jdbc,
-            Clock clock,
-            DailyStatisticsRepository dailyStatistics
-    ) {
-        this.jdbc = jdbc;
-        this.clock = clock;
-        this.dailyStatistics = dailyStatistics;
-    }
 
     @Transactional
     public void decide(String imageId, UUID operatorId, Decision decision) {

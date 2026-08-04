@@ -8,6 +8,7 @@ import com.introlabsystems.recognitionvalidator.dto.request.DecisionRequest;
 import com.introlabsystems.recognitionvalidator.dto.request.ReviewClaimRequest;
 import com.introlabsystems.recognitionvalidator.dto.response.ReviewQueueResponse;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,18 +19,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/review-tasks")
+@RequiredArgsConstructor
 public class ReviewApiController {
 
     private final ReviewQueueService queueService;
     private final ReviewWorkflowService workflowService;
-
-    public ReviewApiController(
-            ReviewQueueService queueService,
-            ReviewWorkflowService workflowService
-    ) {
-        this.queueService = queueService;
-        this.workflowService = workflowService;
-    }
 
     @PostMapping("/claim")
     ResponseEntity<ReviewQueueResponse> claim(

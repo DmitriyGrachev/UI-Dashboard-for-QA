@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.dao.jdbc;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -12,13 +13,10 @@ import java.util.List;
 import java.util.Map;
 
 @Repository
+@RequiredArgsConstructor
 public class RejectedScreenshotExportRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
-
-    public RejectedScreenshotExportRepository(NamedParameterJdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     public List<ExportCandidate> findCandidates(
             Instant processedFrom,

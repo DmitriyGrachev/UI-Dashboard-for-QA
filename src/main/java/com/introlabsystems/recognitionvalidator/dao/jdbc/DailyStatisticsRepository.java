@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.dao.jdbc;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -8,13 +9,10 @@ import java.time.LocalDate;
 import java.util.UUID;
 
 @Repository
+@RequiredArgsConstructor
 public class DailyStatisticsRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
-
-    public DailyStatisticsRepository(NamedParameterJdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     public void increment(UUID operatorId, LocalDate date, boolean matchedDecision) {
         long matched = matchedDecision ? 1 : 0;

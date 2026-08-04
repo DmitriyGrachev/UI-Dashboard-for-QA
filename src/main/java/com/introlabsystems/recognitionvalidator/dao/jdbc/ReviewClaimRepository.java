@@ -6,6 +6,7 @@ import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewItem;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueSummary;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -22,6 +23,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
+@RequiredArgsConstructor
 public class ReviewClaimRepository {
 
     private static final String ITEM_COLUMNS = """
@@ -37,10 +39,6 @@ public class ReviewClaimRepository {
     private static final RowMapper<ReviewItem> ITEM_MAPPER = ReviewClaimRepository::mapItem;
 
     private final NamedParameterJdbcTemplate jdbc;
-
-    public ReviewClaimRepository(NamedParameterJdbcTemplate jdbc) {
-        this.jdbc = jdbc;
-    }
 
     @Transactional
     public ReviewQueueResult claim(

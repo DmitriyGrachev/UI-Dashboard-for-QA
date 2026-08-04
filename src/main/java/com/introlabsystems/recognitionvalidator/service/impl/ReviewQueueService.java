@@ -5,6 +5,7 @@ import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewClaimRepository;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewItem;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -12,21 +13,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
+@RequiredArgsConstructor
 public class ReviewQueueService {
 
     private final ReviewClaimRepository claimRepository;
     private final ValidatorProperties properties;
     private final Clock clock;
-
-    public ReviewQueueService(
-            ReviewClaimRepository claimRepository,
-            ValidatorProperties properties,
-            Clock clock
-    ) {
-        this.claimRepository = claimRepository;
-        this.properties = properties;
-        this.clock = clock;
-    }
 
     public Optional<ReviewItem> claim(UUID operatorId, ReviewFilters filters) {
         return claim(operatorId, filters, false, false).item();

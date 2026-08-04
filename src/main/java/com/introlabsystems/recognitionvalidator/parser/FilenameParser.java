@@ -3,7 +3,7 @@ package com.introlabsystems.recognitionvalidator.parser;
 import com.introlabsystems.recognitionvalidator.model.enums.ParseStatus;
 import com.introlabsystems.recognitionvalidator.model.value.ParsedFilename;
 import com.introlabsystems.recognitionvalidator.model.value.RecognitionResult;
-
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
@@ -16,6 +16,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 @Component
+@RequiredArgsConstructor
 public class FilenameParser {
 
     private static final Pattern SESSION_PATTERN = Pattern.compile(
@@ -32,10 +33,6 @@ public class FilenameParser {
             .withResolverStyle(ResolverStyle.STRICT);
 
     private final GameCatalog gameCatalog;
-
-    public FilenameParser(GameCatalog gameCatalog) {
-        this.gameCatalog = gameCatalog;
-    }
 
     public ParsedFilename parse(String fileName) {
         if (fileName == null || !fileName.endsWith(".png")) {
