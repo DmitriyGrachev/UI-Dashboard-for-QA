@@ -2,7 +2,13 @@ package com.introlabsystems.recognitionvalidator.web;
 
 import com.introlabsystems.recognitionvalidator.auth.AdminUserService;
 import com.introlabsystems.recognitionvalidator.auth.AdminUserException;
+import com.introlabsystems.recognitionvalidator.review.RejectedScreenshotExportService;
 import com.introlabsystems.recognitionvalidator.statistics.AdminStatisticsService;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -11,7 +17,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.io.IOException;
 import java.security.Principal;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Controller
@@ -19,13 +28,16 @@ public class AdminController {
 
     private final AdminUserService users;
     private final AdminStatisticsService statistics;
+    private final RejectedScreenshotExportService rejectedExports;
 
     public AdminController(
             AdminUserService users,
-            AdminStatisticsService statistics
+            AdminStatisticsService statistics,
+            RejectedScreenshotExportService rejectedExports
     ) {
         this.users = users;
         this.statistics = statistics;
+        this.rejectedExports = rejectedExports;
     }
 
     @GetMapping("/admin")
@@ -73,6 +85,41 @@ public class AdminController {
     ) {
         users.changePassword(operatorId, password);
         return "redirect:/admin?passwordChanged";
+    }
+
+    @PostMapping("/admin/rejected-screenshots.zip")
+    void downloadRejectedScreenshots(
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+            LocalDateTime createdFrom,
+            @RequestParam(required = false)
+            @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
+            LocalDateTime createdTo,
+            @RequestParam(defaultValue = "false") boolean includePreviouslyDownloaded,
+            HttpServletResponse response
+    ) throws IOException {
+        if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
+            response.sendError(
+                    HttpStatus.BAD_REQUEST.value(),
+                    "Created from must be earlier than created to"
+            );
+            return;
+        }
+        response.setContentType("application/zip");
+        response.setHeader(
+                HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment()
+                        .filename("rejected-screenshots.zip")
+                        .build()
+                        .toString()
+        );
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        rejectedExports.writeZip(
+                createdFrom == null ? null : createdFrom.toInstant(ZoneOffset.UTC),
+                createdTo == null ? null : createdTo.toInstant(ZoneOffset.UTC),
+                includePreviouslyDownloaded,
+                response.getOutputStream()
+        );
     }
 
     @ExceptionHandler(AdminUserException.class)

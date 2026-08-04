@@ -25,7 +25,11 @@ import java.time.Instant;
         indexes = {
                 @Index(name = "ix_review_queue", columnList = "status,image_id"),
                 @Index(name = "ix_review_assignee", columnList = "assigned_to,status"),
-                @Index(name = "ix_review_expired", columnList = "status,lease_expires_at")
+                @Index(name = "ix_review_expired", columnList = "status,lease_expires_at"),
+                @Index(
+                        name = "ix_review_rejected_export",
+                        columnList = "decision,rejected_downloaded_at,image_id"
+                )
         }
 )
 public class ReviewTask {
@@ -60,6 +64,9 @@ public class ReviewTask {
 
     @Column(name = "reviewed_at")
     private Instant reviewedAt;
+
+    @Column(name = "rejected_downloaded_at")
+    private Instant rejectedDownloadedAt;
 
     protected ReviewTask() {
     }
@@ -124,5 +131,13 @@ public class ReviewTask {
 
     public void setReviewedAt(Instant reviewedAt) {
         this.reviewedAt = reviewedAt;
+    }
+
+    public Instant getRejectedDownloadedAt() {
+        return rejectedDownloadedAt;
+    }
+
+    public void setRejectedDownloadedAt(Instant rejectedDownloadedAt) {
+        this.rejectedDownloadedAt = rejectedDownloadedAt;
     }
 }

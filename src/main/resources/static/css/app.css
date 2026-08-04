@@ -1500,6 +1500,7 @@ summary:focus-visible {
 
 .admin-create-panel,
 .operator-roster,
+.rejected-export-panel,
 .workload-panel {
     border: 1px solid var(--line);
     background: var(--ink-900);
@@ -1634,6 +1635,68 @@ summary:focus-visible {
     display: flex;
     align-items: center;
     gap: 11px;
+}
+
+.rejected-export-panel {
+    margin-top: 18px;
+    padding: 20px;
+}
+
+.rejected-export-panel > header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    margin-bottom: 16px;
+}
+
+.rejected-export-panel h2 {
+    margin: 4px 0 0;
+    font-size: 1.25rem;
+}
+
+.rejected-export-panel > header p {
+    max-width: 520px;
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.85rem;
+}
+
+.rejected-export-form {
+    display: grid;
+    grid-template-columns: minmax(190px, 1fr) minmax(190px, 1fr) auto auto;
+    align-items: end;
+    gap: 14px;
+}
+
+.rejected-export-form > label:not(.rejected-export-checkbox) {
+    display: grid;
+    gap: 7px;
+    color: var(--muted);
+    font-size: 0.78rem;
+}
+
+.rejected-export-form input[type="datetime-local"] {
+    min-height: 40px;
+    border: 1px solid var(--line);
+    border-radius: 2px;
+    padding: 0 10px;
+    background: var(--ink-950);
+    color: var(--text);
+}
+
+.rejected-export-checkbox {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    white-space: nowrap;
+}
+
+.rejected-export-checkbox input {
+    accent-color: var(--signal);
 }
 
 .operator-avatar {
@@ -2134,6 +2197,10 @@ summary:focus-visible {
         grid-column: 2;
         grid-row: 1 / span 4;
     }
+
+    .rejected-export-form {
+        grid-template-columns: 1fr 1fr;
+    }
 }
 
 @media (max-width: 820px) {
@@ -2261,6 +2328,7 @@ summary:focus-visible {
 
     .admin-heading,
     .roster-heading,
+    .rejected-export-panel > header,
     .workload-panel > header {
         align-items: flex-start;
         flex-direction: column;
@@ -2295,6 +2363,7 @@ summary:focus-visible {
     }
 
     .period-form,
+    .rejected-export-form,
     .decision-row {
         grid-template-columns: 1fr;
     }
