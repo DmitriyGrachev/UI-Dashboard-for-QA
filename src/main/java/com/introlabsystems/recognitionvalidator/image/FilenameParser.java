@@ -77,20 +77,22 @@ public class FilenameParser {
                 tokenId,
                 sessionUuid,
                 tokenId + "_" + sessionUuid,
-                fields.dealerCards(),
-                fields.activeUserCards(),
-                fields.inactiveUserCards(),
-                payload,
-                fields.buttonsRaw(),
-                fields.notification(),
-                fields.stand(),
-                fields.hit(),
-                fields.doubleAction(),
-                fields.split(),
-                fields.surrender(),
-                processedAt,
-                duration,
-                fields.partial() ? ParseStatus.PARTIAL : ParseStatus.SUCCESS
+                new RecognitionResult(
+                        fields.dealerCards(),
+                        fields.activeUserCards(),
+                        fields.inactiveUserCards(),
+                        payload,
+                        fields.buttonsRaw(),
+                        fields.notification(),
+                        fields.stand(),
+                        fields.hit(),
+                        fields.doubleAction(),
+                        fields.split(),
+                        fields.surrender(),
+                        processedAt,
+                        duration,
+                        fields.partial() ? ParseStatus.PARTIAL : ParseStatus.SUCCESS
+                )
         );
     }
 

@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.review;
 
 import com.introlabsystems.recognitionvalidator.image.ParseStatus;
+import com.introlabsystems.recognitionvalidator.image.RecognitionResult;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -258,21 +259,23 @@ public class ReviewClaimRepository {
                 resultSet.getString("file_name"),
                 resultSet.getString("game_code"),
                 resultSet.getString("session_id"),
-                resultSet.getString("dealer_cards"),
-                resultSet.getString("active_user_cards"),
-                resultSet.getString("inactive_user_cards"),
-                resultSet.getString("payload_raw"),
-                resultSet.getString("buttons_raw"),
-                resultSet.getBoolean("is_notification"),
-                resultSet.getBoolean("has_stand"),
-                resultSet.getBoolean("has_hit"),
-                resultSet.getBoolean("has_double"),
-                resultSet.getBoolean("has_split"),
-                resultSet.getBoolean("has_surrender"),
                 resultSet.getTimestamp("file_created_at").toInstant(),
-                processedAt == null ? null : processedAt.toInstant(),
-                resultSet.getObject("recognition_duration_ms", Long.class),
-                ParseStatus.valueOf(resultSet.getString("parse_status"))
+                new RecognitionResult(
+                        resultSet.getString("dealer_cards"),
+                        resultSet.getString("active_user_cards"),
+                        resultSet.getString("inactive_user_cards"),
+                        resultSet.getString("payload_raw"),
+                        resultSet.getString("buttons_raw"),
+                        resultSet.getBoolean("is_notification"),
+                        resultSet.getBoolean("has_stand"),
+                        resultSet.getBoolean("has_hit"),
+                        resultSet.getBoolean("has_double"),
+                        resultSet.getBoolean("has_split"),
+                        resultSet.getBoolean("has_surrender"),
+                        processedAt == null ? null : processedAt.toInstant(),
+                        resultSet.getObject("recognition_duration_ms", Long.class),
+                        ParseStatus.valueOf(resultSet.getString("parse_status"))
+                )
         );
     }
 }

@@ -1,6 +1,5 @@
 package com.introlabsystems.recognitionvalidator.image;
 
-import java.time.Instant;
 import java.util.UUID;
 
 public record ParsedFilename(
@@ -8,20 +7,7 @@ public record ParsedFilename(
         Long tokenId,
         UUID sessionUuid,
         String sessionId,
-        String dealerCards,
-        String activeUserCards,
-        String inactiveUserCards,
-        String payloadRaw,
-        String buttonsRaw,
-        boolean notification,
-        boolean stand,
-        boolean hit,
-        boolean doubleAction,
-        boolean split,
-        boolean surrender,
-        Instant processedAt,
-        Long recognitionDurationMs,
-        ParseStatus parseStatus
+        RecognitionResult recognition
 ) {
 
     public static ParsedFilename error() {
@@ -31,9 +17,7 @@ public record ParsedFilename(
     public static ParsedFilename error(String gameCode) {
         return new ParsedFilename(
                 gameCode, null, null, null,
-                null, null, null, null, null,
-                false, false, false, false, false, false,
-                null, null, ParseStatus.ERROR
+                RecognitionResult.error()
         );
     }
 }

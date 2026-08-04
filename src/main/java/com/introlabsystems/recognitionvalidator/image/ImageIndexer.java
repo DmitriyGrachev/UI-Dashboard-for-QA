@@ -305,20 +305,7 @@ public class ImageIndexer {
                 parsed.tokenId(),
                 parsed.sessionUuid(),
                 parsed.sessionId(),
-                parsed.dealerCards(),
-                parsed.activeUserCards(),
-                parsed.inactiveUserCards(),
-                parsed.payloadRaw(),
-                parsed.buttonsRaw(),
-                parsed.notification(),
-                parsed.stand(),
-                parsed.hit(),
-                parsed.doubleAction(),
-                parsed.split(),
-                parsed.surrender(),
-                parsed.processedAt(),
-                parsed.recognitionDurationMs(),
-                parsed.parseStatus()
+                parsed.recognition()
         );
     }
 

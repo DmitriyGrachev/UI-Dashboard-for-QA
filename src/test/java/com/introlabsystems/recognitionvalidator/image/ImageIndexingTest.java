@@ -223,20 +223,11 @@ class ImageIndexingTest {
                 null,
                 null,
                 null,
-                null,
-                null,
-                null,
-                null,
-                null,
-                false,
-                false,
-                false,
-                false,
-                false,
-                false,
-                null,
-                null,
-                ParseStatus.SUCCESS
+                new RecognitionResult(
+                        null, null, null, null, null,
+                        false, false, false, false, false, false,
+                        null, null, ParseStatus.SUCCESS
+                )
         );
 
         assertThatThrownBy(() -> batchWriter.upsert(List.of(invalid)))

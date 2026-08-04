@@ -131,6 +131,7 @@ public class ImageAssetBatchWriter {
     }
 
     private static MapSqlParameterSource parameters(ImageMetadata metadata) {
+        RecognitionResult recognition = metadata.recognition();
         return new MapSqlParameterSource()
                 .addValue("id", metadata.id())
                 .addValue("fileName", metadata.fileName())
@@ -143,20 +144,20 @@ public class ImageAssetBatchWriter {
                 .addValue("tokenId", metadata.tokenId())
                 .addValue("sessionUuid", metadata.sessionUuid())
                 .addValue("sessionId", metadata.sessionId())
-                .addValue("dealerCards", metadata.dealerCards())
-                .addValue("activeUserCards", metadata.activeUserCards())
-                .addValue("inactiveUserCards", metadata.inactiveUserCards())
-                .addValue("payloadRaw", metadata.payloadRaw())
-                .addValue("buttonsRaw", metadata.buttonsRaw())
-                .addValue("notification", metadata.notification())
-                .addValue("stand", metadata.stand())
-                .addValue("hit", metadata.hit())
-                .addValue("doubleAction", metadata.doubleAction())
-                .addValue("split", metadata.split())
-                .addValue("surrender", metadata.surrender())
-                .addValue("processedAt", timestamp(metadata.processedAt()))
-                .addValue("recognitionDurationMs", metadata.recognitionDurationMs())
-                .addValue("parseStatus", metadata.parseStatus().name());
+                .addValue("dealerCards", recognition.dealerCards())
+                .addValue("activeUserCards", recognition.activeUserCards())
+                .addValue("inactiveUserCards", recognition.inactiveUserCards())
+                .addValue("payloadRaw", recognition.payloadRaw())
+                .addValue("buttonsRaw", recognition.buttonsRaw())
+                .addValue("notification", recognition.notification())
+                .addValue("stand", recognition.stand())
+                .addValue("hit", recognition.hit())
+                .addValue("doubleAction", recognition.doubleAction())
+                .addValue("split", recognition.split())
+                .addValue("surrender", recognition.surrender())
+                .addValue("processedAt", timestamp(recognition.processedAt()))
+                .addValue("recognitionDurationMs", recognition.recognitionDurationMs())
+                .addValue("parseStatus", recognition.parseStatus().name());
     }
 
     private static Timestamp timestamp(Instant value) {

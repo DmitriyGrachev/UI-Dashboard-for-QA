@@ -29,26 +29,27 @@ public record ReviewItemResponse(
 ) {
 
     public static ReviewItemResponse from(ReviewItem item) {
+        var recognition = item.recognition();
         return new ReviewItemResponse(
                 item.imageId(),
                 item.fileName(),
                 item.gameCode(),
                 item.sessionId(),
-                item.dealerCards(),
-                item.activeUserCards(),
-                item.inactiveUserCards(),
-                item.payloadRaw(),
-                item.buttonsRaw(),
-                item.notification(),
-                item.stand(),
-                item.hit(),
-                item.doubleAction(),
-                item.split(),
-                item.surrender(),
+                recognition.dealerCards(),
+                recognition.activeUserCards(),
+                recognition.inactiveUserCards(),
+                recognition.payloadRaw(),
+                recognition.buttonsRaw(),
+                recognition.notification(),
+                recognition.stand(),
+                recognition.hit(),
+                recognition.doubleAction(),
+                recognition.split(),
+                recognition.surrender(),
                 item.fileCreatedAt(),
-                item.processedAt(),
-                item.recognitionDurationMs(),
-                item.parseStatus(),
+                recognition.processedAt(),
+                recognition.recognitionDurationMs(),
+                recognition.parseStatus(),
                 "/api/images/" + item.imageId() + "/content"
         );
     }

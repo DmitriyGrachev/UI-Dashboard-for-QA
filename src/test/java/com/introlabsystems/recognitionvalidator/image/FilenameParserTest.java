@@ -43,25 +43,26 @@ class FilenameParserTest {
                 "bj_single_deck_ags_37_5730ca78-7535-4e9d-aeb6-22802c3eb0a6"
                         + "_d_Eight_u_Seven_Jack_u_A10J3_bSbHbD_27-07-2026-06-17-06_895.png"
         );
+        RecognitionResult recognition = parsed.recognition();
 
-        assertThat(parsed.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
+        assertThat(recognition.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
         assertThat(parsed.gameCode()).isEqualTo("bj_single_deck_ags");
         assertThat(parsed.tokenId()).isEqualTo(37L);
         assertThat(parsed.sessionUuid())
                 .isEqualTo(UUID.fromString("5730ca78-7535-4e9d-aeb6-22802c3eb0a6"));
         assertThat(parsed.sessionId())
                 .isEqualTo("37_5730ca78-7535-4e9d-aeb6-22802c3eb0a6");
-        assertThat(parsed.dealerCards()).isEqualTo("Eight");
-        assertThat(parsed.activeUserCards()).isEqualTo("Seven_Jack");
-        assertThat(parsed.inactiveUserCards()).isEqualTo("A10J3");
-        assertThat(parsed.buttonsRaw()).isEqualTo("bSbHbD");
-        assertThat(parsed.stand()).isTrue();
-        assertThat(parsed.hit()).isTrue();
-        assertThat(parsed.doubleAction()).isTrue();
-        assertThat(parsed.split()).isFalse();
-        assertThat(parsed.notification()).isFalse();
-        assertThat(parsed.processedAt()).isEqualTo(Instant.parse("2026-07-27T06:17:06Z"));
-        assertThat(parsed.recognitionDurationMs()).isEqualTo(895L);
+        assertThat(recognition.dealerCards()).isEqualTo("Eight");
+        assertThat(recognition.activeUserCards()).isEqualTo("Seven_Jack");
+        assertThat(recognition.inactiveUserCards()).isEqualTo("A10J3");
+        assertThat(recognition.buttonsRaw()).isEqualTo("bSbHbD");
+        assertThat(recognition.stand()).isTrue();
+        assertThat(recognition.hit()).isTrue();
+        assertThat(recognition.doubleAction()).isTrue();
+        assertThat(recognition.split()).isFalse();
+        assertThat(recognition.notification()).isFalse();
+        assertThat(recognition.processedAt()).isEqualTo(Instant.parse("2026-07-27T06:17:06Z"));
+        assertThat(recognition.recognitionDurationMs()).isEqualTo(895L);
     }
 
     @Test
@@ -70,14 +71,15 @@ class FilenameParserTest {
                 "bj_igt_39_850746c3-874d-495d-aefa-5ea3636cfb51"
                         + "_u_Jack_bSbH_27-07-2026-22-48-01_754.png"
         );
+        RecognitionResult recognition = parsed.recognition();
 
-        assertThat(parsed.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
-        assertThat(parsed.dealerCards()).isNull();
-        assertThat(parsed.activeUserCards()).isEqualTo("Jack");
-        assertThat(parsed.inactiveUserCards()).isNull();
-        assertThat(parsed.stand()).isTrue();
-        assertThat(parsed.hit()).isTrue();
-        assertThat(parsed.processedAt()).isEqualTo(Instant.parse("2026-07-27T22:48:01Z"));
+        assertThat(recognition.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
+        assertThat(recognition.dealerCards()).isNull();
+        assertThat(recognition.activeUserCards()).isEqualTo("Jack");
+        assertThat(recognition.inactiveUserCards()).isNull();
+        assertThat(recognition.stand()).isTrue();
+        assertThat(recognition.hit()).isTrue();
+        assertThat(recognition.processedAt()).isEqualTo(Instant.parse("2026-07-27T22:48:01Z"));
     }
 
     @Test
@@ -86,13 +88,14 @@ class FilenameParserTest {
                 "bj_single_deck_ags_32_2f85c92a-b245-4c88-a56b-7bb15fb93c38"
                         + "_bN_u_22769K_30-07-2026-09-28-40_2682.png"
         );
+        RecognitionResult recognition = parsed.recognition();
 
-        assertThat(parsed.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
-        assertThat(parsed.notification()).isTrue();
-        assertThat(parsed.activeUserCards()).isEqualTo("22769K");
-        assertThat(parsed.buttonsRaw()).isEqualTo("bN");
-        assertThat(parsed.processedAt()).isEqualTo(Instant.parse("2026-07-30T09:28:40Z"));
-        assertThat(parsed.recognitionDurationMs()).isEqualTo(2682L);
+        assertThat(recognition.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
+        assertThat(recognition.notification()).isTrue();
+        assertThat(recognition.activeUserCards()).isEqualTo("22769K");
+        assertThat(recognition.buttonsRaw()).isEqualTo("bN");
+        assertThat(recognition.processedAt()).isEqualTo(Instant.parse("2026-07-30T09:28:40Z"));
+        assertThat(recognition.recognitionDurationMs()).isEqualTo(2682L);
     }
 
     @Test
@@ -103,18 +106,19 @@ class FilenameParserTest {
                         + "_d_Four_u_Nine_Seven_bSbHbDbSR"
                         + "_27-07-2026-12-36-56_481.png"
         );
+        RecognitionResult recognition = parsed.recognition();
 
-        assertThat(parsed.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
+        assertThat(recognition.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
         assertThat(parsed.gameCode()).isEqualTo("bj_double_deck_black_throne");
-        assertThat(parsed.dealerCards()).isEqualTo("Four");
-        assertThat(parsed.activeUserCards()).isEqualTo("Nine_Seven");
-        assertThat(parsed.inactiveUserCards()).isNull();
-        assertThat(parsed.buttonsRaw()).isEqualTo("bSbHbDbSR");
-        assertThat(parsed.stand()).isTrue();
-        assertThat(parsed.hit()).isTrue();
-        assertThat(parsed.doubleAction()).isTrue();
-        assertThat(parsed.split()).isFalse();
-        assertThat(parsed.surrender()).isTrue();
+        assertThat(recognition.dealerCards()).isEqualTo("Four");
+        assertThat(recognition.activeUserCards()).isEqualTo("Nine_Seven");
+        assertThat(recognition.inactiveUserCards()).isNull();
+        assertThat(recognition.buttonsRaw()).isEqualTo("bSbHbDbSR");
+        assertThat(recognition.stand()).isTrue();
+        assertThat(recognition.hit()).isTrue();
+        assertThat(recognition.doubleAction()).isTrue();
+        assertThat(recognition.split()).isFalse();
+        assertThat(recognition.surrender()).isTrue();
     }
 
     @Test
@@ -128,11 +132,11 @@ class FilenameParserTest {
                         + "_u_Jack_bX_27-07-2026-22-48-01_754.png"
         );
 
-        assertThat(split.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
-        assertThat(split.split()).isTrue();
-        assertThat(split.surrender()).isTrue();
-        assertThat(unknown.parseStatus()).isEqualTo(ParseStatus.PARTIAL);
-        assertThat(unknown.buttonsRaw()).isEqualTo("bX");
+        assertThat(split.recognition().parseStatus()).isEqualTo(ParseStatus.SUCCESS);
+        assertThat(split.recognition().split()).isTrue();
+        assertThat(split.recognition().surrender()).isTrue();
+        assertThat(unknown.recognition().parseStatus()).isEqualTo(ParseStatus.PARTIAL);
+        assertThat(unknown.recognition().buttonsRaw()).isEqualTo("bX");
     }
 
     @ParameterizedTest
@@ -157,7 +161,7 @@ class FilenameParserTest {
                         + "_u_Jack_bS_27-07-2026-22-48-01_754.png"
         );
 
-        assertThat(parsed.parseStatus()).isEqualTo(ParseStatus.SUCCESS);
+        assertThat(parsed.recognition().parseStatus()).isEqualTo(ParseStatus.SUCCESS);
         assertThat(parsed.gameCode()).isEqualTo(gameCode);
     }
 
@@ -166,10 +170,10 @@ class FilenameParserTest {
         ParsedFilename unknownGame = parser.parse("not-a-recognition-screenshot.png");
         ParsedFilename knownGame = parser.parse("bj_igt_not-a-valid-session.png");
 
-        assertThat(unknownGame.parseStatus()).isEqualTo(ParseStatus.ERROR);
+        assertThat(unknownGame.recognition().parseStatus()).isEqualTo(ParseStatus.ERROR);
         assertThat(unknownGame.gameCode()).isNull();
         assertThat(unknownGame.sessionId()).isNull();
-        assertThat(knownGame.parseStatus()).isEqualTo(ParseStatus.ERROR);
+        assertThat(knownGame.recognition().parseStatus()).isEqualTo(ParseStatus.ERROR);
         assertThat(knownGame.gameCode()).isEqualTo("bj_igt");
         assertThat(knownGame.sessionId()).isNull();
     }

@@ -15,19 +15,6 @@ public record ImageMetadata(
         Long tokenId,
         UUID sessionUuid,
         String sessionId,
-        String dealerCards,
-        String activeUserCards,
-        String inactiveUserCards,
-        String payloadRaw,
-        String buttonsRaw,
-        boolean notification,
-        boolean stand,
-        boolean hit,
-        boolean doubleAction,
-        boolean split,
-        boolean surrender,
-        Instant processedAt,
-        Long recognitionDurationMs,
-        ParseStatus parseStatus
+        RecognitionResult recognition
 ) {
 }

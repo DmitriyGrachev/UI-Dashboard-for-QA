@@ -1,6 +1,6 @@
 package com.introlabsystems.recognitionvalidator.review;
 
-import com.introlabsystems.recognitionvalidator.image.ParseStatus;
+import com.introlabsystems.recognitionvalidator.image.RecognitionResult;
 
 import java.time.Instant;
 
@@ -9,20 +9,7 @@ public record ReviewItem(
         String fileName,
         String gameCode,
         String sessionId,
-        String dealerCards,
-        String activeUserCards,
-        String inactiveUserCards,
-        String payloadRaw,
-        String buttonsRaw,
-        boolean notification,
-        boolean stand,
-        boolean hit,
-        boolean doubleAction,
-        boolean split,
-        boolean surrender,
         Instant fileCreatedAt,
-        Instant processedAt,
-        Long recognitionDurationMs,
-        ParseStatus parseStatus
+        RecognitionResult recognition
 ) {
 }
