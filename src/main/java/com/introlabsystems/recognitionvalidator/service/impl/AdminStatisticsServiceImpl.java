@@ -1,5 +1,10 @@
-package com.introlabsystems.recognitionvalidator.statistics;
+package com.introlabsystems.recognitionvalidator.service.impl;
 
+import com.introlabsystems.recognitionvalidator.service.AdminStatisticsService;
+import com.introlabsystems.recognitionvalidator.statistics.AdminOperatorStatistics;
+import com.introlabsystems.recognitionvalidator.statistics.AdminStatisticsPage;
+import com.introlabsystems.recognitionvalidator.statistics.DailyReviewCount;
+import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -14,18 +19,15 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
-public class AdminStatisticsService {
+@RequiredArgsConstructor
+public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
     static final int PAGE_SIZE = 10;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
 
-    public AdminStatisticsService(NamedParameterJdbcTemplate jdbc, Clock clock) {
-        this.jdbc = jdbc;
-        this.clock = clock;
-    }
-
+    @Override
     public AdminStatisticsPage page(int requestedPage) {
         Long counted = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM app_user WHERE role = 'OPERATOR'",

@@ -2,7 +2,7 @@ package com.introlabsystems.recognitionvalidator.web;
 
 import com.introlabsystems.recognitionvalidator.auth.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
-import com.introlabsystems.recognitionvalidator.statistics.StatisticsService;
+import com.introlabsystems.recognitionvalidator.service.StatisticsService;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;

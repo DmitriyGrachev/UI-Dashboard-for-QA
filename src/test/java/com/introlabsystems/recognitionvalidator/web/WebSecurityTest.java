@@ -3,7 +3,7 @@ package com.introlabsystems.recognitionvalidator.web;
 import com.introlabsystems.recognitionvalidator.auth.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import com.introlabsystems.recognitionvalidator.image.ImageIndexer;
-import com.introlabsystems.recognitionvalidator.review.RejectedScreenshotExportService;
+import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

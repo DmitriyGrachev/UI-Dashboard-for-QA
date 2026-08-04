@@ -1,9 +1,9 @@
 package com.introlabsystems.recognitionvalidator.web;
 
-import com.introlabsystems.recognitionvalidator.auth.AdminUserService;
 import com.introlabsystems.recognitionvalidator.auth.AdminUserException;
-import com.introlabsystems.recognitionvalidator.review.RejectedScreenshotExportService;
-import com.introlabsystems.recognitionvalidator.statistics.AdminStatisticsService;
+import com.introlabsystems.recognitionvalidator.service.AdminStatisticsService;
+import com.introlabsystems.recognitionvalidator.service.AdminUserService;
+import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;

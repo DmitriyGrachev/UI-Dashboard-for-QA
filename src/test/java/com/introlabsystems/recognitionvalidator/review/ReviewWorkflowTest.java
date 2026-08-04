@@ -2,9 +2,11 @@ package com.introlabsystems.recognitionvalidator.review;
 
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import com.introlabsystems.recognitionvalidator.maintenance.RetentionCleanupService;
+import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
+import com.introlabsystems.recognitionvalidator.service.StatisticsService;
+import com.introlabsystems.recognitionvalidator.service.impl.StatisticsServiceImpl;
 import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
 import com.introlabsystems.recognitionvalidator.statistics.StatisticsRepository;
-import com.introlabsystems.recognitionvalidator.statistics.StatisticsService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -358,7 +360,7 @@ class ReviewWorkflowTest {
                 Instant.parse("2026-07-30T12:00:00Z"),
                 ZoneOffset.UTC
         );
-        StatisticsService service = new StatisticsService(statisticsRepository, fixedClock);
+        StatisticsService service = new StatisticsServiceImpl(statisticsRepository, fixedClock);
         UUID operatorId = insertOperator("statistics");
         insertDailyStatistics(operatorId, "2026-07-20", 1, 1, 0);
         insertDailyStatistics(operatorId, "2026-07-29", 3, 2, 1);

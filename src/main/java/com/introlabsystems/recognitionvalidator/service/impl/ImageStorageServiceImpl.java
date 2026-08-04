@@ -1,6 +1,10 @@
-package com.introlabsystems.recognitionvalidator.image;
+package com.introlabsystems.recognitionvalidator.service.impl;
 
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
+import com.introlabsystems.recognitionvalidator.image.ImageAsset;
+import com.introlabsystems.recognitionvalidator.image.ImageAssetRepository;
+import com.introlabsystems.recognitionvalidator.image.ImageNotFoundException;
+import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -12,12 +16,12 @@ import java.nio.file.LinkOption;
 import java.nio.file.Path;
 
 @Service
-public class ImageStorageService {
+public class ImageStorageServiceImpl implements ImageStorageService {
 
     private final Path imageRoot;
     private final ImageAssetRepository images;
 
-    public ImageStorageService(
+    public ImageStorageServiceImpl(
             ValidatorProperties properties,
             ImageAssetRepository images
     ) {
@@ -25,6 +29,7 @@ public class ImageStorageService {
         this.images = images;
     }
 
+    @Override
     @Transactional(noRollbackFor = ImageNotFoundException.class)
     public ImageContent open(String imageId) {
         ImageAsset asset = images.findById(imageId)
@@ -58,10 +63,4 @@ public class ImageStorageService {
         }
     }
 
-    public record ImageContent(
-            InputStreamResource resource,
-            long contentLength,
-            String fileName
-    ) {
-    }
 }

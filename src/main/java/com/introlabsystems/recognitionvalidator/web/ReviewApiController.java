@@ -3,7 +3,7 @@ package com.introlabsystems.recognitionvalidator.web;
 import com.introlabsystems.recognitionvalidator.auth.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.review.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.review.ReviewQueueService;
-import com.introlabsystems.recognitionvalidator.review.ReviewWorkflowService;
+import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
 import com.introlabsystems.recognitionvalidator.web.dto.DecisionRequest;
 import com.introlabsystems.recognitionvalidator.web.dto.ReviewClaimRequest;
 import com.introlabsystems.recognitionvalidator.web.dto.ReviewQueueResponse;

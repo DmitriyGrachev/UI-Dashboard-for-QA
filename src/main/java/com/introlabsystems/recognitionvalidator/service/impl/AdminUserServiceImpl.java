@@ -1,5 +1,12 @@
-package com.introlabsystems.recognitionvalidator.auth;
+package com.introlabsystems.recognitionvalidator.service.impl;
 
+import com.introlabsystems.recognitionvalidator.auth.AdminUserException;
+import com.introlabsystems.recognitionvalidator.auth.AppUser;
+import com.introlabsystems.recognitionvalidator.auth.AppUserRepository;
+import com.introlabsystems.recognitionvalidator.auth.UserRole;
+import com.introlabsystems.recognitionvalidator.auth.UserSessionService;
+import com.introlabsystems.recognitionvalidator.service.AdminUserService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -9,7 +16,8 @@ import java.time.Clock;
 import java.util.UUID;
 
 @Service
-public class AdminUserService {
+@RequiredArgsConstructor
+public class AdminUserServiceImpl implements AdminUserService {
 
     private final AppUserRepository users;
     private final PasswordEncoder passwordEncoder;
@@ -17,20 +25,7 @@ public class AdminUserService {
     private final JdbcTemplate jdbc;
     private final UserSessionService sessions;
 
-    public AdminUserService(
-            AppUserRepository users,
-            PasswordEncoder passwordEncoder,
-            Clock clock,
-            JdbcTemplate jdbc,
-            UserSessionService sessions
-    ) {
-        this.users = users;
-        this.passwordEncoder = passwordEncoder;
-        this.clock = clock;
-        this.jdbc = jdbc;
-        this.sessions = sessions;
-    }
-
+    @Override
     @Transactional
     public void createOperator(String username, String password) {
         String normalizedUsername = username == null ? "" : username.trim();
@@ -50,6 +45,7 @@ public class AdminUserService {
         ));
     }
 
+    @Override
     @Transactional
     public void deactivateOperator(UUID operatorId) {
         AppUser operator = operator(operatorId);
@@ -66,11 +62,13 @@ public class AdminUserService {
         sessions.expireFor(operatorId);
     }
 
+    @Override
     @Transactional
     public void restoreOperator(UUID operatorId) {
         operator(operatorId).restore();
     }
 
+    @Override
     @Transactional
     public void changePassword(UUID operatorId, String password) {
         validatePassword(password);

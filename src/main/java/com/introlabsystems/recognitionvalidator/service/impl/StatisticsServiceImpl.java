@@ -1,5 +1,10 @@
-package com.introlabsystems.recognitionvalidator.statistics;
+package com.introlabsystems.recognitionvalidator.service.impl;
 
+import com.introlabsystems.recognitionvalidator.service.StatisticsService;
+import com.introlabsystems.recognitionvalidator.statistics.DailyReviewCount;
+import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
+import com.introlabsystems.recognitionvalidator.statistics.StatisticsRepository;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -12,16 +17,13 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 @Service
-public class StatisticsService {
+@RequiredArgsConstructor
+public class StatisticsServiceImpl implements StatisticsService {
 
     private final StatisticsRepository repository;
     private final Clock clock;
 
-    public StatisticsService(StatisticsRepository repository, Clock clock) {
-        this.repository = repository;
-        this.clock = clock;
-    }
-
+    @Override
     public OperatorStatistics forOperator(UUID operatorId) {
         LocalDate today = clock.instant().atZone(ZoneOffset.UTC).toLocalDate();
         LocalDate start = today.minusDays(6);

@@ -1,7 +1,10 @@
-package com.introlabsystems.recognitionvalidator.review;
+package com.introlabsystems.recognitionvalidator.service.impl;
 
 import com.introlabsystems.recognitionvalidator.image.ImageNotFoundException;
-import com.introlabsystems.recognitionvalidator.image.ImageStorageService;
+import com.introlabsystems.recognitionvalidator.review.RejectedScreenshotExportRepository;
+import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
+import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
 import java.io.IOException;
@@ -17,23 +20,15 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 @Service
-public class RejectedScreenshotExportService {
+@RequiredArgsConstructor
+public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotExportService {
 
     private final RejectedScreenshotExportRepository exports;
     private final ImageStorageService storage;
     private final Clock clock;
     private final Lock exportLock = new ReentrantLock();
 
-    public RejectedScreenshotExportService(
-            RejectedScreenshotExportRepository exports,
-            ImageStorageService storage,
-            Clock clock
-    ) {
-        this.exports = exports;
-        this.storage = storage;
-        this.clock = clock;
-    }
-
+    @Override
     public int writeZip(
             Instant processedFrom,
             Instant processedTo,

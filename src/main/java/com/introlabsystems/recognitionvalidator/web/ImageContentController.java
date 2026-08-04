@@ -1,6 +1,6 @@
 package com.introlabsystems.recognitionvalidator.web;
 
-import com.introlabsystems.recognitionvalidator.image.ImageStorageService;
+import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
