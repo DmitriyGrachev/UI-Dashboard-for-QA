@@ -1,7 +1,7 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
-import com.introlabsystems.recognitionvalidator.image.ImageNotFoundException;
-import com.introlabsystems.recognitionvalidator.review.RejectedScreenshotExportRepository;
+import com.introlabsystems.recognitionvalidator.exception.ImageNotFoundException;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.RejectedScreenshotExportRepository;
 import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
 import lombok.RequiredArgsConstructor;

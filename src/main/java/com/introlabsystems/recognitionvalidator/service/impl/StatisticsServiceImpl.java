@@ -1,9 +1,9 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
 import com.introlabsystems.recognitionvalidator.service.StatisticsService;
-import com.introlabsystems.recognitionvalidator.statistics.DailyReviewCount;
-import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
-import com.introlabsystems.recognitionvalidator.statistics.StatisticsRepository;
+import com.introlabsystems.recognitionvalidator.model.value.DailyReviewCount;
+import com.introlabsystems.recognitionvalidator.model.value.OperatorStatistics;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.StatisticsRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 

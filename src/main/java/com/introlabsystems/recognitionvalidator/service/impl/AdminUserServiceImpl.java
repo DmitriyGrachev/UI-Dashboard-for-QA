@@ -1,10 +1,10 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
-import com.introlabsystems.recognitionvalidator.auth.AdminUserException;
-import com.introlabsystems.recognitionvalidator.auth.AppUser;
-import com.introlabsystems.recognitionvalidator.auth.AppUserRepository;
-import com.introlabsystems.recognitionvalidator.auth.UserRole;
-import com.introlabsystems.recognitionvalidator.auth.UserSessionService;
+import com.introlabsystems.recognitionvalidator.exception.AdminUserException;
+import com.introlabsystems.recognitionvalidator.model.entity.AppUser;
+import com.introlabsystems.recognitionvalidator.dao.jpa.AppUserRepository;
+import com.introlabsystems.recognitionvalidator.model.enums.UserRole;
+import com.introlabsystems.recognitionvalidator.security.UserSessionService;
 import com.introlabsystems.recognitionvalidator.service.AdminUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;

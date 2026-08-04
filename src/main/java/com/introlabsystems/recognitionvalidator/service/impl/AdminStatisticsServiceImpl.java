@@ -1,9 +1,9 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
 import com.introlabsystems.recognitionvalidator.service.AdminStatisticsService;
-import com.introlabsystems.recognitionvalidator.statistics.AdminOperatorStatistics;
-import com.introlabsystems.recognitionvalidator.statistics.AdminStatisticsPage;
-import com.introlabsystems.recognitionvalidator.statistics.DailyReviewCount;
+import com.introlabsystems.recognitionvalidator.model.value.AdminOperatorStatistics;
+import com.introlabsystems.recognitionvalidator.model.value.AdminStatisticsPage;
+import com.introlabsystems.recognitionvalidator.model.value.DailyReviewCount;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;

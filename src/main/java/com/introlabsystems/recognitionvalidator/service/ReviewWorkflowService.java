@@ -1,8 +1,8 @@
 package com.introlabsystems.recognitionvalidator.service;
 
-import com.introlabsystems.recognitionvalidator.review.Decision;
-import com.introlabsystems.recognitionvalidator.review.ReviewFilters;
-import com.introlabsystems.recognitionvalidator.review.ReviewQueueResult;
+import com.introlabsystems.recognitionvalidator.model.enums.Decision;
+import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
+import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 
 import java.util.UUID;
 

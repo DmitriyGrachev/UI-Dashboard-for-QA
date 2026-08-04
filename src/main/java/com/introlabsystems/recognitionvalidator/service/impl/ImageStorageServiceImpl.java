@@ -1,9 +1,9 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
-import com.introlabsystems.recognitionvalidator.image.ImageAsset;
-import com.introlabsystems.recognitionvalidator.image.ImageAssetRepository;
-import com.introlabsystems.recognitionvalidator.image.ImageNotFoundException;
+import com.introlabsystems.recognitionvalidator.model.entity.ImageAsset;
+import com.introlabsystems.recognitionvalidator.dao.jpa.ImageAssetRepository;
+import com.introlabsystems.recognitionvalidator.exception.ImageNotFoundException;
 import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.stereotype.Service;

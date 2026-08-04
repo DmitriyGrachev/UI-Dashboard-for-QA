@@ -1,6 +1,6 @@
 package com.introlabsystems.recognitionvalidator.service;
 
-import com.introlabsystems.recognitionvalidator.statistics.OperatorStatistics;
+import com.introlabsystems.recognitionvalidator.model.value.OperatorStatistics;
 
 import java.util.UUID;
 

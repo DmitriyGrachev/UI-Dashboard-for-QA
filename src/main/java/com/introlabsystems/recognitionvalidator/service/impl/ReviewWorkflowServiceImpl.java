@@ -1,10 +1,9 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
-import com.introlabsystems.recognitionvalidator.review.Decision;
-import com.introlabsystems.recognitionvalidator.review.DecisionService;
-import com.introlabsystems.recognitionvalidator.review.ReviewFilters;
-import com.introlabsystems.recognitionvalidator.review.ReviewQueueResult;
-import com.introlabsystems.recognitionvalidator.review.ReviewQueueService;
+import com.introlabsystems.recognitionvalidator.model.enums.Decision;
+import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
+import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
+import com.introlabsystems.recognitionvalidator.service.impl.ReviewQueueService;
 import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
