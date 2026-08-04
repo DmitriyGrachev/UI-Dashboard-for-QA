@@ -1,27 +1,12 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
 import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
-import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
-import com.introlabsystems.recognitionvalidator.indexing.ImageIndexer;
-import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.web.ServerProperties;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.mock.web.MockHttpSession;
-import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.util.FileSystemUtils;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Timestamp;
@@ -29,16 +14,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.UUID;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,38 +29,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
-@AutoConfigureMockMvc
-@ActiveProfiles("test")
-class WebSecurityTest {
-
-    @Autowired
-    private MockMvc mockMvc;
-
-    @Autowired
-    private JdbcTemplate jdbc;
-
-    @Autowired
-    private ValidatorProperties properties;
-
-    @Autowired
-    private ImageIndexer imageIndexer;
-
-    @Autowired
-    private ServerProperties serverProperties;
-
-    @Autowired
-    private RejectedScreenshotExportService rejectedExports;
-
-    private Path imageRoot;
-
-    @BeforeEach
-    void setUp() throws Exception {
-        jdbc.execute("TRUNCATE TABLE operator_daily_statistics, review_task, image_asset, app_user CASCADE");
-        imageRoot = properties.imageRoot().toAbsolutePath().normalize();
-        FileSystemUtils.deleteRecursively(imageRoot);
-        Files.createDirectories(imageRoot);
-    }
+class WebSecurityTest extends AbstractWebIntegrationTest {
 
     @Test
     void loginPageIsPublic() throws Exception {
@@ -143,215 +92,6 @@ class WebSecurityTest {
                         .with(user("operator").roles("OPERATOR"))
                         .with(csrf()))
                 .andExpect(status().isForbidden());
-    }
-
-    @Test
-    void adminDownloadsNewRejectedScreenshotsAndMarksThemDownloaded() throws Exception {
-        byte[] rejectedBytes = new byte[]{1, 2, 3, 4};
-        byte[] acceptedBytes = new byte[]{5, 6, 7, 8};
-        Files.write(imageRoot.resolve("rejected.png"), rejectedBytes);
-        Files.write(imageRoot.resolve("accepted.png"), acceptedBytes);
-        String rejectedId = insertReviewImage(
-                301, "rejected.png", true, "bj_igt", "rejected-session",
-                null, "Jack", null
-        );
-        String acceptedId = insertReviewImage(
-                302, "accepted.png", true, "bj_igt", "accepted-session",
-                null, "Nine", null
-        );
-        jdbc.update(
-                "UPDATE review_task SET status = 'COMPLETED', decision = 'REJECTED', "
-                        + "reviewed_at = now() WHERE image_id = ?",
-                rejectedId
-        );
-        jdbc.update(
-                "UPDATE review_task SET status = 'COMPLETED', decision = 'ACCEPTED', "
-                        + "reviewed_at = now() WHERE image_id = ?",
-                acceptedId
-        );
-
-        MvcResult result = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andExpect(content().contentType("application/zip"))
-                .andExpect(header().string(
-                        "Content-Disposition",
-                        containsString("rejected-screenshots")
-                ))
-                .andReturn();
-
-        assertThat(readZipEntries(result.getResponse().getContentAsByteArray()))
-                .containsExactlyEntriesOf(Map.of("rejected.png", rejectedBytes));
-        assertThat(jdbc.queryForObject(
-                "SELECT rejected_downloaded_at IS NOT NULL FROM review_task WHERE image_id = ?",
-                Boolean.class,
-                rejectedId
-        )).isTrue();
-        assertThat(jdbc.queryForObject(
-                "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
-                Boolean.class,
-                acceptedId
-        )).isTrue();
-    }
-
-    @Test
-    void rejectedScreenshotExportSkipsDownloadedUnlessExplicitlyIncluded() throws Exception {
-        byte[] bytes = new byte[]{9, 8, 7, 6};
-        Files.write(imageRoot.resolve("repeatable-rejected.png"), bytes);
-        String imageId = insertReviewImage(
-                303, "repeatable-rejected.png", true, "bj_igt", "repeat-session",
-                null, "Queen", null
-        );
-        jdbc.update(
-                "UPDATE review_task SET status = 'COMPLETED', decision = 'REJECTED', "
-                        + "reviewed_at = now() WHERE image_id = ?",
-                imageId
-        );
-
-        byte[] firstArchive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsByteArray();
-        byte[] defaultRepeat = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsByteArray();
-        byte[] explicitRepeat = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .param("includePreviouslyDownloaded", "true")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsByteArray();
-
-        assertThat(readZipEntries(firstArchive))
-                .containsExactlyEntriesOf(Map.of("repeatable-rejected.png", bytes));
-        assertThat(readZipEntries(defaultRepeat)).isEmpty();
-        assertThat(readZipEntries(explicitRepeat))
-                .containsExactlyEntriesOf(Map.of("repeatable-rejected.png", bytes));
-    }
-
-    @Test
-    void rejectedScreenshotExportFiltersByProcessedAtWithInclusiveFromAndExclusiveTo()
-            throws Exception {
-        String beforeId = insertRejectedExportImage(304, "before-window.png", new byte[]{1});
-        String includedId = insertRejectedExportImage(305, "inside-window.png", new byte[]{2});
-        String atEndId = insertRejectedExportImage(306, "at-window-end.png", new byte[]{3});
-        jdbc.update(
-                "UPDATE image_asset SET processed_at = ?, file_created_at = ? WHERE id = ?",
-                Timestamp.from(Instant.parse("2026-08-03T10:00:00Z")),
-                Timestamp.from(Instant.parse("2026-08-03T11:15:00Z")),
-                beforeId
-        );
-        jdbc.update(
-                "UPDATE image_asset SET processed_at = ?, file_created_at = ? WHERE id = ?",
-                Timestamp.from(Instant.parse("2026-08-03T11:00:00Z")),
-                Timestamp.from(Instant.parse("2026-08-03T10:00:00Z")),
-                includedId
-        );
-        jdbc.update(
-                "UPDATE image_asset SET processed_at = ?, file_created_at = ? WHERE id = ?",
-                Timestamp.from(Instant.parse("2026-08-03T12:00:00Z")),
-                Timestamp.from(Instant.parse("2026-08-03T11:30:00Z")),
-                atEndId
-        );
-
-        byte[] archive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .param("processedFrom", "2026-08-03T11:00")
-                        .param("processedTo", "2026-08-03T12:00")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsByteArray();
-
-        assertThat(readZipEntries(archive).keySet()).containsExactly("inside-window.png");
-    }
-
-    @Test
-    void rejectedScreenshotExportRejectsAnInvalidDateRange() throws Exception {
-        mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .param("processedFrom", "2026-08-03T12:00")
-                        .param("processedTo", "2026-08-03T11:00")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    void rejectedScreenshotExportSkipsAndMarksMissingFilesUnavailable() throws Exception {
-        String missingId = insertReviewImage(
-                307, "already-deleted.png", true, "bj_igt", "missing-export-session",
-                null, "King", null
-        );
-        jdbc.update(
-                "UPDATE review_task SET status = 'COMPLETED', decision = 'REJECTED', "
-                        + "reviewed_at = now() WHERE image_id = ?",
-                missingId
-        );
-        byte[] availableBytes = new byte[]{4, 2};
-        insertRejectedExportImage(308, "available-rejected.png", availableBytes);
-
-        byte[] archive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .with(user("admin").roles("ADMIN"))
-                        .with(csrf()))
-                .andExpect(status().isOk())
-                .andReturn()
-                .getResponse()
-                .getContentAsByteArray();
-
-        assertThat(readZipEntries(archive))
-                .containsExactlyEntriesOf(Map.of("available-rejected.png", availableBytes));
-        assertThat(jdbc.queryForObject(
-                "SELECT file_available FROM image_asset WHERE id = ?",
-                Boolean.class,
-                missingId
-        )).isFalse();
-        assertThat(jdbc.queryForObject(
-                "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
-                Boolean.class,
-                missingId
-        )).isTrue();
-    }
-
-    @Test
-    void rejectedScreenshotExportDoesNotMarkFilesWhenTheDownloadFails() throws Exception {
-        String imageId = insertRejectedExportImage(
-                309,
-                "failed-download.png",
-                new byte[]{1, 2, 3, 4, 5, 6, 7, 8}
-        );
-        OutputStream failingOutput = new OutputStream() {
-            private int written;
-
-            @Override
-            public void write(int value) throws IOException {
-                if (++written > 10) {
-                    throw new IOException("Simulated client disconnect");
-                }
-            }
-        };
-
-        assertThatThrownBy(() -> rejectedExports.writeZip(
-                null,
-                null,
-                false,
-                failingOutput
-        )).isInstanceOf(IOException.class);
-        assertThat(jdbc.queryForObject(
-                "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
-                Boolean.class,
-                imageId
-        )).isTrue();
     }
 
     @Test
@@ -1069,119 +809,4 @@ class WebSecurityTest {
                 )));
     }
 
-    private UUID insertOperator(String username, String password) {
-        return insertUser(username, password, "OPERATOR");
-    }
-
-    private UUID insertUser(String username, String password, String role) {
-        UUID id = UUID.randomUUID();
-        String hash = new BCryptPasswordEncoder(12).encode(password);
-        jdbc.update("""
-                INSERT INTO app_user (id, username, password_hash, enabled, created_at, role)
-                VALUES (?, ?, ?, TRUE, now(), ?)
-                """, id, username, hash, role);
-        return id;
-    }
-
-    private String insertReviewImage(
-            int number,
-            String relativePath,
-            boolean available,
-            String gameCode,
-            String sessionId,
-            String dealerCards,
-            String activeCards,
-            String inactiveCards
-    ) {
-        String id = "%064x".formatted(number);
-        Instant createdAt = Instant.parse("2026-07-30T10:00:00Z");
-        jdbc.update("""
-                INSERT INTO image_asset (
-                    id, file_name, relative_path, file_created_at, file_modified_at,
-                    discovered_at, last_seen_at, file_available, game_code, session_id,
-                    dealer_cards, active_user_cards, inactive_user_cards,
-                    is_notification, has_stand, has_hit, has_double, has_split,
-                    processed_at, recognition_duration_ms, parse_status
-                ) VALUES (
-                    ?, ?, ?, ?, ?, now(), now(), ?, ?, ?,
-                    ?, ?, ?, FALSE, TRUE, TRUE, FALSE, FALSE,
-                    ?, 754, 'SUCCESS'
-                )
-                """,
-                id,
-                Path.of(relativePath).getFileName().toString(),
-                relativePath,
-                Timestamp.from(createdAt),
-                Timestamp.from(createdAt),
-                available,
-                gameCode,
-                sessionId,
-                dealerCards,
-                activeCards,
-                inactiveCards,
-                Timestamp.from(createdAt)
-        );
-        jdbc.update(
-                "INSERT INTO review_task (image_id, status) VALUES (?, 'PENDING')",
-                id
-        );
-        return id;
-    }
-
-    private String insertRejectedExportImage(int number, String fileName, byte[] bytes)
-            throws IOException {
-        Files.write(imageRoot.resolve(fileName), bytes);
-        String imageId = insertReviewImage(
-                number, fileName, true, "bj_igt", "export-session-" + number,
-                null, "Jack", null
-        );
-        jdbc.update(
-                "UPDATE review_task SET status = 'COMPLETED', decision = 'REJECTED', "
-                        + "reviewed_at = now() WHERE image_id = ?",
-                imageId
-        );
-        return imageId;
-    }
-
-    private void insertDailyStatistics(
-            UUID operatorId,
-            LocalDate date,
-            long total,
-            long matched,
-            long notMatched
-    ) {
-        jdbc.update("""
-                INSERT INTO operator_daily_statistics (
-                    operator_id, statistics_date, total_checked,
-                    matched_count, not_matched_count
-                ) VALUES (?, ?, ?, ?, ?)
-                """, operatorId, date, total, matched, notMatched);
-    }
-
-    private void insertOperatorWithoutHash(String username) {
-        jdbc.update("""
-                INSERT INTO app_user (
-                    id, username, password_hash, enabled, created_at, role
-                ) VALUES (?, ?, 'unused', TRUE, now(), 'OPERATOR')
-                """, UUID.randomUUID(), username);
-    }
-
-    private int countOccurrences(String text, String fragment) {
-        return text.split(java.util.regex.Pattern.quote(fragment), -1).length - 1;
-    }
-
-    private Map<String, byte[]> readZipEntries(byte[] archive) throws IOException {
-        Map<String, byte[]> entries = new LinkedHashMap<>();
-        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
-            ZipEntry entry;
-            while ((entry = zip.getNextEntry()) != null) {
-                entries.put(entry.getName(), zip.readAllBytes());
-            }
-        }
-        return entries;
-    }
-
-    private OperatorPrincipal principal(UUID id, String username) {
-        return new OperatorPrincipal(id, username, "unused", true);
-    }
 }

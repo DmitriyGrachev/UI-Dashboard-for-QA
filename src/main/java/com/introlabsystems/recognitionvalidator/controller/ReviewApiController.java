@@ -2,7 +2,7 @@ package com.introlabsystems.recognitionvalidator.controller;
 
 import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
-import com.introlabsystems.recognitionvalidator.service.impl.ReviewQueueService;
+import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
 import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
 import com.introlabsystems.recognitionvalidator.dto.request.DecisionRequest;
 import com.introlabsystems.recognitionvalidator.dto.request.ReviewClaimRequest;

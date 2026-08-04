@@ -49,7 +49,7 @@ class ReviewQueueServiceTest {
                 false,
                 false
         )).thenReturn(new ReviewQueueResult(Optional.empty(), null));
-        ReviewQueueService service = new ReviewQueueService(
+        ReviewQueueServiceImpl service = new ReviewQueueServiceImpl(
                 repository,
                 properties,
                 Clock.fixed(now, ZoneOffset.UTC)
