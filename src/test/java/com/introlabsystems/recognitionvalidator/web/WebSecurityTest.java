@@ -240,29 +240,33 @@ class WebSecurityTest {
     }
 
     @Test
-    void rejectedScreenshotExportUsesInclusiveFromAndExclusiveToInUtc() throws Exception {
+    void rejectedScreenshotExportFiltersByProcessedAtWithInclusiveFromAndExclusiveTo()
+            throws Exception {
         String beforeId = insertRejectedExportImage(304, "before-window.png", new byte[]{1});
         String includedId = insertRejectedExportImage(305, "inside-window.png", new byte[]{2});
         String atEndId = insertRejectedExportImage(306, "at-window-end.png", new byte[]{3});
         jdbc.update(
-                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                "UPDATE image_asset SET processed_at = ?, file_created_at = ? WHERE id = ?",
                 Timestamp.from(Instant.parse("2026-08-03T10:00:00Z")),
+                Timestamp.from(Instant.parse("2026-08-03T11:15:00Z")),
                 beforeId
         );
         jdbc.update(
-                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                "UPDATE image_asset SET processed_at = ?, file_created_at = ? WHERE id = ?",
                 Timestamp.from(Instant.parse("2026-08-03T11:00:00Z")),
+                Timestamp.from(Instant.parse("2026-08-03T10:00:00Z")),
                 includedId
         );
         jdbc.update(
-                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                "UPDATE image_asset SET processed_at = ?, file_created_at = ? WHERE id = ?",
                 Timestamp.from(Instant.parse("2026-08-03T12:00:00Z")),
+                Timestamp.from(Instant.parse("2026-08-03T11:30:00Z")),
                 atEndId
         );
 
         byte[] archive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .param("createdFrom", "2026-08-03T11:00")
-                        .param("createdTo", "2026-08-03T12:00")
+                        .param("processedFrom", "2026-08-03T11:00")
+                        .param("processedTo", "2026-08-03T12:00")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf()))
                 .andExpect(status().isOk())
@@ -276,8 +280,8 @@ class WebSecurityTest {
     @Test
     void rejectedScreenshotExportRejectsAnInvalidDateRange() throws Exception {
         mockMvc.perform(post("/admin/rejected-screenshots.zip")
-                        .param("createdFrom", "2026-08-03T12:00")
-                        .param("createdTo", "2026-08-03T11:00")
+                        .param("processedFrom", "2026-08-03T12:00")
+                        .param("processedTo", "2026-08-03T11:00")
                         .with(user("admin").roles("ADMIN"))
                         .with(csrf()))
                 .andExpect(status().isBadRequest());
@@ -370,8 +374,14 @@ class WebSecurityTest {
                 .andExpect(content().string(containsString(
                         "action=\"/admin/rejected-screenshots.zip\""
                 )))
-                .andExpect(content().string(containsString("name=\"createdFrom\"")))
-                .andExpect(content().string(containsString("name=\"createdTo\"")))
+                .andExpect(content().string(containsString(
+                        "Recognition completed from (UTC)"
+                )))
+                .andExpect(content().string(containsString(
+                        "Recognition completed to (UTC)"
+                )))
+                .andExpect(content().string(containsString("name=\"processedFrom\"")))
+                .andExpect(content().string(containsString("name=\"processedTo\"")))
                 .andExpect(content().string(containsString(
                         "name=\"includePreviouslyDownloaded\""
                 )))

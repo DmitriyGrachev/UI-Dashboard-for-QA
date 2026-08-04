@@ -21,8 +21,8 @@ public class RejectedScreenshotExportRepository {
     }
 
     public List<ExportCandidate> findCandidates(
-            Instant createdFrom,
-            Instant createdTo,
+            Instant processedFrom,
+            Instant processedTo,
             boolean includePreviouslyDownloaded
     ) {
         StringBuilder sql = new StringBuilder("""
@@ -37,15 +37,15 @@ public class RejectedScreenshotExportRepository {
         if (!includePreviouslyDownloaded) {
             sql.append(" AND rt.rejected_downloaded_at IS NULL");
         }
-        if (createdFrom != null) {
-            sql.append(" AND ia.file_created_at >= :createdFrom");
-            parameters.addValue("createdFrom", Timestamp.from(createdFrom));
+        if (processedFrom != null) {
+            sql.append(" AND ia.processed_at >= :processedFrom");
+            parameters.addValue("processedFrom", Timestamp.from(processedFrom));
         }
-        if (createdTo != null) {
-            sql.append(" AND ia.file_created_at < :createdTo");
-            parameters.addValue("createdTo", Timestamp.from(createdTo));
+        if (processedTo != null) {
+            sql.append(" AND ia.processed_at < :processedTo");
+            parameters.addValue("processedTo", Timestamp.from(processedTo));
         }
-        sql.append(" ORDER BY ia.file_created_at, rt.image_id");
+        sql.append(" ORDER BY ia.processed_at, rt.image_id");
 
         return jdbc.query(
                 sql.toString(),

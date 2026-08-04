@@ -91,17 +91,19 @@ public class AdminController {
     void downloadRejectedScreenshots(
             @RequestParam(required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
-            LocalDateTime createdFrom,
+            LocalDateTime processedFrom,
             @RequestParam(required = false)
             @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
-            LocalDateTime createdTo,
+            LocalDateTime processedTo,
             @RequestParam(defaultValue = "false") boolean includePreviouslyDownloaded,
             HttpServletResponse response
     ) throws IOException {
-        if (createdFrom != null && createdTo != null && !createdFrom.isBefore(createdTo)) {
+        if (processedFrom != null
+                && processedTo != null
+                && !processedFrom.isBefore(processedTo)) {
             response.sendError(
                     HttpStatus.BAD_REQUEST.value(),
-                    "Created from must be earlier than created to"
+                    "Recognition completed from must be earlier than recognition completed to"
             );
             return;
         }
@@ -115,8 +117,8 @@ public class AdminController {
         );
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
         rejectedExports.writeZip(
-                createdFrom == null ? null : createdFrom.toInstant(ZoneOffset.UTC),
-                createdTo == null ? null : createdTo.toInstant(ZoneOffset.UTC),
+                processedFrom == null ? null : processedFrom.toInstant(ZoneOffset.UTC),
+                processedTo == null ? null : processedTo.toInstant(ZoneOffset.UTC),
                 includePreviouslyDownloaded,
                 response.getOutputStream()
         );

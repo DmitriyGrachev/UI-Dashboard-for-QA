@@ -35,8 +35,8 @@ public class RejectedScreenshotExportService {
     }
 
     public int writeZip(
-            Instant createdFrom,
-            Instant createdTo,
+            Instant processedFrom,
+            Instant processedTo,
             boolean includePreviouslyDownloaded,
             OutputStream output
     ) throws IOException {
@@ -45,8 +45,8 @@ public class RejectedScreenshotExportService {
             List<String> writtenIds = new ArrayList<>();
             ZipOutputStream zip = new ZipOutputStream(output);
             for (var candidate : exports.findCandidates(
-                    createdFrom,
-                    createdTo,
+                    processedFrom,
+                    processedTo,
                     includePreviouslyDownloaded
             )) {
                 try {

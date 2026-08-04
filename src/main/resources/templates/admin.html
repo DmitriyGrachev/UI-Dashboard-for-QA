@@ -111,18 +111,18 @@
                     <span class="section-kicker">Recognition output</span>
                     <h2 id="rejected-export-title">Rejected screenshots export</h2>
                 </div>
-                <p>Download available rejected PNG files. Empty dates include all available data.</p>
+                <p>Filter by recognition completion time parsed from PNG file names. Empty dates include all available data.</p>
             </header>
             <form class="rejected-export-form"
                   method="post"
                   th:action="@{/admin/rejected-screenshots.zip}">
                 <label>
-                    Created from (UTC)
-                    <input type="datetime-local" name="createdFrom" step="60">
+                    Recognition completed from (UTC)
+                    <input type="datetime-local" name="processedFrom" step="60">
                 </label>
                 <label>
-                    Created to (UTC)
-                    <input type="datetime-local" name="createdTo" step="60">
+                    Recognition completed to (UTC)
+                    <input type="datetime-local" name="processedTo" step="60">
                 </label>
                 <label class="rejected-export-checkbox">
                     <input type="checkbox"
