@@ -18,12 +18,15 @@ MVP QA-застосунку для ручної перевірки повног�
 - пакетне відстеження створення та видалення файлів через `WatchService` з обмеженим буфером подій;
 - розбір гри, session ID, карт, кнопок, часу завершення та duration розпізнавання з імені PNG;
 - атомарна черга: один скриншот одночасно отримує лише один оператор;
-- автоматичні фільтри черги за датою створення, session ID, грою та notification з опціональним лічильником залишку;
+- автоматичні UTC-фільтри черги за датою створення, session ID, грою, notification і наявністю карт користувача;
+- опціональний лічильник залишку з фактичними мінімальною та максимальною датами вибірки;
 - показ зображення без збереження його вмісту в PostgreSQL;
-- zoom, pan, reset і fullscreen;
+- zoom, pan, reset, fullscreen, світла/темна тема та вбудована довідка FAQ;
+- збереження фільтрів і масштабу в межах вкладки браузера;
 - остаточне рішення без можливості повторної зміни;
 - особиста UTC-статистика за сьогодні, останні 7 днів і за весь час із денним графіком;
-- видалення з БД метаданих зображень, старших за 7 днів, без видалення фізичних файлів; денна статистика операторів зберігається безстроково.
+- ZIP-експорт доступних `REJECTED`-скриншотів з адміністративної сторінки;
+- видалення з БД метаданих зображень, старших за 4 календарні UTC-дні, без видалення фізичних файлів; денна статистика операторів зберігається безстроково.
 
 ## Як працює індексація
 
@@ -74,6 +77,7 @@ POSTGRES_DATA_ROOT_HOST=C:/recognition-validator-data/postgres
 На Linux-сервері, наприклад:
 
 ```dotenv
+VALIDATOR_IMAGE_ROOT_HOST=/data/recognition-api/completed_recognition
 POSTGRES_DATA_ROOT_HOST=/srv/recognition-validator/postgres
 ```
 
@@ -84,23 +88,25 @@ POSTGRES_DATA_ROOT_HOST=/srv/recognition-validator/postgres
 Підняти застосунок разом із PostgreSQL:
 
 ```powershell
-docker compose up -d --build app
+docker compose up -d --build validator-api-app
 docker compose ps
-docker compose logs -f app
+docker compose logs -f validator-api-app
 ```
 
 Перший запуск створює таблиці через Hibernate `ddl-auto=update`. Створити першого
 адміністратора без локально встановленої Java:
 
 ```powershell
-$adminPasswordHash = docker compose run --rm --no-deps --entrypoint java app "-Dloader.main=com.introlabsystems.recognitionvalidator.auth.PasswordHashCli" -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher change-me-now | Select-Object -Last 1
+$adminPasswordHash = docker compose run --rm --no-deps --entrypoint java validator-api-app "-Dloader.main=com.introlabsystems.recognitionvalidator.cli.PasswordHashCli" -cp /app/app.jar org.springframework.boot.loader.launch.PropertiesLauncher change-me-now | Select-Object -Last 1
 $adminUserId = [guid]::NewGuid()
 $adminSql = "INSERT INTO app_user (id, username, password_hash, enabled, role, created_at) VALUES ('$adminUserId', 'admin', '$adminPasswordHash', TRUE, 'ADMIN', now());"
-docker compose exec -T postgres psql -U validator -d recognition_validator -v ON_ERROR_STOP=1 -c $adminSql
+$dbUser = (docker compose exec -T validator-api-db printenv POSTGRES_USER).Trim()
+$dbName = (docker compose exec -T validator-api-db printenv POSTGRES_DB).Trim()
+docker compose exec -T validator-api-db psql -U $dbUser -d $dbName -v ON_ERROR_STOP=1 -c $adminSql
 ```
 
 Після запуску сторінка входу доступна за адресою
-[http://localhost:8080/login](http://localhost:8080/login). Для зупинки:
+[http://localhost:18080/login](http://localhost:18080/login) за стандартного `SERVER_PORT`. Для зупинки:
 
 ```powershell
 docker compose down
@@ -115,17 +121,19 @@ docker compose down
 Запустити лише основну PostgreSQL:
 
 ```powershell
-docker compose up -d postgres
-docker compose exec postgres pg_isready -U validator -d recognition_validator
+docker compose up -d validator-api-db
+$dbUser = (docker compose exec -T validator-api-db printenv POSTGRES_USER).Trim()
+$dbName = (docker compose exec -T validator-api-db printenv POSTGRES_DB).Trim()
+docker compose exec validator-api-db pg_isready -U $dbUser -d $dbName
 ```
 
 У першому вікні PowerShell вказати тестову папку та запустити застосунок:
 
 ```powershell
 $env:VALIDATOR_IMAGE_ROOT='C:\Users\dimag\Downloads\test'
-$env:DB_URL='jdbc:postgresql://localhost:5432/recognition_validator'
-$env:DB_USERNAME='validator'
-$env:DB_PASSWORD='validator'
+$env:DB_URL='jdbc:postgresql://localhost:5436/recognition_validator'
+$env:DB_USERNAME='value-from-DB_USERNAME-in-.env'
+$env:DB_PASSWORD='value-from-DB_PASSWORD-in-.env'
 .\mvnw.cmd spring-boot:run
 ```
 
@@ -133,10 +141,10 @@ $env:DB_PASSWORD='validator'
 першого адміністратора:
 
 ```powershell
-$adminPasswordHash = .\mvnw.cmd -q org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=com.introlabsystems.recognitionvalidator.auth.PasswordHashCli" "-Dexec.args=change-me-now" | Select-Object -Last 1
+$adminPasswordHash = .\mvnw.cmd -q org.codehaus.mojo:exec-maven-plugin:3.5.0:java "-Dexec.mainClass=com.introlabsystems.recognitionvalidator.cli.PasswordHashCli" "-Dexec.args=change-me-now" | Select-Object -Last 1
 $adminUserId = [guid]::NewGuid()
 $adminSql = "INSERT INTO app_user (id, username, password_hash, enabled, role, created_at) VALUES ('$adminUserId', 'admin', '$adminPasswordHash', TRUE, 'ADMIN', now());"
-docker compose exec -T postgres psql -U validator -d recognition_validator -v ON_ERROR_STOP=1 -c $adminSql
+docker compose exec -T validator-api-db psql -U $dbUser -d $dbName -v ON_ERROR_STOP=1 -c $adminSql
 ```
 
 Після цього відкрити [http://localhost:8080/login](http://localhost:8080/login) і
@@ -151,26 +159,29 @@ docker compose exec -T postgres psql -U validator -d recognition_validator -v ON
 ```powershell
 docker compose --profile test up -d postgres-test
 docker compose exec postgres-test pg_isready -U validator -d recognition_validator_test
-.\mvnw.cmd "-Dtest=FilenameParserTest,ImageEventBufferTest,FolderWatchCoordinatorTest,ImageProcessingBackoffTest,ImageIndexingTest,ReviewQueueServiceTest,ReviewWorkflowTest,RemainingCountDisabledWebTest,WebSecurityTest" clean test
+.\mvnw.cmd clean test
 ```
 
-Це весь основний набір: дев'ять тестових класів для парсингу, індексації,
-буфера й координатора файлових подій, backoff, конкурентної черги/статистики та web/security.
+Набір охоплює парсинг, індексацію, конфігурацію, cleanup, ZIP-експорт,
+буфер і координатор файлових подій, backoff, конкурентну чергу/статистику та web/security.
 
 ## Конфігурація
 
 | Змінна | Значення за замовчуванням | Призначення |
 |---|---|---|
 | `VALIDATOR_IMAGE_ROOT` | `./data/images` | Папка PNG на сервері |
-| `DB_URL` | `jdbc:postgresql://localhost:5432/recognition_validator` | JDBC URL окремої БД |
+| `DB_URL` | `jdbc:postgresql://validator-api-db:5432/recognition_validator` у Docker | JDBC URL окремої БД |
 | `DB_USERNAME` | `validator` | Користувач PostgreSQL |
 | `DB_PASSWORD` | `validator` | Пароль PostgreSQL |
 | `DB_MAX_POOL_SIZE` | `10` | Максимум з'єднань застосунку з PostgreSQL |
+| `DB_MIN_IDLE` | `2` | Мінімум idle-з'єднань у пулі застосунку |
 | `POSTGRES_DATA_ROOT_HOST` | `./data/postgres` | Постійна папка файлів PostgreSQL на Docker-host |
+| `POSTGRES_HOST_PORT` | `5436` | Порт PostgreSQL на Docker-host; між контейнерами використовується `5432` |
 | `POSTGRES_MAX_CONNECTIONS` | `50` | Максимум одночасних з'єднань PostgreSQL у Docker |
 | `POSTGRES_SHM_SIZE` | `256mb` | Розмір Docker shared memory для PostgreSQL |
 | `POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER` | `0` | Додаткові parallel workers одного SQL-запиту |
-| `SERVER_PORT` | `8080` | HTTP-порт |
+| `SERVER_PORT` | `18080` | HTTP-порт на Docker-host |
+| `APP_MEMORY_LIMIT` | `5g` | Жорсткий Docker-ліміт усієї пам'яті JVM-процесу |
 | `VALIDATOR_IMAGE_ROOT_HOST` | `./data/images` | Папка скриншотів на Docker-host, що монтується read-only |
 | `VALIDATOR_BATCH_SIZE` | `1000` | Розмір DB-batch і поріг негайної обробки файлових подій |
 | `VALIDATOR_LEASE_DURATION` | `30m` | Час резервування завдання |
@@ -190,6 +201,7 @@ docker compose exec postgres-test pg_isready -U validator -d recognition_validat
 
 - `/login` — вхід;
 - `/admin` — керування операторами та статистика за останні 7 днів;
+- `POST /admin/rejected-screenshots.zip` — ZIP-експорт доступних відхилених скриншотів за UTC-часом завершення розпізнавання;
 - `/review` — черга, фільтри та рішення;
 - `/statistics` — особиста статистика;
 - `POST /api/review-tasks/claim` — отримати перше завдання або оновити чергу після зміни фільтрів;
@@ -207,3 +219,14 @@ docker compose exec postgres-test pg_isready -U validator -d recognition_validat
   готовий результат з імені файлу, сформований зовнішнім пайплайном;
 - невідомі ігри та невідповідні файли не потрапляють до черги;
 - фізичні зображення видаляє зовнішній сервіс, Validator їх ніколи не видаляє.
+
+## Експорт відхилених скриншотів
+
+Адміністратор може завантажити ZIP на сторінці `/admin`. Межі дат застосовуються до
+`processed_at` — UTC-часу завершення розпізнавання, розібраного з імені PNG. Нижня
+межа включна, верхня — виключна. Порожні поля охоплюють усі доступні дані.
+
+До стандартного експорту потрапляють лише доступні `REJECTED`-файли, які ще не
+завантажувалися. Після успішного запису PNG до ZIP завдання позначається часом
+завантаження. Прапорець `Include previously downloaded` дозволяє повторно включити
+такі файли. Відсутні на диску PNG пропускаються.
