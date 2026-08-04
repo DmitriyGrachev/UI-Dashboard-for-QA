@@ -14,6 +14,9 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.MapsId;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 import org.hibernate.annotations.OnDelete;
 import org.hibernate.annotations.OnDeleteAction;
 
@@ -32,6 +35,8 @@ import java.time.Instant;
                 )
         }
 )
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ReviewTask {
 
     @Id
@@ -67,77 +72,4 @@ public class ReviewTask {
 
     @Column(name = "rejected_downloaded_at")
     private Instant rejectedDownloadedAt;
-
-    protected ReviewTask() {
-    }
-
-    public ReviewTask(ImageAsset image) {
-        this.image = image;
-        this.imageId = image.getId();
-        this.status = ReviewStatus.PENDING;
-    }
-
-    public String getImageId() {
-        return imageId;
-    }
-
-    public ImageAsset getImage() {
-        return image;
-    }
-
-    public ReviewStatus getStatus() {
-        return status;
-    }
-
-    public void setStatus(ReviewStatus status) {
-        this.status = status;
-    }
-
-    public AppUser getAssignedTo() {
-        return assignedTo;
-    }
-
-    public void setAssignedTo(AppUser assignedTo) {
-        this.assignedTo = assignedTo;
-    }
-
-    public Instant getAssignedAt() {
-        return assignedAt;
-    }
-
-    public void setAssignedAt(Instant assignedAt) {
-        this.assignedAt = assignedAt;
-    }
-
-    public Instant getLeaseExpiresAt() {
-        return leaseExpiresAt;
-    }
-
-    public void setLeaseExpiresAt(Instant leaseExpiresAt) {
-        this.leaseExpiresAt = leaseExpiresAt;
-    }
-
-    public Decision getDecision() {
-        return decision;
-    }
-
-    public void setDecision(Decision decision) {
-        this.decision = decision;
-    }
-
-    public Instant getReviewedAt() {
-        return reviewedAt;
-    }
-
-    public void setReviewedAt(Instant reviewedAt) {
-        this.reviewedAt = reviewedAt;
-    }
-
-    public Instant getRejectedDownloadedAt() {
-        return rejectedDownloadedAt;
-    }
-
-    public void setRejectedDownloadedAt(Instant rejectedDownloadedAt) {
-        this.rejectedDownloadedAt = rejectedDownloadedAt;
-    }
 }

@@ -7,6 +7,9 @@ import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -25,6 +28,8 @@ import java.util.UUID;
                 @Index(name = "ix_image_retention", columnList = "file_created_at")
         }
 )
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ImageAsset {
 
     @Id
@@ -110,215 +115,4 @@ public class ImageAsset {
     @Enumerated(EnumType.STRING)
     @Column(name = "parse_status", nullable = false, length = 16)
     private ParseStatus parseStatus;
-
-    protected ImageAsset() {
-    }
-
-    public String getId() {
-        return id;
-    }
-
-    public void setId(String id) {
-        this.id = id;
-    }
-
-    public String getFileName() {
-        return fileName;
-    }
-
-    public void setFileName(String fileName) {
-        this.fileName = fileName;
-    }
-
-    public String getRelativePath() {
-        return relativePath;
-    }
-
-    public void setRelativePath(String relativePath) {
-        this.relativePath = relativePath;
-    }
-
-    public Instant getFileCreatedAt() {
-        return fileCreatedAt;
-    }
-
-    public void setFileCreatedAt(Instant fileCreatedAt) {
-        this.fileCreatedAt = fileCreatedAt;
-    }
-
-    public Instant getFileModifiedAt() {
-        return fileModifiedAt;
-    }
-
-    public void setFileModifiedAt(Instant fileModifiedAt) {
-        this.fileModifiedAt = fileModifiedAt;
-    }
-
-    public Instant getDiscoveredAt() {
-        return discoveredAt;
-    }
-
-    public void setDiscoveredAt(Instant discoveredAt) {
-        this.discoveredAt = discoveredAt;
-    }
-
-    public Instant getLastSeenAt() {
-        return lastSeenAt;
-    }
-
-    public void setLastSeenAt(Instant lastSeenAt) {
-        this.lastSeenAt = lastSeenAt;
-    }
-
-    public boolean isFileAvailable() {
-        return fileAvailable;
-    }
-
-    public void setFileAvailable(boolean fileAvailable) {
-        this.fileAvailable = fileAvailable;
-    }
-
-    public String getGameCode() {
-        return gameCode;
-    }
-
-    public void setGameCode(String gameCode) {
-        this.gameCode = gameCode;
-    }
-
-    public Long getTokenId() {
-        return tokenId;
-    }
-
-    public void setTokenId(Long tokenId) {
-        this.tokenId = tokenId;
-    }
-
-    public UUID getSessionUuid() {
-        return sessionUuid;
-    }
-
-    public void setSessionUuid(UUID sessionUuid) {
-        this.sessionUuid = sessionUuid;
-    }
-
-    public String getSessionId() {
-        return sessionId;
-    }
-
-    public void setSessionId(String sessionId) {
-        this.sessionId = sessionId;
-    }
-
-    public String getDealerCards() {
-        return dealerCards;
-    }
-
-    public void setDealerCards(String dealerCards) {
-        this.dealerCards = dealerCards;
-    }
-
-    public String getActiveUserCards() {
-        return activeUserCards;
-    }
-
-    public void setActiveUserCards(String activeUserCards) {
-        this.activeUserCards = activeUserCards;
-    }
-
-    public String getInactiveUserCards() {
-        return inactiveUserCards;
-    }
-
-    public void setInactiveUserCards(String inactiveUserCards) {
-        this.inactiveUserCards = inactiveUserCards;
-    }
-
-    public String getPayloadRaw() {
-        return payloadRaw;
-    }
-
-    public void setPayloadRaw(String payloadRaw) {
-        this.payloadRaw = payloadRaw;
-    }
-
-    public String getButtonsRaw() {
-        return buttonsRaw;
-    }
-
-    public void setButtonsRaw(String buttonsRaw) {
-        this.buttonsRaw = buttonsRaw;
-    }
-
-    public boolean isNotification() {
-        return notification;
-    }
-
-    public void setNotification(boolean notification) {
-        this.notification = notification;
-    }
-
-    public boolean hasStand() {
-        return stand;
-    }
-
-    public void setStand(boolean stand) {
-        this.stand = stand;
-    }
-
-    public boolean hasHit() {
-        return hit;
-    }
-
-    public void setHit(boolean hit) {
-        this.hit = hit;
-    }
-
-    public boolean hasDoubleAction() {
-        return doubleAction;
-    }
-
-    public void setDoubleAction(boolean doubleAction) {
-        this.doubleAction = doubleAction;
-    }
-
-    public boolean hasSplit() {
-        return split;
-    }
-
-    public void setSplit(boolean split) {
-        this.split = split;
-    }
-
-    public boolean hasSurrender() {
-        return surrender;
-    }
-
-    public void setSurrender(boolean surrender) {
-        this.surrender = surrender;
-    }
-
-    public Instant getProcessedAt() {
-        return processedAt;
-    }
-
-    public void setProcessedAt(Instant processedAt) {
-        this.processedAt = processedAt;
-    }
-
-    public Long getRecognitionDurationMs() {
-        return recognitionDurationMs;
-    }
-
-    public void setRecognitionDurationMs(Long recognitionDurationMs) {
-        this.recognitionDurationMs = recognitionDurationMs;
-    }
-
-    public ParseStatus getParseStatus() {
-        return parseStatus;
-    }
-
-    public void setParseStatus(ParseStatus parseStatus) {
-        this.parseStatus = parseStatus;
-    }
 }

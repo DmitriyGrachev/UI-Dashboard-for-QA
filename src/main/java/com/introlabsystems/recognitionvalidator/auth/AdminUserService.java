@@ -42,12 +42,10 @@ public class AdminUserService {
             throw new AdminUserException("username", "Username is already in use");
         }
 
-        users.save(new AppUser(
+        users.save(AppUser.operator(
                 UUID.randomUUID(),
                 normalizedUsername,
                 passwordEncoder.encode(password),
-                true,
-                UserRole.OPERATOR,
                 clock.instant()
         ));
     }
@@ -55,7 +53,7 @@ public class AdminUserService {
     @Transactional
     public void deactivateOperator(UUID operatorId) {
         AppUser operator = operator(operatorId);
-        operator.setEnabled(false);
+        operator.deactivate();
         jdbc.update("""
                 UPDATE review_task
                 SET status = 'PENDING',
@@ -70,13 +68,13 @@ public class AdminUserService {
 
     @Transactional
     public void restoreOperator(UUID operatorId) {
-        operator(operatorId).setEnabled(true);
+        operator(operatorId).restore();
     }
 
     @Transactional
     public void changePassword(UUID operatorId, String password) {
         validatePassword(password);
-        operator(operatorId).setPasswordHash(passwordEncoder.encode(password));
+        operator(operatorId).changePasswordHash(passwordEncoder.encode(password));
         sessions.expireFor(operatorId);
     }
 

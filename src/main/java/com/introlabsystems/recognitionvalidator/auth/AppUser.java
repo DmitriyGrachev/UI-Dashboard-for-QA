@@ -6,12 +6,19 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
 
 import java.time.Instant;
 import java.util.UUID;
 
 @Entity
 @Table(name = "app_user")
+@Getter
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class AppUser {
 
     @Id
@@ -37,58 +44,31 @@ public class AppUser {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
-    protected AppUser() {
-    }
-
-    public AppUser(UUID id, String username, String passwordHash, boolean enabled, Instant createdAt) {
-        this(id, username, passwordHash, enabled, UserRole.OPERATOR, createdAt);
-    }
-
-    public AppUser(
+    public static AppUser operator(
             UUID id,
             String username,
             String passwordHash,
-            boolean enabled,
-            UserRole role,
             Instant createdAt
     ) {
-        this.id = id;
-        this.username = username;
-        this.passwordHash = passwordHash;
-        this.enabled = enabled;
-        this.role = role;
-        this.createdAt = createdAt;
+        return new AppUser(
+                id,
+                username,
+                passwordHash,
+                true,
+                UserRole.OPERATOR,
+                createdAt
+        );
     }
 
-    public UUID getId() {
-        return id;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
+    public void changePasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
 
-    public boolean isEnabled() {
-        return enabled;
+    public void deactivate() {
+        enabled = false;
     }
 
-    public void setEnabled(boolean enabled) {
-        this.enabled = enabled;
-    }
-
-    public UserRole getRole() {
-        return role;
-    }
-
-    public Instant getCreatedAt() {
-        return createdAt;
+    public void restore() {
+        enabled = true;
     }
 }

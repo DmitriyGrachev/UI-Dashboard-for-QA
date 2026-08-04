@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import lombok.AccessLevel;
+import lombok.NoArgsConstructor;
 
 import java.time.LocalDate;
 import java.util.UUID;
@@ -19,6 +21,7 @@ import java.util.UUID;
                 columnList = "statistics_date,operator_id"
         )
 )
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class OperatorDailyStatistics {
 
     @Id
@@ -38,6 +41,4 @@ public class OperatorDailyStatistics {
     @Column(name = "not_matched_count", nullable = false)
     private long notMatchedCount;
 
-    protected OperatorDailyStatistics() {
-    }
 }

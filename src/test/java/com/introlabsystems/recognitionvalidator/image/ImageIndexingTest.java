@@ -1,7 +1,5 @@
 package com.introlabsystems.recognitionvalidator.image;
 
-import com.introlabsystems.recognitionvalidator.review.ReviewStatus;
-import com.introlabsystems.recognitionvalidator.review.ReviewTaskRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -56,9 +54,6 @@ class ImageIndexingTest {
     private ImageStorageService imageStorageService;
 
     @Autowired
-    private ReviewTaskRepository taskRepository;
-
-    @Autowired
     private Clock clock;
 
     private ImageIndexer indexer;
@@ -89,7 +84,7 @@ class ImageIndexingTest {
         indexer.scanRoot();
 
         assertThat(imageRepository.count()).isEqualTo(1);
-        assertThat(taskRepository.count()).isEqualTo(1);
+        assertThat(reviewTaskCount()).isEqualTo(1);
         ImageAsset asset = imageRepository.findAll().getFirst();
         assertThat(asset.getFileName()).isEqualTo(VALID_FILE);
         assertThat(asset.isFileAvailable()).isTrue();
@@ -117,7 +112,7 @@ class ImageIndexingTest {
         );
         assertThat(storedLastSeen).isEqualTo(sentinel);
         assertThat(imageRepository.count()).isEqualTo(1);
-        assertThat(taskRepository.count()).isEqualTo(1);
+        assertThat(reviewTaskCount()).isEqualTo(1);
     }
 
     @Test
@@ -166,8 +161,11 @@ class ImageIndexingTest {
 
         indexer.scanRoot();
 
-        assertThat(taskRepository.findById(imageId).orElseThrow().getStatus())
-                .isEqualTo(ReviewStatus.COMPLETED);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM review_task WHERE image_id = ?",
+                String.class,
+                imageId
+        )).isEqualTo("COMPLETED");
     }
 
     @Test
@@ -207,7 +205,7 @@ class ImageIndexingTest {
 
         indexer.index(file);
 
-        assertThat(imageRepository.findById(imageId).orElseThrow().hasSurrender()).isTrue();
+        assertThat(imageRepository.findById(imageId).orElseThrow().isSurrender()).isTrue();
     }
 
     @Test
@@ -262,5 +260,9 @@ class ImageIndexingTest {
 
         assertThatThrownBy(failingIndexer::scanRoot)
                 .isInstanceOf(DataAccessResourceFailureException.class);
+    }
+
+    private long reviewTaskCount() {
+        return jdbc.queryForObject("SELECT COUNT(*) FROM review_task", Long.class);
     }
 }
