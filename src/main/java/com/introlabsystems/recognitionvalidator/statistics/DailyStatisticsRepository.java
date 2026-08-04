@@ -1,6 +1,5 @@
 package com.introlabsystems.recognitionvalidator.statistics;
 
-import com.introlabsystems.recognitionvalidator.review.Decision;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -17,9 +16,9 @@ public class DailyStatisticsRepository {
         this.jdbc = jdbc;
     }
 
-    public void increment(UUID operatorId, LocalDate date, Decision decision) {
-        long matched = decision == Decision.ACCEPTED ? 1 : 0;
-        long notMatched = decision == Decision.REJECTED ? 1 : 0;
+    public void increment(UUID operatorId, LocalDate date, boolean matchedDecision) {
+        long matched = matchedDecision ? 1 : 0;
+        long notMatched = matchedDecision ? 0 : 1;
         jdbc.update("""
                 INSERT INTO operator_daily_statistics (
                     operator_id, statistics_date, total_checked,

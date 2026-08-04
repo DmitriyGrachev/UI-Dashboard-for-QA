@@ -52,7 +52,7 @@ public class DecisionService {
         dailyStatistics.increment(
                 operatorId,
                 reviewedAt.atZone(ZoneOffset.UTC).toLocalDate(),
-                decision
+                decision == Decision.ACCEPTED
         );
     }
 }
