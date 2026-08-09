@@ -12,21 +12,36 @@ const pickerApi = moduleExists ? require(modulePath) : {};
 
 test("shared UTC date-time picker module exists", () => {
     assert.equal(moduleExists, true);
+    assert.equal(typeof pickerApi.parseCanonicalUtcDateTime, "function");
+    assert.equal(typeof pickerApi.composeCanonicalUtcDateTime, "function");
     assert.equal(typeof pickerApi.validateUtcDateTimeRange, "function");
-    assert.equal(typeof pickerApi.normalizeDisplayUtcDateTime, "function");
     assert.equal(typeof pickerApi.createRange, "function");
 });
 
-test("typed 24-hour display value normalizes without timezone conversion", {
-    skip: typeof pickerApi.normalizeDisplayUtcDateTime !== "function"
+test("canonical UTC value splits into visible date, hour and minute", {
+    skip: typeof pickerApi.parseCanonicalUtcDateTime !== "function"
 }, () => {
-    const normalize = pickerApi.normalizeDisplayUtcDateTime;
+    assert.deepEqual(
+        pickerApi.parseCanonicalUtcDateTime("2026-08-09T02:30"),
+        {date: "09.08.2026", hour: "02", minute: "30"}
+    );
+    assert.deepEqual(
+        pickerApi.parseCanonicalUtcDateTime(""),
+        {date: "", hour: "00", minute: "00"}
+    );
+    assert.equal(pickerApi.parseCanonicalUtcDateTime("2026-02-30T02:30"), null);
+});
 
-    assert.equal(normalize(""), "");
-    assert.equal(normalize("03.08.2026 02:05"), "2026-08-03T02:05");
-    assert.equal(normalize("31.02.2026 02:05"), null);
-    assert.equal(normalize("03.08.2026 24:00"), null);
-    assert.equal(normalize("08/03/2026 02:05"), null);
+test("visible date and time compose without timezone conversion", {
+    skip: typeof pickerApi.composeCanonicalUtcDateTime !== "function"
+}, () => {
+    const compose = pickerApi.composeCanonicalUtcDateTime;
+
+    assert.equal(compose("", "00", "00"), "");
+    assert.equal(compose("09.08.2026", "02", "30"), "2026-08-09T02:30");
+    assert.equal(compose("31.02.2026", "02", "30"), null);
+    assert.equal(compose("09.08.2026", "24", "00"), null);
+    assert.equal(compose("08/09/2026", "02", "30"), null);
 });
 
 test("UTC range validation accepts empty and one-sided boundaries", {
@@ -47,11 +62,11 @@ test("UTC range validation rejects invalid and unordered values", {
 
     assert.equal(
         validate("2026-02-30T02:00", ""),
-        "Enter date and time as DD.MM.YYYY HH:mm."
+        "Enter date as DD.MM.YYYY and time as HH:mm."
     );
     assert.equal(
         validate("2026-08-03T24:00", ""),
-        "Enter date and time as DD.MM.YYYY HH:mm."
+        "Enter date as DD.MM.YYYY and time as HH:mm."
     );
     assert.equal(
         validate("2026-08-03T02:00", "2026-08-03T02:00"),
@@ -91,35 +106,100 @@ function fakeElement(value = "") {
     };
 }
 
-function fakeInput(value = "") {
-    const input = fakeElement(value);
-    const wrapper = {input};
-    input.closest = () => wrapper;
-    return {input, wrapper};
+function fakeBoundary(canonicalValue = "") {
+    const canonical = fakeElement(canonicalValue);
+    const dateInput = fakeElement();
+    const dateWrap = {input: dateInput};
+    const hourInput = fakeElement("00");
+    const minuteInput = fakeElement("00");
+    const hourToggle = fakeElement();
+    const minuteToggle = fakeElement();
+    const hourListbox = fakeElement();
+    const minuteListbox = fakeElement();
+    const elements = new Map([
+        ["[data-date-input]", dateInput],
+        ["[data-date-wrap]", dateWrap],
+        ["[data-hour-segment] [data-segment-input]", hourInput],
+        ["[data-hour-segment] [data-segment-toggle]", hourToggle],
+        ["[data-hour-segment] [data-segment-listbox]", hourListbox],
+        ["[data-minute-segment] [data-segment-input]", minuteInput],
+        ["[data-minute-segment] [data-segment-toggle]", minuteToggle],
+        ["[data-minute-segment] [data-segment-listbox]", minuteListbox]
+    ]);
+    const boundary = {
+        querySelector(selector) {
+            return elements.get(selector) ?? null;
+        }
+    };
+    canonical.closest = () => boundary;
+    return {canonical, dateInput, dateWrap, hourInput, minuteInput};
 }
 
-test("Flatpickr range uses the approved 24-hour configuration and commits once", {
-    skip: typeof pickerApi.createRange !== "function"
-}, () => {
-    const from = fakeInput();
-    const to = fakeInput();
+function fakeTimeComboboxApi() {
+    const controllers = [];
+    return {
+        controllers,
+        create({input, min, max, onCommit}) {
+            let accepted = input.value;
+            const normalize = value => {
+                if (!/^\d{1,2}$/.test(value)) return null;
+                const number = Number(value);
+                if (number < min || number > max) return null;
+                return String(number).padStart(2, "0");
+            };
+            const controller = {
+                getValue: () => normalize(input.value),
+                setValue(value, notify = false) {
+                    const normalized = normalize(value);
+                    if (normalized === null) return false;
+                    const changed = normalized !== accepted;
+                    accepted = normalized;
+                    input.value = normalized;
+                    if (changed && notify) onCommit(normalized);
+                    return true;
+                },
+                validate() {
+                    return this.setValue(input.value, false);
+                },
+                reset() {
+                    accepted = "00";
+                    input.value = "00";
+                },
+                destroy() {
+                    this.destroyed = true;
+                },
+                commit(value) {
+                    return this.setValue(value, true);
+                }
+            };
+            controllers.push(controller);
+            return controller;
+        }
+    };
+}
+
+test("split UTC range uses date-only calendars and commits canonical values once", () => {
+    const from = fakeBoundary();
+    const to = fakeBoundary("2026-08-09T04:00");
     const error = fakeElement();
     error.id = "date-error";
     error.hidden = true;
     const calls = [];
     const instances = [];
     const previousFlatpickr = globalThis.flatpickr;
+    const previousTimeApi = globalThis.TimeSegmentCombobox;
+    const timeApi = fakeTimeComboboxApi();
 
+    globalThis.TimeSegmentCombobox = timeApi;
     globalThis.flatpickr = (wrapper, options) => {
         calls.push({wrapper, options});
         const instance = {
             input: wrapper.input,
-            altInput: fakeElement(wrapper.input.value),
-            selectedDates: wrapper.input.value ? [new Date()] : [],
             clear() {
                 this.input.value = "";
-                this.altInput.value = "";
-                this.selectedDates = [];
+            },
+            setDate(value) {
+                this.input.value = value;
             },
             destroy() {
                 this.destroyed = true;
@@ -132,159 +212,65 @@ test("Flatpickr range uses the approved 24-hour configuration and commits once",
     try {
         let commits = 0;
         const range = pickerApi.createRange({
-            fromInput: from.input,
-            toInput: to.input,
+            fromInput: from.canonical,
+            toInput: to.canonical,
             errorElement: error,
             onCommit: () => commits++
         });
 
         assert.equal(calls.length, 2);
-        const options = calls[0].options;
-        assert.equal(options.enableTime, true);
-        assert.equal(options.time_24hr, true);
-        assert.equal(options.minuteIncrement, 1);
-        assert.equal(options.altInput, true);
-        assert.equal(options.altFormat, "d.m.Y H:i");
-        assert.equal(options.dateFormat, "Y-m-d\\TH:i");
-        assert.equal(options.allowInput, true);
-        assert.equal(options.disableMobile, true);
-        assert.equal(options.wrap, true);
-        assert.equal(options.locale.firstDayOfWeek, 1);
+        assert.equal(calls[0].options.enableTime, false);
+        assert.equal(calls[0].options.dateFormat, "d.m.Y");
+        assert.equal(calls[0].options.allowInput, true);
+        assert.equal(calls[0].options.disableMobile, true);
+        assert.equal(calls[0].options.wrap, true);
+        assert.equal(calls[0].options.locale.firstDayOfWeek, 1);
+        assert.equal(to.dateInput.value, "09.08.2026");
+        assert.equal(to.hourInput.value, "04");
+        assert.equal(to.minuteInput.value, "00");
 
-        from.input.value = "2026-08-03T02:00";
-        instances[0].altInput.value = "03.08.2026 02:00";
-        instances[0].selectedDates = [new Date("2026-08-03T02:00:00Z")];
-        options.onClose();
-        options.onClose();
+        from.dateInput.value = "09.08.2026";
+        timeApi.controllers[0].commit("02");
+        assert.equal(from.canonical.value, "2026-08-09T02:00");
         assert.equal(commits, 1);
-
-        to.input.value = "2026-08-03T02:00";
-        instances[1].altInput.value = "03.08.2026 02:00";
-        instances[1].selectedDates = [new Date("2026-08-03T02:00:00Z")];
-        calls[1].options.onClose();
-        assert.equal(commits, 1);
-        assert.equal(range.validate(), false);
-        assert.equal(error.hidden, false);
-        assert.equal(error.textContent, "From must be earlier than To.");
-
-        to.input.value = "2026-08-03T03:00";
-        instances[1].altInput.value = "03.08.2026 03:00";
-        calls[1].options.onClose();
+        timeApi.controllers[1].commit("30");
         assert.equal(commits, 2);
+        calls[0].options.onClose();
+        calls[0].options.onClose();
+        assert.equal(from.canonical.value, "2026-08-09T02:30");
+        assert.equal(commits, 2);
+
+        to.dateInput.value = "09.08.2026";
+        timeApi.controllers[2].commit("02");
+        timeApi.controllers[3].commit("30");
+        calls[1].options.onClose();
+        assert.equal(range.validate(), false);
+        assert.equal(error.textContent, "From must be earlier than To.");
+        assert.equal(commits, 2);
+
+        timeApi.controllers[2].commit("03");
+        calls[1].options.onClose();
+        assert.equal(to.canonical.value, "2026-08-09T03:30");
         assert.equal(range.validate(), true);
-        assert.equal(error.hidden, true);
+        assert.equal(commits, 3);
+
+        from.dateInput.value = "31.02.2026";
+        calls[0].options.onKeyDown([], "", instances[0], {key: "Tab"});
+        assert.equal(range.validate(), false);
+        assert.equal(error.textContent, "Enter date as DD.MM.YYYY and time as HH:mm.");
 
         range.clear();
-        assert.equal(from.input.value, "");
-        assert.equal(to.input.value, "");
-        assert.equal(commits, 2);
+        assert.equal(from.canonical.value, "");
+        assert.equal(to.canonical.value, "");
+        assert.equal(from.dateInput.value, "");
+        assert.equal(from.hourInput.value, "00");
+        assert.equal(from.minuteInput.value, "00");
 
         range.destroy();
         assert.equal(instances[0].destroyed, true);
-        assert.equal(instances[1].destroyed, true);
+        assert.equal(timeApi.controllers.every(controller => controller.destroyed), true);
     } finally {
         globalThis.flatpickr = previousFlatpickr;
-    }
-});
-
-test("non-empty unparsed display value is invalid", {
-    skip: typeof pickerApi.createRange !== "function"
-}, () => {
-    const from = fakeInput();
-    const to = fakeInput();
-    const error = fakeElement();
-    error.id = "date-error";
-    const previousFlatpickr = globalThis.flatpickr;
-    const instances = [];
-
-    globalThis.flatpickr = wrapper => {
-        const instance = {
-            input: wrapper.input,
-            altInput: fakeElement(),
-            selectedDates: [],
-            clear() {},
-            destroy() {}
-        };
-        instances.push(instance);
-        return instance;
-    };
-
-    try {
-        const range = pickerApi.createRange({
-            fromInput: from.input,
-            toInput: to.input,
-            errorElement: error
-        });
-        instances[0].altInput.value = "not a date";
-
-        assert.equal(range.validate(), false);
-        assert.equal(error.textContent, "Enter date and time as DD.MM.YYYY HH:mm.");
-    } finally {
-        globalThis.flatpickr = previousFlatpickr;
-    }
-});
-
-test("Tab commits a typed display value before focus enters the calendar", () => {
-    const from = fakeInput();
-    const to = fakeInput();
-    const error = fakeElement();
-    error.id = "date-error";
-    const previousFlatpickr = globalThis.flatpickr;
-    const calls = [];
-    const instances = [];
-
-    globalThis.flatpickr = (wrapper, options) => {
-        calls.push({wrapper, options});
-        const instance = {
-            input: wrapper.input,
-            altInput: fakeElement(wrapper.input.value),
-            selectedDates: [],
-            setDate(value) {
-                this.input.value = value;
-                this.selectedDates = value ? [new Date(`${value}:00Z`)] : [];
-            },
-            clear() {},
-            destroy() {}
-        };
-        instances.push(instance);
-        return instance;
-    };
-
-    try {
-        let commits = 0;
-        pickerApi.createRange({
-            fromInput: from.input,
-            toInput: to.input,
-            errorElement: error,
-            onCommit: () => commits++
-        });
-        assert.equal(typeof calls[0].options.onKeyDown, "function");
-
-        instances[0].altInput.value = "03.08.2026 02:05";
-        calls[0].options.onKeyDown(
-            [],
-            "",
-            instances[0],
-            {key: "Tab", target: instances[0].altInput}
-        );
-
-        assert.equal(from.input.value, "2026-08-03T02:05");
-        assert.equal(commits, 1);
-        assert.equal(error.hidden, true);
-
-        instances[0].altInput.value = "31.02.2026 02:05";
-        calls[0].options.onKeyDown(
-            [],
-            "",
-            instances[0],
-            {key: "Tab", target: instances[0].altInput}
-        );
-
-        assert.equal(from.input.value, "2026-08-03T02:05");
-        assert.equal(instances[0].altInput.value, "31.02.2026 02:05");
-        assert.equal(commits, 1);
-        assert.equal(error.textContent, "Enter date and time as DD.MM.YYYY HH:mm.");
-    } finally {
-        globalThis.flatpickr = previousFlatpickr;
+        globalThis.TimeSegmentCombobox = previousTimeApi;
     }
 });

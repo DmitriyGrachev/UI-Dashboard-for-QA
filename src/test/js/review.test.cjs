@@ -39,7 +39,7 @@ test("review delegates date range behavior to the shared picker", () => {
     assert.equal(calls[0].onCommit, applyFilters);
 });
 
-test("datetime-local value is treated as UTC without timezone conversion", () => {
+test("canonical date-time value is treated as UTC without timezone conversion", () => {
     assert.equal(toUtcIso("2026-08-03T02:00"), "2026-08-03T02:00:00Z");
 });
 

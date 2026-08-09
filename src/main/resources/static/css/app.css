@@ -530,7 +530,7 @@ summary:focus-visible {
 .review-shell .review-workspace {
     height: auto;
     min-height: 0;
-    grid-template-columns: minmax(210px, 230px) minmax(0, 1fr) minmax(270px, 320px);
+    grid-template-columns: minmax(270px, 285px) minmax(0, 1fr) minmax(270px, 320px);
     gap: 10px;
     margin-top: 8px;
     transition: grid-template-columns 160ms ease;
@@ -1680,63 +1680,74 @@ summary:focus-visible {
     font-size: 0.78rem;
 }
 
-.rejected-export-form input[type="datetime-local"] {
-    min-height: 40px;
-    border: 1px solid var(--line);
-    border-radius: 2px;
-    padding: 0 10px;
-    background: var(--ink-950);
-    color: var(--text);
-}
-
 .filters .utc-datetime-control {
     margin-top: 7px;
 }
 
-.filters .utc-datetime-control input {
+.filters .utc-datetime-control input,
+.filters .utc-datetime-control button {
     margin-top: 0;
 }
 
 .utc-datetime-control {
     width: 100%;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 40px;
+    grid-template-columns: minmax(118px, 1fr) 38px 5px 38px;
+    align-items: center;
+    gap: 4px;
 }
 
-.utc-datetime-control > input,
-.utc-datetime-control > .flatpickr-input {
+.utc-date-control {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 32px;
+}
+
+.utc-date-control > input,
+.utc-time-segment > input {
     width: 100%;
     min-width: 0;
     min-height: 40px;
-    padding: 0 10px;
     border: 1px solid var(--line);
-    border-right: 0;
-    border-radius: 3px 0 0 3px;
     background: var(--ink-900);
     color: var(--text);
     font-family: Consolas, "Courier New", monospace;
     font-size: 12px;
+    caret-color: var(--signal);
 }
 
-.utc-datetime-control > input:hover,
-.utc-datetime-control > .flatpickr-input:hover {
+.utc-date-control > input {
+    padding: 0 7px;
+    border-right: 0;
+    border-radius: 3px 0 0 3px;
+}
+
+.utc-date-control > input:hover,
+.utc-time-segment > input:hover {
     border-color: var(--line-strong);
 }
 
-.utc-datetime-control > input:focus,
-.utc-datetime-control > .flatpickr-input:focus {
+.utc-date-control > input:focus,
+.utc-time-segment > input:focus {
     position: relative;
     z-index: 1;
     border-color: var(--signal);
+    outline: none;
 }
 
-.utc-datetime-control > input[aria-invalid="true"],
-.utc-datetime-control > .flatpickr-input[aria-invalid="true"] {
+.utc-date-control > input[aria-invalid="true"],
+.utc-time-segment > input[aria-invalid="true"] {
     border-color: var(--reject);
 }
 
-.utc-datetime-toggle {
-    min-width: 40px;
+.utc-date-control > input::selection,
+.utc-time-segment > input::selection {
+    background: var(--signal);
+    color: var(--ink-950);
+}
+
+.utc-calendar-toggle {
+    min-width: 32px;
     min-height: 40px;
     display: grid;
     place-items: center;
@@ -1748,13 +1759,13 @@ summary:focus-visible {
     cursor: pointer;
 }
 
-.utc-datetime-toggle:hover {
+.utc-calendar-toggle:hover {
     border-color: var(--signal);
     background: var(--ink-850);
     color: var(--text);
 }
 
-.utc-datetime-toggle svg {
+.utc-calendar-toggle svg {
     width: 16px;
     height: 16px;
     fill: none;
@@ -1762,6 +1773,100 @@ summary:focus-visible {
     stroke-linecap: round;
     stroke-linejoin: round;
     stroke-width: 1.35;
+}
+
+.utc-time-segment {
+    min-width: 0;
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 14px;
+}
+
+.utc-time-segment > input {
+    height: 40px;
+    padding: 0 1px 0 3px;
+    border-right: 0;
+    border-radius: 3px 0 0 3px;
+    text-align: center;
+}
+
+.utc-time-segment > button {
+    min-width: 14px;
+    min-height: 40px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-left: 0;
+    border-radius: 0 3px 3px 0;
+    background: var(--ink-800);
+    color: var(--muted);
+    font-size: 8px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.utc-time-segment > button:hover,
+.utc-time-segment > button[aria-expanded="true"] {
+    background: var(--ink-850);
+    color: var(--signal);
+}
+
+.utc-time-segment:focus-within > input,
+.utc-time-segment:focus-within > button {
+    border-color: var(--signal);
+}
+
+.utc-time-separator {
+    color: var(--muted);
+    font-family: Consolas, "Courier New", monospace;
+    font-weight: 700;
+    text-align: center;
+}
+
+.utc-time-listbox {
+    position: absolute;
+    top: calc(100% + 5px);
+    right: 0;
+    z-index: 120;
+    width: 54px;
+    max-height: 216px;
+    overflow-y: auto;
+    padding: 4px;
+    border: 1px solid var(--line-strong);
+    border-radius: 3px;
+    background: var(--ink-900);
+    box-shadow: 0 14px 34px var(--floating-shadow);
+    scrollbar-color: var(--line-strong) var(--ink-900);
+}
+
+.utc-time-listbox[hidden] {
+    display: none;
+}
+
+.utc-time-listbox > button {
+    width: 100%;
+    min-height: 30px;
+    display: block;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 2px;
+    background: transparent;
+    color: var(--text);
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 12px;
+    text-align: center;
+    cursor: pointer;
+}
+
+.utc-time-listbox > button:hover,
+.utc-time-listbox > button:focus-visible {
+    outline: none;
+    background: var(--ink-800);
+    color: var(--signal);
+}
+
+.utc-time-listbox > button[aria-selected="true"] {
+    background: var(--primary-background);
+    color: var(--primary-text);
 }
 
 .utc-date-error {
@@ -1804,18 +1909,13 @@ summary:focus-visible {
 .flatpickr-current-month .flatpickr-monthDropdown-months,
 .flatpickr-current-month input.cur-year,
 .flatpickr-weekdays,
-span.flatpickr-weekday,
-.flatpickr-time,
-.flatpickr-time input,
-.flatpickr-time .flatpickr-am-pm {
+span.flatpickr-weekday {
     background: var(--ink-900);
     color: var(--text);
 }
 
 .flatpickr-current-month .flatpickr-monthDropdown-months:hover,
 .flatpickr-current-month input.cur-year:hover,
-.flatpickr-time input:hover,
-.flatpickr-time .flatpickr-am-pm:hover,
 .numInputWrapper:hover {
     background: var(--ink-800);
 }
@@ -1870,18 +1970,6 @@ span.flatpickr-weekday {
 .flatpickr-day.flatpickr-disabled:hover {
     color: var(--muted);
     opacity: 0.48;
-}
-
-.flatpickr-time {
-    border-top-color: var(--line);
-}
-
-.flatpickr-time .numInputWrapper span.arrowUp::after {
-    border-bottom-color: var(--muted);
-}
-
-.flatpickr-time .numInputWrapper span.arrowDown::after {
-    border-top-color: var(--muted);
 }
 
 .rejected-export-checkbox {
@@ -2359,9 +2447,9 @@ span.flatpickr-weekday {
 }
 
 @media (max-width: 1180px) {
-    .review-workspace {
+    .review-shell .review-workspace {
         height: auto;
-        grid-template-columns: minmax(190px, 225px) minmax(0, 1fr);
+        grid-template-columns: minmax(255px, 270px) minmax(0, 1fr);
     }
 
     .review-workspace[data-filters-collapsed="true"] {

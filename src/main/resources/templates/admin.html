@@ -11,6 +11,7 @@
     <link rel="stylesheet" th:href="@{/css/app.css}">
     <script defer
             th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
+    <script defer th:src="@{/js/time-segment-combobox.js}"></script>
     <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
     <script defer th:src="@{/js/admin.js}"></script>
 </head>
@@ -125,34 +126,84 @@
                   th:action="@{/admin/rejected-screenshots.zip}">
                 <label>
                     <span>Recognition completed from (UTC)</span>
-                    <span class="utc-datetime-control">
-                        <input id="processed-from" type="datetime-local"
-                               name="processedFrom" step="60"
-                               data-input data-utc-date-input
-                               aria-describedby="rejected-export-date-error">
-                        <button class="utc-datetime-toggle" type="button" data-toggle
-                                aria-label="Open Recognition completed from calendar"
-                                title="Open calendar">
-                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
-                            </svg>
-                        </button>
+                    <span class="utc-datetime-control" data-utc-boundary>
+                        <input id="processed-from" type="hidden" name="processedFrom">
+                        <span class="utc-date-control" data-date-wrap>
+                            <input id="processed-from-date" type="text"
+                                   data-input data-date-input autocomplete="off"
+                                   placeholder="DD.MM.YYYY"
+                                   aria-label="Recognition completed from date"
+                                   aria-describedby="rejected-export-date-error">
+                            <button class="utc-calendar-toggle" type="button" data-toggle
+                                    aria-label="Open Recognition completed from calendar"
+                                    title="Open calendar">
+                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                                </svg>
+                            </button>
+                        </span>
+                        <span class="utc-time-segment" data-hour-segment>
+                            <input id="processed-from-hour" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Recognition completed from hour"
+                                   aria-describedby="rejected-export-date-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Recognition completed from hour">▾</button>
+                            <span class="utc-time-listbox" id="processed-from-hour-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
+                        <span class="utc-time-separator" aria-hidden="true">:</span>
+                        <span class="utc-time-segment" data-minute-segment>
+                            <input id="processed-from-minute" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Recognition completed from minute"
+                                   aria-describedby="rejected-export-date-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Recognition completed from minute">▾</button>
+                            <span class="utc-time-listbox" id="processed-from-minute-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
                     </span>
                 </label>
                 <label>
                     <span>Recognition completed to (UTC)</span>
-                    <span class="utc-datetime-control">
-                        <input id="processed-to" type="datetime-local"
-                               name="processedTo" step="60"
-                               data-input data-utc-date-input
-                               aria-describedby="rejected-export-date-error">
-                        <button class="utc-datetime-toggle" type="button" data-toggle
-                                aria-label="Open Recognition completed to calendar"
-                                title="Open calendar">
-                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
-                            </svg>
-                        </button>
+                    <span class="utc-datetime-control" data-utc-boundary>
+                        <input id="processed-to" type="hidden" name="processedTo">
+                        <span class="utc-date-control" data-date-wrap>
+                            <input id="processed-to-date" type="text"
+                                   data-input data-date-input autocomplete="off"
+                                   placeholder="DD.MM.YYYY"
+                                   aria-label="Recognition completed to date"
+                                   aria-describedby="rejected-export-date-error">
+                            <button class="utc-calendar-toggle" type="button" data-toggle
+                                    aria-label="Open Recognition completed to calendar"
+                                    title="Open calendar">
+                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                                </svg>
+                            </button>
+                        </span>
+                        <span class="utc-time-segment" data-hour-segment>
+                            <input id="processed-to-hour" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Recognition completed to hour"
+                                   aria-describedby="rejected-export-date-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Recognition completed to hour">▾</button>
+                            <span class="utc-time-listbox" id="processed-to-hour-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
+                        <span class="utc-time-separator" aria-hidden="true">:</span>
+                        <span class="utc-time-segment" data-minute-segment>
+                            <input id="processed-to-minute" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Recognition completed to minute"
+                                   aria-describedby="rejected-export-date-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Recognition completed to minute">▾</button>
+                            <span class="utc-time-listbox" id="processed-to-minute-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
                     </span>
                 </label>
                 <p class="utc-date-error" id="rejected-export-date-error"

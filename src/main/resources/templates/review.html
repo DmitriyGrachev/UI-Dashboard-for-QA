@@ -13,6 +13,7 @@
     <link rel="stylesheet" th:href="@{/css/app.css}">
     <script defer
             th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
+    <script defer th:src="@{/js/time-segment-combobox.js}"></script>
     <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
     <script defer th:src="@{/js/review.js}"></script>
 </head>
@@ -65,32 +66,84 @@
                 <form id="filter-form" class="filters" data-utc-date-range>
                 <label>
                     <span>Created from (UTC)</span>
-                    <span class="utc-datetime-control">
-                        <input id="created-from" type="datetime-local"
-                               step="60" data-input data-utc-date-input
-                               aria-describedby="review-date-range-error">
-                        <button class="utc-datetime-toggle" type="button" data-toggle
-                                aria-label="Open Created from calendar"
-                                title="Open calendar">
-                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
-                            </svg>
-                        </button>
+                    <span class="utc-datetime-control" data-utc-boundary>
+                        <input id="created-from" type="hidden">
+                        <span class="utc-date-control" data-date-wrap>
+                            <input id="created-from-date" type="text"
+                                   data-input data-date-input autocomplete="off"
+                                   placeholder="DD.MM.YYYY"
+                                   aria-label="Created from date"
+                                   aria-describedby="review-date-range-error">
+                            <button class="utc-calendar-toggle" type="button" data-toggle
+                                    aria-label="Open Created from calendar"
+                                    title="Open calendar">
+                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                                </svg>
+                            </button>
+                        </span>
+                        <span class="utc-time-segment" data-hour-segment>
+                            <input id="created-from-hour" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created from hour"
+                                   aria-describedby="review-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created from hour">▾</button>
+                            <span class="utc-time-listbox" id="created-from-hour-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
+                        <span class="utc-time-separator" aria-hidden="true">:</span>
+                        <span class="utc-time-segment" data-minute-segment>
+                            <input id="created-from-minute" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created from minute"
+                                   aria-describedby="review-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created from minute">▾</button>
+                            <span class="utc-time-listbox" id="created-from-minute-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
                     </span>
                 </label>
                 <label>
                     <span>Created to (UTC)</span>
-                    <span class="utc-datetime-control">
-                        <input id="created-to" type="datetime-local"
-                               step="60" data-input data-utc-date-input
-                               aria-describedby="review-date-range-error">
-                        <button class="utc-datetime-toggle" type="button" data-toggle
-                                aria-label="Open Created to calendar"
-                                title="Open calendar">
-                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
-                            </svg>
-                        </button>
+                    <span class="utc-datetime-control" data-utc-boundary>
+                        <input id="created-to" type="hidden">
+                        <span class="utc-date-control" data-date-wrap>
+                            <input id="created-to-date" type="text"
+                                   data-input data-date-input autocomplete="off"
+                                   placeholder="DD.MM.YYYY"
+                                   aria-label="Created to date"
+                                   aria-describedby="review-date-range-error">
+                            <button class="utc-calendar-toggle" type="button" data-toggle
+                                    aria-label="Open Created to calendar"
+                                    title="Open calendar">
+                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                                </svg>
+                            </button>
+                        </span>
+                        <span class="utc-time-segment" data-hour-segment>
+                            <input id="created-to-hour" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created to hour"
+                                   aria-describedby="review-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created to hour">▾</button>
+                            <span class="utc-time-listbox" id="created-to-hour-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
+                        <span class="utc-time-separator" aria-hidden="true">:</span>
+                        <span class="utc-time-segment" data-minute-segment>
+                            <input id="created-to-minute" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created to minute"
+                                   aria-describedby="review-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created to minute">▾</button>
+                            <span class="utc-time-listbox" id="created-to-minute-options"
+                                  data-segment-listbox hidden></span>
+                        </span>
                     </span>
                 </label>
                 <p class="utc-date-error" id="review-date-range-error"

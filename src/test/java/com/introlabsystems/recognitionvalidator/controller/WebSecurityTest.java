@@ -141,8 +141,17 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(content().string(containsString(
                         "/webjars/flatpickr/4.6.13/dist/flatpickr.min.js"
                 )))
+                .andExpect(content().string(containsString(
+                        "/js/time-segment-combobox.js"
+                )))
                 .andExpect(content().string(containsString("/js/utc-datetime-picker.js")))
-                .andExpect(content().string(containsString("data-utc-date-input")))
+                .andExpect(content().string(containsString("data-utc-boundary")))
+                .andExpect(content().string(containsString("id=\"created-from-date\"")))
+                .andExpect(content().string(containsString("id=\"created-from-hour\"")))
+                .andExpect(content().string(containsString("id=\"created-from-minute\"")))
+                .andExpect(content().string(containsString("id=\"created-to-date\"")))
+                .andExpect(content().string(containsString("id=\"created-to-hour\"")))
+                .andExpect(content().string(containsString("id=\"created-to-minute\"")))
                 .andExpect(content().string(containsString("id=\"review-date-range-error\"")));
 
         mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
@@ -153,14 +162,23 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(content().string(containsString(
                         "/webjars/flatpickr/4.6.13/dist/flatpickr.min.js"
                 )))
+                .andExpect(content().string(containsString(
+                        "/js/time-segment-combobox.js"
+                )))
                 .andExpect(content().string(containsString("/js/utc-datetime-picker.js")))
                 .andExpect(content().string(containsString("/js/admin.js")))
-                .andExpect(content().string(containsString("data-utc-date-input")))
+                .andExpect(content().string(containsString("data-utc-boundary")))
                 .andExpect(content().string(containsString(
                         "id=\"rejected-export-form\""
                 )))
                 .andExpect(content().string(containsString("id=\"processed-from\"")))
+                .andExpect(content().string(containsString("id=\"processed-from-date\"")))
+                .andExpect(content().string(containsString("id=\"processed-from-hour\"")))
+                .andExpect(content().string(containsString("id=\"processed-from-minute\"")))
                 .andExpect(content().string(containsString("id=\"processed-to\"")))
+                .andExpect(content().string(containsString("id=\"processed-to-date\"")))
+                .andExpect(content().string(containsString("id=\"processed-to-hour\"")))
+                .andExpect(content().string(containsString("id=\"processed-to-minute\"")))
                 .andExpect(content().string(containsString(
                         "id=\"rejected-export-date-error\""
                 )));
