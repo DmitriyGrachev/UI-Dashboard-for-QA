@@ -129,6 +129,44 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     }
 
     @Test
+    void reviewAndAdminUseLocalUtcDateTimePickers() throws Exception {
+        UUID operatorId = insertOperator("date-filter-operator", "password");
+        OperatorPrincipal operator = principal(operatorId, "date-filter-operator");
+
+        mockMvc.perform(get("/review").with(user(operator)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "/webjars/flatpickr/4.6.13/dist/flatpickr.min.css"
+                )))
+                .andExpect(content().string(containsString(
+                        "/webjars/flatpickr/4.6.13/dist/flatpickr.min.js"
+                )))
+                .andExpect(content().string(containsString("/js/utc-datetime-picker.js")))
+                .andExpect(content().string(containsString("data-utc-date-input")))
+                .andExpect(content().string(containsString("id=\"review-date-range-error\"")));
+
+        mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "/webjars/flatpickr/4.6.13/dist/flatpickr.min.css"
+                )))
+                .andExpect(content().string(containsString(
+                        "/webjars/flatpickr/4.6.13/dist/flatpickr.min.js"
+                )))
+                .andExpect(content().string(containsString("/js/utc-datetime-picker.js")))
+                .andExpect(content().string(containsString("/js/admin.js")))
+                .andExpect(content().string(containsString("data-utc-date-input")))
+                .andExpect(content().string(containsString(
+                        "id=\"rejected-export-form\""
+                )))
+                .andExpect(content().string(containsString("id=\"processed-from\"")))
+                .andExpect(content().string(containsString("id=\"processed-to\"")))
+                .andExpect(content().string(containsString(
+                        "id=\"rejected-export-date-error\""
+                )));
+    }
+
+    @Test
     void authenticatedPagesRenderPersistentThemeControl() throws Exception {
         UUID operatorId = insertOperator("theme-operator", "password");
         OperatorPrincipal operator = principal(operatorId, "theme-operator");

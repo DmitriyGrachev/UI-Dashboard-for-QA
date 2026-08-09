@@ -6,7 +6,13 @@
     <link rel="icon" href="data:,">
     <title>Operator management — Recognition Validator</title>
     <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet"
+          th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script defer
+            th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
+    <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
+    <script defer th:src="@{/js/admin.js}"></script>
 </head>
 <body>
 <div class="app-shell admin-shell">
@@ -113,17 +119,44 @@
                 </div>
                 <p>Filter by recognition completion time parsed from PNG file names. Empty dates include all available data.</p>
             </header>
-            <form class="rejected-export-form"
+            <form class="rejected-export-form" id="rejected-export-form"
+                  data-utc-date-range
                   method="post"
                   th:action="@{/admin/rejected-screenshots.zip}">
                 <label>
-                    Recognition completed from (UTC)
-                    <input type="datetime-local" name="processedFrom" step="60">
+                    <span>Recognition completed from (UTC)</span>
+                    <span class="utc-datetime-control">
+                        <input id="processed-from" type="datetime-local"
+                               name="processedFrom" step="60"
+                               data-input data-utc-date-input
+                               aria-describedby="rejected-export-date-error">
+                        <button class="utc-datetime-toggle" type="button" data-toggle
+                                aria-label="Open Recognition completed from calendar"
+                                title="Open calendar">
+                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                            </svg>
+                        </button>
+                    </span>
                 </label>
                 <label>
-                    Recognition completed to (UTC)
-                    <input type="datetime-local" name="processedTo" step="60">
+                    <span>Recognition completed to (UTC)</span>
+                    <span class="utc-datetime-control">
+                        <input id="processed-to" type="datetime-local"
+                               name="processedTo" step="60"
+                               data-input data-utc-date-input
+                               aria-describedby="rejected-export-date-error">
+                        <button class="utc-datetime-toggle" type="button" data-toggle
+                                aria-label="Open Recognition completed to calendar"
+                                title="Open calendar">
+                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                            </svg>
+                        </button>
+                    </span>
                 </label>
+                <p class="utc-date-error" id="rejected-export-date-error"
+                   role="alert" hidden></p>
                 <label class="rejected-export-checkbox">
                     <input type="checkbox"
                            name="includePreviouslyDownloaded"

@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    createReviewDateRange,
     formatUtcDate,
     readStoredScale,
     readStoredFilters,
@@ -10,6 +11,33 @@ const {
     writeStoredScale,
     writeStoredFilters
 } = require("../../main/resources/static/js/review.js");
+
+test("review delegates date range behavior to the shared picker", () => {
+    assert.equal(typeof createReviewDateRange, "function");
+    const controller = {clear() {}};
+    const calls = [];
+    const pickerApi = {
+        createRange(options) {
+            calls.push(options);
+            return controller;
+        }
+    };
+    const elements = {
+        createdFrom: {id: "created-from"},
+        createdTo: {id: "created-to"},
+        dateRangeError: {id: "review-date-range-error"}
+    };
+    const applyFilters = () => {};
+
+    const result = createReviewDateRange(pickerApi, elements, applyFilters);
+
+    assert.equal(result, controller);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].fromInput, elements.createdFrom);
+    assert.equal(calls[0].toInput, elements.createdTo);
+    assert.equal(calls[0].errorElement, elements.dateRangeError);
+    assert.equal(calls[0].onCommit, applyFilters);
+});
 
 test("datetime-local value is treated as UTC without timezone conversion", () => {
     assert.equal(toUtcIso("2026-08-03T02:00"), "2026-08-03T02:00:00Z");

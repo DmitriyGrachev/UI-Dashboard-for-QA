@@ -8,7 +8,12 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <title>Recognition Validator</title>
     <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet"
+          th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script defer
+            th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
+    <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
     <script defer th:src="@{/js/review.js}"></script>
 </head>
 <body>
@@ -57,15 +62,39 @@
                 </button>
             </div>
             <div class="filter-sidebar-content" id="filter-panel">
-                <form id="filter-form" class="filters">
+                <form id="filter-form" class="filters" data-utc-date-range>
                 <label>
-                    Created from (UTC)
-                    <input id="created-from" type="datetime-local">
+                    <span>Created from (UTC)</span>
+                    <span class="utc-datetime-control">
+                        <input id="created-from" type="datetime-local"
+                               step="60" data-input data-utc-date-input
+                               aria-describedby="review-date-range-error">
+                        <button class="utc-datetime-toggle" type="button" data-toggle
+                                aria-label="Open Created from calendar"
+                                title="Open calendar">
+                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                            </svg>
+                        </button>
+                    </span>
                 </label>
                 <label>
-                    Created to (UTC)
-                    <input id="created-to" type="datetime-local">
+                    <span>Created to (UTC)</span>
+                    <span class="utc-datetime-control">
+                        <input id="created-to" type="datetime-local"
+                               step="60" data-input data-utc-date-input
+                               aria-describedby="review-date-range-error">
+                        <button class="utc-datetime-toggle" type="button" data-toggle
+                                aria-label="Open Created to calendar"
+                                title="Open calendar">
+                            <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                            </svg>
+                        </button>
+                    </span>
                 </label>
+                <p class="utc-date-error" id="review-date-range-error"
+                   role="alert" hidden></p>
                 <label>
                     Session
                     <input id="session-id" type="search" placeholder="token_UUID" autocomplete="off">

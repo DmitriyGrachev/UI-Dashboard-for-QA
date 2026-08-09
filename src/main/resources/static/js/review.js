@@ -62,8 +62,18 @@ function readStoredScale(storage, key) {
     }
 }
 
+function createReviewDateRange(pickerApi, elements, applyFilters) {
+    return pickerApi.createRange({
+        fromInput: elements.createdFrom,
+        toInput: elements.createdTo,
+        errorElement: elements.dateRangeError,
+        onCommit: applyFilters
+    });
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        createReviewDateRange,
         formatUtcDate,
         readStoredFilters,
         readStoredScale,
@@ -89,6 +99,7 @@ if (typeof document !== "undefined") {
         clearFilters: document.getElementById("clear-filters"),
         createdFrom: document.getElementById("created-from"),
         createdTo: document.getElementById("created-to"),
+        dateRangeError: document.getElementById("review-date-range-error"),
         sessionId: document.getElementById("session-id"),
         gameCode: document.getElementById("game-code"),
         notification: document.getElementById("notification"),
@@ -521,14 +532,19 @@ if (typeof document !== "undefined") {
         state.filterTimer = setTimeout(applyFilters, 400);
     }
 
+    restoreFilters();
+    const dateRange = createReviewDateRange(
+        window.UtcDateTimePicker,
+        elements,
+        applyFilters
+    );
+
     elements.filterForm.addEventListener("submit", event => {
         event.preventDefault();
         applyFilters();
     });
 
     [
-        elements.createdFrom,
-        elements.createdTo,
         elements.gameCode,
         elements.notification,
         elements.hasUserHand
@@ -545,6 +561,7 @@ if (typeof document !== "undefined") {
 
     elements.clearFilters.addEventListener("click", () => {
         elements.filterForm.reset();
+        dateRange.clear();
         try {
             window.sessionStorage.removeItem(filtersStorageKey);
         } catch {
@@ -645,7 +662,6 @@ if (typeof document !== "undefined") {
         }
     });
 
-    restoreFilters();
     setFiltersCollapsed(storedFiltersCollapsed(), false);
     claim({includeRemaining: remainingCountEnabled});
 })();
