@@ -81,7 +81,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     void adminPageRequiresAdminRole() throws Exception {
         mockMvc.perform(get("/admin")
                         .with(user("operator").roles("OPERATOR")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/review"));
 
         mockMvc.perform(get("/admin")
                         .with(user("admin").roles("ADMIN")))
@@ -91,7 +92,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
         mockMvc.perform(post("/admin/rejected-screenshots.zip")
                         .with(user("operator").roles("OPERATOR"))
                         .with(csrf()))
-                .andExpect(status().isForbidden());
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/review"));
     }
 
     @Test
@@ -228,7 +230,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
 
         mockMvc.perform(get("/review")
                         .with(user("admin").roles("ADMIN")))
-                .andExpect(status().isForbidden());
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/admin"));
     }
 
     @Test

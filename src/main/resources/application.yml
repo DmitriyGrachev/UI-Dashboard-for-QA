@@ -13,6 +13,11 @@ spring:
     hibernate:
       ddl-auto: update
 server:
+  error:
+    whitelabel:
+      enabled: false
+    include-message: never
+    include-stacktrace: never
   servlet:
     session:
       timeout: 24h

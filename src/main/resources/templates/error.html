@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Recognition Validator — Error</title>
+    <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+</head>
+<body class="login-page">
+<button class="theme-toggle" type="button" data-theme-toggle
+        aria-label="Switch to light theme" title="Switch to light theme">
+    <span aria-hidden="true" data-theme-icon>☀</span>
+    <span data-theme-label>Light</span>
+</button>
+
+<main class="login-card error-card">
+    <span class="section-kicker">REQUEST ERROR</span>
+    <h1 th:text="${status != null ? status : 'Error'}">Error</h1>
+
+    <p class="error-summary" th:switch="${status}">
+        <span th:case="403">You do not have permission to open this page.</span>
+        <span th:case="404">The requested page could not be found.</span>
+        <span th:case="405">This operation is not supported.</span>
+        <span th:case="500">The server could not complete the request.</span>
+        <span th:case="*">The request could not be completed.</span>
+    </p>
+    <p class="error-guidance">
+        Return to the application and try again. If the problem repeats, contact an administrator.
+    </p>
+
+    <div class="error-actions">
+        <a class="button primary" th:href="@{/review}">Return to application</a>
+        <a class="button secondary" th:href="@{/login}">Sign in</a>
+    </div>
+</main>
+</body>
+</html>

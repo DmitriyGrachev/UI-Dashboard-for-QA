@@ -3,7 +3,6 @@ package com.introlabsystems.recognitionvalidator.security;
 import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpStatus;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.session.SessionRegistry;
@@ -12,8 +11,6 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.HttpStatusEntryPoint;
-import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 @Configuration
@@ -47,11 +44,12 @@ public class SecurityConfig {
     SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             AuthenticationSuccessHandler roleRedirectHandler,
-            SessionRegistry sessionRegistry
+            SessionRegistry sessionRegistry,
+            SecurityFailureHandler securityFailureHandler
     ) throws Exception {
         return http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/login", "/css/**", "/js/**").permitAll()
+                        .requestMatchers("/login", "/error", "/css/**", "/js/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/review",
@@ -63,14 +61,8 @@ public class SecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(exceptions -> exceptions
-                        .defaultAuthenticationEntryPointFor(
-                                new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
-                                request -> request.getRequestURI().startsWith("/api/")
-                        )
-                        .defaultAuthenticationEntryPointFor(
-                                new LoginUrlAuthenticationEntryPoint("/login"),
-                                request -> true
-                        )
+                        .authenticationEntryPoint(securityFailureHandler)
+                        .accessDeniedHandler(securityFailureHandler)
                 )
                 .formLogin(form -> form
                         .loginPage("/login")
@@ -79,10 +71,11 @@ public class SecurityConfig {
                 )
                 .logout(logout -> logout
                         .logoutSuccessUrl("/login?logout")
+                        .deleteCookies("JSESSIONID")
                 )
                 .sessionManagement(session -> session
                         .maximumSessions(-1)
-                        .expiredUrl("/login?expired")
+                        .expiredSessionStrategy(securityFailureHandler)
                         .sessionRegistry(sessionRegistry)
                 )
                 .build();
