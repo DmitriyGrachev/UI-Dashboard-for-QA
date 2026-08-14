@@ -25,6 +25,7 @@ import java.util.UUID;
                         columnList = "file_available,file_created_at,id"
                 ),
                 @Index(name = "ix_image_game", columnList = "game_code"),
+                @Index(name = "ix_image_token", columnList = "token_id"),
                 @Index(name = "ix_image_session", columnList = "session_id"),
                 @Index(name = "ix_image_notification", columnList = "is_notification"),
                 @Index(name = "ix_image_retention", columnList = "file_created_at")

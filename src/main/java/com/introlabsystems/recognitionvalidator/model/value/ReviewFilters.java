@@ -5,6 +5,7 @@ import java.time.Instant;
 public record ReviewFilters(
         Instant createdFrom,
         Instant createdTo,
+        Long tokenId,
         String sessionId,
         String gameCode,
         Boolean notification,
@@ -12,6 +13,6 @@ public record ReviewFilters(
 ) {
 
     public static ReviewFilters none() {
-        return new ReviewFilters(null, null, null, null, null, null);
+        return new ReviewFilters(null, null, null, null, null, null, null);
     }
 }

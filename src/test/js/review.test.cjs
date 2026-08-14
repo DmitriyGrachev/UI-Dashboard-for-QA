@@ -7,6 +7,7 @@ const {
     readStoredScale,
     readStoredFilters,
     toUtcIso,
+    toOptionalLong,
     toOptionalBoolean,
     writeStoredScale,
     writeStoredFilters
@@ -49,6 +50,11 @@ test("tri-state select value becomes an optional boolean filter", () => {
     assert.equal(toOptionalBoolean("false"), false);
 });
 
+test("token id becomes an optional exact integer filter", () => {
+    assert.equal(toOptionalLong(""), null);
+    assert.equal(toOptionalLong("37"), 37);
+});
+
 test("review filters survive a page navigation through session storage", () => {
     const values = new Map();
     const storage = {
@@ -58,6 +64,7 @@ test("review filters survive a page navigation through session storage", () => {
     const filters = {
         createdFrom: "2026-08-03T02:00",
         createdTo: "2026-08-03T04:00",
+        tokenId: "37",
         sessionId: "39_session",
         gameCode: "bj_igt",
         notification: "false"

@@ -55,7 +55,7 @@ public class ReviewClaimRepository {
         if (replaceCurrent) {
             releaseActiveAssignment(operatorId);
         } else {
-            Optional<ReviewItem> active = activeAssignment(operatorId);
+            Optional<ReviewItem> active = activeAssignment(operatorId, filters);
             if (active.isPresent()) {
                 ReviewQueueSummary summary = includeRemaining
                         ? summarizePending(filters, new MapSqlParameterSource())
@@ -63,6 +63,7 @@ public class ReviewClaimRepository {
                         : null;
                 return new ReviewQueueResult(active, summary);
             }
+            releaseActiveAssignment(operatorId);
         }
 
         MapSqlParameterSource parameters = new MapSqlParameterSource()
@@ -137,15 +138,18 @@ public class ReviewClaimRepository {
                 """, new MapSqlParameterSource("now", Timestamp.from(now)));
     }
 
-    private Optional<ReviewItem> activeAssignment(UUID operatorId) {
+    private Optional<ReviewItem> activeAssignment(UUID operatorId, ReviewFilters filters) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
+        StringBuilder sql = new StringBuilder(ITEM_COLUMNS).append("""
+                 WHERE rt.status = 'ASSIGNED'
+                   AND rt.assigned_to = :operatorId
+                   AND ia.file_available = TRUE
+                """);
+        appendFilters(sql, filters, parameters);
+        sql.append(" LIMIT 1");
         List<ReviewItem> items = jdbc.query(
-                ITEM_COLUMNS + """
-                         WHERE rt.status = 'ASSIGNED'
-                           AND rt.assigned_to = :operatorId
-                           AND ia.file_available = TRUE
-                         LIMIT 1
-                        """,
-                new MapSqlParameterSource("operatorId", operatorId),
+                sql.toString(),
+                parameters,
                 ITEM_MAPPER
         );
         return items.stream().findFirst();
@@ -220,6 +224,10 @@ public class ReviewClaimRepository {
         if (filters.createdTo() != null) {
             sql.append(" AND ia.file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
+        }
+        if (filters.tokenId() != null) {
+            sql.append(" AND ia.token_id = :tokenId");
+            parameters.addValue("tokenId", filters.tokenId());
         }
         if (hasText(filters.sessionId())) {
             sql.append(" AND ia.session_id = :sessionId");

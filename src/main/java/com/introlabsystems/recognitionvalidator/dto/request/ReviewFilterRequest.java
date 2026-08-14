@@ -8,6 +8,7 @@ import java.time.Instant;
 public record ReviewFilterRequest(
         Instant createdFrom,
         Instant createdTo,
+        Long tokenId,
         String sessionId,
         String gameCode,
         Boolean notification,
@@ -23,6 +24,7 @@ public record ReviewFilterRequest(
         return new ReviewFilters(
                 createdFrom,
                 createdTo,
+                tokenId,
                 sessionId,
                 gameCode,
                 notification,

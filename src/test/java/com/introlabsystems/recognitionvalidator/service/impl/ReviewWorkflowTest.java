@@ -94,6 +94,7 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
         ReviewFilters filters = new ReviewFilters(
                 targetTime.minus(1, ChronoUnit.HOURS),
                 targetTime.plus(1, ChronoUnit.HOURS),
+                null,
                 "39_target-session",
                 "bj_igt",
                 true,
@@ -122,6 +123,33 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
     }
 
     @Test
+    void refreshReplacesCurrentAssignmentWhenItDoesNotMatchRestoredFilters() {
+        UUID operatorId = insertOperator("refresh-filtered");
+        String stale = insertImage(120, Instant.parse("2026-07-30T09:00:00Z"),
+                "bj_igt", "37_stale-session", false, true);
+        String expected = insertImage(121, Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt", "36_expected-session", false, true);
+        jdbc.update("UPDATE image_asset SET token_id = 37 WHERE id = ?", stale);
+        jdbc.update("UPDATE image_asset SET token_id = 36 WHERE id = ?", expected);
+        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(null, null, 36L, null, null, null, null),
+                false,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(expected);
+        assertThat(result.remaining()).isEqualTo(1L);
+        assertThat(jdbc.queryForMap(
+                "select status, assigned_to from review_task where image_id = ?",
+                stale
+        )).containsEntry("status", "PENDING")
+                .containsEntry("assigned_to", null);
+    }
+
+    @Test
     void replacingFiltersReleasesCurrentAssignmentAndCountsMatchingQueue() {
         UUID operatorId = insertOperator("replace-filter");
         String released = insertImage(22, Instant.parse("2026-07-30T09:00:00Z"),
@@ -134,7 +162,7 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
 
         ReviewQueueResult result = queueService.claim(
                 operatorId,
-                new ReviewFilters(null, null, null, "bj_igt", null, null),
+                new ReviewFilters(null, null, null, null, "bj_igt", null, null),
                 true,
                 true
         );
@@ -160,7 +188,7 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
 
         ReviewQueueResult result = queueService.claim(
                 operatorId,
-                new ReviewFilters(null, null, null, "bj_igt", null, null),
+                new ReviewFilters(null, null, null, null, "bj_igt", null, null),
                 true,
                 true
         );

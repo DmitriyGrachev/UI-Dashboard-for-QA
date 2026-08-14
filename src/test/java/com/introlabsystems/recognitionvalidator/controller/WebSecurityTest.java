@@ -615,6 +615,36 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     }
 
     @Test
+    void claimFiltersByExactTokenId() throws Exception {
+        UUID operatorId = insertOperator("token-filter-operator", "password");
+        String differentToken = insertReviewImage(
+                220, "token-137.png", true, "bj_igt", "137_session",
+                null, "Jack", null
+        );
+        String expected = insertReviewImage(
+                221, "token-37.png", true, "bj_igt", "37_session",
+                null, "Nine", null
+        );
+        jdbc.update("UPDATE image_asset SET token_id = 137 WHERE id = ?", differentToken);
+        jdbc.update("UPDATE image_asset SET token_id = 37 WHERE id = ?", expected);
+
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal(operatorId, "token-filter-operator")))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "replaceCurrent": true,
+                                  "includeRemaining": true,
+                                  "filters": {"tokenId": 37}
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.item.imageId").value(expected))
+                .andExpect(jsonPath("$.remaining").value(1));
+    }
+
+    @Test
     void claimExposesParsedSurrenderFlag() throws Exception {
         UUID operatorId = insertOperator("surrender-operator", "password");
         String fileName = "bj_double_deck_black_throne_36_"
