@@ -68,6 +68,10 @@ function readStoredScale(storage, key) {
     }
 }
 
+function prepareViewForNextItem(viewState) {
+    viewState.dragging = false;
+}
+
 function createReviewDateRange(pickerApi, elements, applyFilters) {
     return pickerApi.createRange({
         fromInput: elements.createdFrom,
@@ -81,6 +85,7 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         createReviewDateRange,
         formatUtcDate,
+        prepareViewForNextItem,
         readStoredFilters,
         readStoredScale,
         toUtcIso,
@@ -373,7 +378,8 @@ if (typeof document !== "undefined") {
 
     function renderItem(item) {
         state.item = item;
-        resetPosition();
+        prepareViewForNextItem(state);
+        elements.stage.classList.remove("dragging");
         elements.fileName.textContent = item.fileName;
         setText(elements.gameSummary, item.gameCode);
         setText(elements.game, item.gameCode);

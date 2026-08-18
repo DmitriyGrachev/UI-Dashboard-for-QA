@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const {
     createReviewDateRange,
     formatUtcDate,
+    prepareViewForNextItem,
     readStoredScale,
     readStoredFilters,
     toUtcIso,
@@ -85,6 +86,24 @@ test("image scale survives screenshot and page navigation", () => {
     writeStoredScale(storage, "review-scale", 0.8);
 
     assert.equal(readStoredScale(storage, "review-scale"), 0.8);
+});
+
+test("next screenshot keeps the operator image position", () => {
+    const view = {
+        x: 42,
+        y: -180,
+        scale: 0.5,
+        dragging: true
+    };
+
+    prepareViewForNextItem(view);
+
+    assert.deepEqual(view, {
+        x: 42,
+        y: -180,
+        scale: 0.5,
+        dragging: false
+    });
 });
 
 test("queue range date is always formatted in UTC", () => {
