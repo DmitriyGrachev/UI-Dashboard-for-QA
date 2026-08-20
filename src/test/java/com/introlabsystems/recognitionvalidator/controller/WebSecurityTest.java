@@ -1,7 +1,9 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
+import com.introlabsystems.recognitionvalidator.parser.FilenameParser;
 import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -30,6 +32,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class WebSecurityTest extends AbstractWebIntegrationTest {
+
+    @Autowired
+    private FilenameParser filenameParser;
 
     @Test
     void loginPageIsPublic() throws Exception {
@@ -843,6 +848,29 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.lastSevenDays").value(0))
                 .andExpect(jsonPath("$.allTime").value(0))
                 .andExpect(jsonPath("$.daily.length()").value(7));
+    }
+
+    @Test
+    void configuredParserRecognizesAmericasAgsScreenshot() {
+        var parsed = filenameParser.parse(
+                "bj_americas_ags_7_8a8ba1ce-75ec-4184-9c1b-64347a04fec0"
+                        + "_u_Two_Queen_bSbHbD_13-08-2026-14-53-44_1900.png"
+        );
+
+        assertThat(parsed.gameCode()).isEqualTo("bj_americas_ags");
+        assertThat(parsed.recognition().activeUserCards()).isEqualTo("Two_Queen");
+    }
+
+    @Test
+    void reviewPageListsAmericasAgsGame() throws Exception {
+        UUID operatorId = insertOperator("americas-ags-operator", "password");
+
+        mockMvc.perform(get("/review")
+                        .with(user(principal(operatorId, "americas-ags-operator"))))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString(
+                        "<option value=\"bj_americas_ags\">bj_americas_ags</option>"
+                )));
     }
 
     @Test

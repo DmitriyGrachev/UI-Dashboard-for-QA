@@ -46,5 +46,6 @@ validator:
     - bj_double_deck_black_throne
     - bj_single_deck_ags
     - bj_side_bets_ags
+    - bj_americas_ags
     - bj_atlantic_city
     - bj_multihand_play_n_go
