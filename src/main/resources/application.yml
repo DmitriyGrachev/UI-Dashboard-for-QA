@@ -22,6 +22,15 @@ server:
     session:
       timeout: 24h
 
+slack:
+  enabled: ${SLACK_REJECTED_NOTIFICATIONS_ENABLED:false}
+  bot-token: ${SLACK_BOT_TOKEN:}
+  channel-id: ${SLACK_CHANNEL_ID:}
+  rejected-details-limit: ${SLACK_REJECTED_DETAILS_LIMIT:10}
+  connect-timeout: ${SLACK_CONNECT_TIMEOUT:2s}
+  read-timeout: ${SLACK_READ_TIMEOUT:3s}
+  api-base-url: ${SLACK_API_BASE_URL:https://slack.com/api}
+
 validator:
   image-root: ${VALIDATOR_IMAGE_ROOT:./data/images}
   batch-size: ${VALIDATOR_BATCH_SIZE:1000}

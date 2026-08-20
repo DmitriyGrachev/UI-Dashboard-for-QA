@@ -8,6 +8,7 @@ import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
 import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
 import com.introlabsystems.recognitionvalidator.service.StatisticsService;
+import com.introlabsystems.recognitionvalidator.slack.SlackRejectedNotificationService;
 import com.introlabsystems.recognitionvalidator.model.value.OperatorStatistics;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.StatisticsRepository;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,9 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
 
     @MockitoSpyBean
     private ReviewQueueService queueService;
+
+    @MockitoSpyBean
+    private SlackRejectedNotificationService slackNotifications;
 
     @Autowired
     private DecisionService decisionService;
@@ -316,6 +320,25 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 FROM operator_daily_statistics
                 WHERE operator_id = ?
                 """, Long.class, operatorId)).isEqualTo(1L);
+    }
+
+    @Test
+    void onlyRejectedDecisionTriggersSlackRefreshAfterCommit() {
+        UUID operatorId = insertOperator("slack-trigger");
+        String rejectedId = insertImage(63, Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt", "rejected-session", false, true);
+        String acceptedId = insertImage(64, Instant.parse("2026-07-30T11:00:00Z"),
+                "bj_igt", "accepted-session", false, true);
+
+        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+        decisionService.decide(rejectedId, operatorId, Decision.REJECTED);
+        org.mockito.Mockito.verify(slackNotifications, org.mockito.Mockito.timeout(2000))
+                .refreshRejectedBacklog();
+
+        org.mockito.Mockito.reset(slackNotifications);
+        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+        decisionService.decide(acceptedId, operatorId, Decision.ACCEPTED);
+        org.mockito.Mockito.verifyNoInteractions(slackNotifications);
     }
 
     @Test

@@ -3,7 +3,9 @@ package com.introlabsystems.recognitionvalidator.service.impl;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
 import com.introlabsystems.recognitionvalidator.exception.DecisionConflictException;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
+import com.introlabsystems.recognitionvalidator.slack.RejectedDecisionEvent;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -22,6 +24,7 @@ public class DecisionService {
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
     private final DailyStatisticsRepository dailyStatistics;
+    private final ApplicationEventPublisher events;
 
     @Transactional
     public void decide(String imageId, UUID operatorId, Decision decision) {
@@ -48,5 +51,8 @@ public class DecisionService {
                 reviewedAt.atZone(ZoneOffset.UTC).toLocalDate(),
                 decision == Decision.ACCEPTED
         );
+        if (decision == Decision.REJECTED) {
+            events.publishEvent(new RejectedDecisionEvent(imageId));
+        }
     }
 }
