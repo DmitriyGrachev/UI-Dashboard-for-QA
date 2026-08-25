@@ -113,6 +113,26 @@ AWS SDK використовує стандартну retry-стратегію �
 локальне очищення продовжують працювати. Об'єкти B2 при цьому не видаляються — ними
 керує lifecycle rule.
 
+### Явний benchmark транспортів B2
+
+`B2TransportBenchmarkIT` не запускається звичайним `mvn test`. Він порівнює sync
+`S3Client`, `S3AsyncClient` і `S3TransferManager` на окремому префіксі, а після
+кожного транспорту видаляє всі версії та delete markers і перевіряє, що префікс
+порожній. Перед запуском експортуйте `B2_ENDPOINT`, `B2_BUCKET`,
+`B2_ACCESS_KEY_ID`, `B2_SECRET_ACCESS_KEY` і, за потреби, `B2_OBJECT_PREFIX`;
+не передавайте секрети в аргументах Maven.
+
+```text
+./mvnw -Dtest=B2TransportBenchmarkIT \
+  -Db2.benchmark.enabled=true \
+  -Db2.benchmark.count=10 \
+  -Db2.benchmark.concurrency=8 test
+```
+
+Кількість файлів можна збільшити для вимірювання, але тест обмежений 500 файлами
+за запуск, щоб випадково не витратити storage cap. Звичайний `mvn test` не читає
+B2 credentials і не робить мережевих викликів.
+
 Будь-який smoke upload у реальний bucket потребує окремого явного погодження.
 Перевірка має використовувати лише один спеціально створений тестовий PNG і ключ
 під `validator/`; не використовуйте робочі зображення та не запускайте таку
