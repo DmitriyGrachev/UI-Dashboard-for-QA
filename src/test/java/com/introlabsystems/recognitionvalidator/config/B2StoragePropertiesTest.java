@@ -38,7 +38,12 @@ class B2StoragePropertiesTest {
                 Duration.ofSeconds(1),
                 Duration.ofHours(1),
                 Duration.ofMinutes(15),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(properties.objectKey("image-123")).isEqualTo("validator/image-123.png");
@@ -60,7 +65,12 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isEmpty();
@@ -81,7 +91,12 @@ class B2StoragePropertiesTest {
                 Duration.ofSeconds(1),
                 Duration.ofHours(1),
                 Duration.ofMinutes(15),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isNotEmpty();
@@ -102,7 +117,12 @@ class B2StoragePropertiesTest {
                 Duration.ofSeconds(1),
                 Duration.ofHours(1),
                 Duration.ofMinutes(15),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isNotEmpty();
@@ -123,7 +143,12 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isNotEmpty();
@@ -194,7 +219,12 @@ class B2StoragePropertiesTest {
                 Duration.ofSeconds(1),
                 Duration.ofHours(1),
                 Duration.ZERO,
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isNotEmpty();
@@ -215,18 +245,49 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofDays(8),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isNotEmpty();
     }
 
     @Test
-    void rejectsApiTimeoutsWhenAttemptIsShorterThanSocketTimeout() {
+    void rejectsApiTimeoutsWhenSocketTimeoutExceedsAttempt() {
         B2StorageProperties properties = propertiesWithTimeouts(
                 Duration.ofSeconds(5),
                 Duration.ofSeconds(45),
                 Duration.ofSeconds(30),
+                Duration.ofMinutes(2),
+                4
+        );
+
+        assertThat(validate(properties)).isNotEmpty();
+    }
+
+    @Test
+    void allowsConnectTimeoutLongerThanSocketTimeoutWhenBothFitWithinAttempt() {
+        B2StorageProperties properties = propertiesWithTimeouts(
+                Duration.ofSeconds(40),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
+        );
+
+        assertThat(validate(properties)).isEmpty();
+    }
+
+    @Test
+    void rejectsApiTimeoutsWhenConnectTimeoutExceedsAttempt() {
+        B2StorageProperties properties = propertiesWithTimeouts(
+                Duration.ofSeconds(46),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
                 Duration.ofMinutes(2),
                 4
         );
@@ -262,7 +323,12 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(properties.toString())
@@ -312,7 +378,12 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(retentionDays)
+                Duration.ofDays(retentionDays),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
 
         assertThat(validate(properties)).isNotEmpty();
@@ -332,7 +403,12 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
     }
 
@@ -350,7 +426,12 @@ class B2StoragePropertiesTest {
                 Duration.ofMinutes(5),
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
     }
 

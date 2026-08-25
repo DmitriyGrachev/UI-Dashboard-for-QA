@@ -489,7 +489,12 @@ class CloudUploadSchedulerTest {
                 retryDelay,
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
     }
 

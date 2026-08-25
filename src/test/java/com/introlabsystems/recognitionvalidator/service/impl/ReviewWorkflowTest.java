@@ -226,7 +226,12 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 Duration.ofSeconds(1),
                 Duration.ofHours(1),
                 Duration.ofMinutes(15),
-                Duration.ofDays(21)
+                Duration.ofDays(21),
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
         );
     }
 

@@ -32,10 +32,9 @@ public class B2ClientConfig {
                 .endpointOverride(properties.endpoint())
                 .credentialsProvider(credentials(properties))
                 .serviceConfiguration(s3Configuration())
-                .httpClient(UrlConnectionHttpClient.builder()
+                .httpClientBuilder(UrlConnectionHttpClient.builder()
                         .connectionTimeout(properties.connectTimeout())
-                        .socketTimeout(properties.socketTimeout())
-                        .build())
+                        .socketTimeout(properties.socketTimeout()))
                 .overrideConfiguration(clientOverrideConfiguration(properties))
                 .build();
     }
