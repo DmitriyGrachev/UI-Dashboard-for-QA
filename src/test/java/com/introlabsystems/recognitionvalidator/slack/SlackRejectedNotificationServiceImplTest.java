@@ -27,6 +27,7 @@ class SlackRejectedNotificationServiceImplTest {
                 "token",
                 "channel",
                 10,
+                "https://validator.example/admin#rejected-export-title",
                 Duration.ofSeconds(2),
                 Duration.ofSeconds(3),
                 "https://slack.test"
@@ -44,7 +45,8 @@ class SlackRejectedNotificationServiceImplTest {
         when(stateRepository.findById(SlackNotificationState.SINGLETON_ID))
                 .thenReturn(Optional.of(state));
         when(backlog.snapshot(10)).thenReturn(emptyBacklog);
-        when(formatter.archive("admin", 4, clock.instant(), 0))
+        when(formatter.archive("admin", 4, clock.instant(), 0,
+                "https://validator.example/admin#rejected-export-title"))
                 .thenReturn("archive downloaded");
 
         service.archiveDownloaded("admin", 4);

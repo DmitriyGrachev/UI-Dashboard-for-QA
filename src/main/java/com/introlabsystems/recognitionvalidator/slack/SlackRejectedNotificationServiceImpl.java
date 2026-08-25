@@ -28,7 +28,11 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
             if (snapshot.count() == 0) {
                 return;
             }
-            String text = formatter.backlog(snapshot, properties.rejectedDetailsLimit());
+            String text = formatter.backlog(
+                    snapshot,
+                    properties.rejectedDetailsLimit(),
+                    properties.rejectedArchiveUrl()
+            );
             SlackNotificationState state = stateRepository
                     .findById(SlackNotificationState.SINGLETON_ID)
                     .orElse(null);
@@ -69,7 +73,8 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
                     adminUsername,
                     exportedCount,
                     clock.instant(),
-                    snapshot.count()
+                    snapshot.count(),
+                    properties.rejectedArchiveUrl()
             );
             try {
                 slack.updateMessage(state.getActiveMessageTs(), text);

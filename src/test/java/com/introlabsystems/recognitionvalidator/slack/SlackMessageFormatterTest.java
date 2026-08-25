@@ -24,7 +24,11 @@ class SlackMessageFormatterTest {
                 false, " ", ParseStatus.ERROR, null, null
         );
 
-        String message = formatter.backlog(new RejectedBacklogSnapshot(3, List.of(first, second)), 2);
+        String message = formatter.backlog(
+                new RejectedBacklogSnapshot(3, List.of(first, second)),
+                2,
+                "https://validator.example/admin#rejected-export-title"
+        );
 
         assertThat(message).isEqualTo("""
                 :red_circle: *Rejected screenshots — 3 waiting*
@@ -42,19 +46,32 @@ class SlackMessageFormatterTest {
                 Notification: *No* · Buttons: `—` · Parse: `ERROR`
                 `—` · —
 
-                + 1 more files""");
+                + 1 more files
+
+                <https://validator.example/admin#rejected-export-title|Open rejected archive>""");
     }
 
     @Test
     void formatsArchiveStatusWithAdminExportAndWaitingCount() {
         String message = formatter.archive("alice", 4,
-                Instant.parse("2026-08-20T12:00:00Z"), 2);
+                Instant.parse("2026-08-20T12:00:00Z"), 2,
+                "https://validator.example/admin#rejected-export-title");
 
         assertThat(message).isEqualTo("""
                 :white_check_mark: *Rejected archive downloaded*
 
                 *4 files* downloaded by `alice`
                 Remaining: *2*
-                20 Aug 2026, 12:00 UTC""");
+                20 Aug 2026, 12:00 UTC
+
+                <https://validator.example/admin#rejected-export-title|Open rejected archive>""");
+    }
+
+    @Test
+    void omitsArchiveLinkWhenUrlIsBlank() {
+        String message = formatter.archive("alice", 1,
+                Instant.parse("2026-08-20T12:00:00Z"), 0, " ");
+
+        assertThat(message).doesNotContain("Open rejected archive", "<http");
     }
 }

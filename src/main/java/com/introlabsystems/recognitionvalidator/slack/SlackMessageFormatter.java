@@ -12,7 +12,8 @@ public class SlackMessageFormatter {
             .ofPattern("dd MMM yyyy, HH:mm 'UTC'", Locale.ENGLISH)
             .withZone(ZoneOffset.UTC);
 
-    public String backlog(RejectedBacklogSnapshot snapshot, int detailLimit) {
+    public String backlog(RejectedBacklogSnapshot snapshot, int detailLimit,
+                          String rejectedArchiveUrl) {
         int details = Math.min(Math.max(detailLimit, 0), snapshot.items().size());
         StringBuilder message = new StringBuilder(":red_circle: *Rejected screenshots — ")
                 .append(snapshot.count())
@@ -40,14 +41,26 @@ public class SlackMessageFormatter {
         if (more > 0) {
             message.append("\n\n+ ").append(more).append(" more files");
         }
+        appendArchiveLink(message, rejectedArchiveUrl);
         return truncate(message.toString());
     }
 
-    public String archive(String adminUsername, int exportedCount, Instant exportedAt, long waitingCount) {
+    public String archive(String adminUsername, int exportedCount, Instant exportedAt,
+                          long waitingCount, String rejectedArchiveUrl) {
         String fileLabel = exportedCount == 1 ? "file" : "files";
-        return truncate(":white_check_mark: *Rejected archive downloaded*\n\n*"
+        StringBuilder message = new StringBuilder(":white_check_mark: *Rejected archive downloaded*\n\n*"
                 + exportedCount + " " + fileLabel + "* downloaded by `" + value(adminUsername)
                 + "`\nRemaining: *" + waitingCount + "*\n" + format(exportedAt));
+        appendArchiveLink(message, rejectedArchiveUrl);
+        return truncate(message.toString());
+    }
+
+    private void appendArchiveLink(StringBuilder message, String rejectedArchiveUrl) {
+        if (rejectedArchiveUrl != null && !rejectedArchiveUrl.isBlank()) {
+            message.append("\n\n<")
+                    .append(rejectedArchiveUrl.trim())
+                    .append("|Open rejected archive>");
+        }
     }
 
     private String truncate(String message) {

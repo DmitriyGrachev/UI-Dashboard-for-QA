@@ -14,6 +14,7 @@ public record SlackProperties(
         String botToken,
         String channelId,
         @Min(1) int rejectedDetailsLimit,
+        String rejectedArchiveUrl,
         @NotNull Duration connectTimeout,
         @NotNull Duration readTimeout,
         String apiBaseUrl

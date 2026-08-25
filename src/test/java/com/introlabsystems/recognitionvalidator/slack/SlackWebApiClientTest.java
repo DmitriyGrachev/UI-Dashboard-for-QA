@@ -18,7 +18,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 class SlackWebApiClientTest {
 
     private final SlackProperties properties = new SlackProperties(
-            true, "xoxb-secret", "C123", 10, Duration.ofSeconds(2), Duration.ofSeconds(3),
+            true, "xoxb-secret", "C123", 10, "", Duration.ofSeconds(2), Duration.ofSeconds(3),
             "https://slack.test/api"
     );
 
