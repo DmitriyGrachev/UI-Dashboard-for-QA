@@ -33,9 +33,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.CompletionException;
@@ -162,9 +164,26 @@ class B2TransportBenchmarkIT {
                     peakInFlight.get()
             );
             System.out.println(metrics);
+            VersionInventory inventory = inspectVersions(syncClient, settings.bucket(), prefix);
+            System.out.println("B2 benchmark " + transport
+                    + ": versions=" + inventory.versionCount()
+                    + ", objects=" + inventory.objectCount()
+                    + ", versionsPerObject=" + String.format(
+                    Locale.ROOT, "%.3f", inventory.versionsPerObject())
+                    + ", deleteMarkers=" + inventory.deleteMarkerCount());
+            Set<String> expectedKeys = new HashSet<>();
+            expectedKeys.add(prefix + "/warmup.png");
+            for (int index = 0; index < settings.fileCount(); index++) {
+                expectedKeys.add(prefix + "/" + index + ".png");
+            }
             assertThat(metrics.successes() + metrics.failures()).isEqualTo(settings.fileCount());
             assertThat(metrics.failures()).isZero();
             assertThat(metrics.successes()).isEqualTo(settings.fileCount());
+            assertThat(inventory.objectCount()).isEqualTo(settings.fileCount() + 1);
+            assertThat(inventory.versionCount()).isEqualTo(settings.fileCount() + 1);
+            assertThat(inventory.deleteMarkerCount()).isZero();
+            assertThat(inventory.versionsByKey()).containsOnlyKeys(expectedKeys);
+            assertThat(inventory.versionsByKey().values()).allMatch(count -> count == 1);
         } finally {
             executor.shutdownNow();
             cleanupVersions(syncClient, settings.bucket(), prefix);
@@ -282,32 +301,12 @@ class B2TransportBenchmarkIT {
     }
 
     private static void cleanupVersions(S3Client client, String bucket, String prefix) {
-        List<ObjectIdentifier> objects = new ArrayList<>();
-        String keyMarker = null;
-        String versionIdMarker = null;
-        do {
-            ListObjectVersionsResponse response = client.listObjectVersions(
-                    ListObjectVersionsRequest.builder()
-                            .bucket(bucket)
-                            .prefix(prefix + "/")
-                            .keyMarker(keyMarker)
-                            .versionIdMarker(versionIdMarker)
-                            .build()
-            );
-            response.versions().forEach(version -> objects.add(ObjectIdentifier.builder()
-                    .key(version.key())
-                    .versionId(version.versionId())
-                    .build()));
-            response.deleteMarkers().forEach(marker -> objects.add(ObjectIdentifier.builder()
-                    .key(marker.key())
-                    .versionId(marker.versionId())
-                    .build()));
-            if (!response.isTruncated()) {
-                break;
-            }
-            keyMarker = response.nextKeyMarker();
-            versionIdMarker = response.nextVersionIdMarker();
-        } while (true);
+        List<ObjectIdentifier> objects = listVersionRecords(client, bucket, prefix).stream()
+                .map(record -> ObjectIdentifier.builder()
+                        .key(record.key())
+                        .versionId(record.versionId())
+                        .build())
+                .toList();
 
         for (int start = 0; start < objects.size(); start += 1000) {
             List<ObjectIdentifier> batch = objects.subList(start, Math.min(start + 1000, objects.size()));
@@ -321,12 +320,69 @@ class B2TransportBenchmarkIT {
             }
         }
 
-        ListObjectVersionsResponse remaining = client.listObjectVersions(
-                ListObjectVersionsRequest.builder().bucket(bucket).prefix(prefix + "/").build()
-        );
-        if (!remaining.versions().isEmpty() || !remaining.deleteMarkers().isEmpty()
-                || remaining.isTruncated()) {
+        if (!listVersionRecords(client, bucket, prefix).isEmpty()) {
             throw new IllegalStateException("B2 benchmark cleanup could not confirm zero versions");
+        }
+    }
+
+    private static VersionInventory inspectVersions(S3Client client, String bucket, String prefix) {
+        return VersionInventory.from(listVersionRecords(client, bucket, prefix));
+    }
+
+    private static List<VersionRecord> listVersionRecords(S3Client client, String bucket, String prefix) {
+        List<VersionRecord> records = new ArrayList<>();
+        String keyMarker = null;
+        String versionIdMarker = null;
+        do {
+            ListObjectVersionsResponse response = client.listObjectVersions(
+                    ListObjectVersionsRequest.builder()
+                            .bucket(bucket)
+                            .prefix(prefix + "/")
+                            .keyMarker(keyMarker)
+                            .versionIdMarker(versionIdMarker)
+                            .build()
+            );
+            response.versions().forEach(version -> records.add(
+                    new VersionRecord(version.key(), version.versionId(), false)));
+            response.deleteMarkers().forEach(marker -> records.add(
+                    new VersionRecord(marker.key(), marker.versionId(), true)));
+            if (!response.isTruncated()) {
+                break;
+            }
+            keyMarker = response.nextKeyMarker();
+            versionIdMarker = response.nextVersionIdMarker();
+        } while (true);
+        return records;
+    }
+
+    private record VersionRecord(String key, String versionId, boolean deleteMarker) {
+    }
+
+    private record VersionInventory(
+            int objectCount,
+            int versionCount,
+            int deleteMarkerCount,
+            Map<String, Integer> versionsByKey
+    ) {
+        private static VersionInventory from(List<VersionRecord> records) {
+            Set<String> keys = new HashSet<>();
+            Map<String, Integer> versionsByKey = new TreeMap<>();
+            int versions = 0;
+            int deleteMarkers = 0;
+            for (VersionRecord record : records) {
+                keys.add(record.key());
+                if (record.deleteMarker()) {
+                    deleteMarkers++;
+                } else {
+                    versions++;
+                    versionsByKey.merge(record.key(), 1, Integer::sum);
+                }
+            }
+            return new VersionInventory(keys.size(), versions, deleteMarkers, versionsByKey);
+        }
+
+        private double versionsPerObject() {
+            return objectCount == 0 ? 0.0 : (double) versionCount / objectCount;
         }
     }
 
