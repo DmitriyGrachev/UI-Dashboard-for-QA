@@ -1,12 +1,12 @@
 package com.introlabsystems.recognitionvalidator.dao.jdbc;
 
+import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.model.enums.ParseStatus;
 import com.introlabsystems.recognitionvalidator.model.value.RecognitionResult;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewItem;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueSummary;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-@RequiredArgsConstructor
 public class ReviewClaimRepository {
 
     private static final String ITEM_COLUMNS = """
@@ -37,7 +36,7 @@ public class ReviewClaimRepository {
             JOIN image_asset ia ON ia.id = rt.image_id
             """;
     private static final RowMapper<ReviewItem> ITEM_MAPPER = ReviewClaimRepository::mapItem;
-    private static final String AVAILABLE_IMAGE_PREDICATE = """
+    private static final String LOCAL_OR_CLOUD_IMAGE_PREDICATE = """
             (
                 ia.file_available = TRUE
                 OR (
@@ -50,6 +49,17 @@ public class ReviewClaimRepository {
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final String availableImagePredicate;
+
+    public ReviewClaimRepository(
+            NamedParameterJdbcTemplate jdbc,
+            B2StorageProperties b2Properties
+    ) {
+        this.jdbc = jdbc;
+        this.availableImagePredicate = b2Properties.enabled()
+                ? LOCAL_OR_CLOUD_IMAGE_PREDICATE
+                : "ia.file_available = TRUE";
+    }
 
     @Transactional
     public ReviewQueueResult claim(
@@ -109,7 +119,7 @@ public class ReviewClaimRepository {
     public Optional<ReviewItem> findItem(String imageId) {
         List<ReviewItem> items = jdbc.query(
                 ITEM_COLUMNS + " WHERE rt.image_id = :imageId AND "
-                        + AVAILABLE_IMAGE_PREDICATE,
+                        + availableImagePredicate,
                 new MapSqlParameterSource("imageId", imageId),
                 ITEM_MAPPER
         );
@@ -144,7 +154,7 @@ public class ReviewClaimRepository {
                             AND %s
                       )
                   )
-                """.formatted(AVAILABLE_IMAGE_PREDICATE),
+                """.formatted(availableImagePredicate),
                 new MapSqlParameterSource("now", Timestamp.from(now)));
     }
 
@@ -152,7 +162,7 @@ public class ReviewClaimRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
         StringBuilder sql = new StringBuilder(ITEM_COLUMNS)
                 .append(" WHERE rt.status = 'ASSIGNED' AND rt.assigned_to = :operatorId AND ")
-                .append(AVAILABLE_IMAGE_PREDICATE);
+                .append(availableImagePredicate);
         appendFilters(sql, filters, parameters);
         sql.append(" LIMIT 1");
         List<ReviewItem> items = jdbc.query(
@@ -217,7 +227,7 @@ public class ReviewClaimRepository {
                 JOIN image_asset ia ON ia.id = rt.image_id
                 WHERE rt.status = 'PENDING'
                   AND %s
-                """.formatted(projection, AVAILABLE_IMAGE_PREDICATE));
+                """.formatted(projection, availableImagePredicate));
     }
 
     private void appendFilters(
