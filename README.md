@@ -120,7 +120,8 @@ AWS SDK використовує стандартну retry-стратегію �
 кожного транспорту видаляє всі версії та delete markers і перевіряє, що префікс
 порожній. Перед запуском експортуйте `B2_ENDPOINT`, `B2_BUCKET`,
 `B2_ACCESS_KEY_ID`, `B2_SECRET_ACCESS_KEY` і, за потреби, `B2_OBJECT_PREFIX`;
-не передавайте секрети в аргументах Maven.
+не передавайте секрети в аргументах Maven. Benchmark генерує payload приблизно
+1.4 MiB для вимірювання транспорту; це не перевірка розпізнавання зображень.
 
 ```text
 ./mvnw -Dtest=B2TransportBenchmarkIT \
@@ -128,6 +129,9 @@ AWS SDK використовує стандартну retry-стратегію �
   -Db2.benchmark.count=10 \
   -Db2.benchmark.concurrency=8 test
 ```
+
+У PowerShell використовуйте `mvnw.cmd` і беріть `-D...` у лапки, наприклад
+`mvnw.cmd -Dtest=B2TransportBenchmarkIT "-Db2.benchmark.enabled=true" test`.
 
 Кількість файлів можна збільшити для вимірювання, але тест обмежений 500 файлами
 за запуск, щоб випадково не витратити storage cap. Звичайний `mvn test` не читає

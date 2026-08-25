@@ -20,21 +20,27 @@ import software.amazon.awssdk.services.s3.model.ListObjectVersionsRequest;
 import software.amazon.awssdk.services.s3.model.ListObjectVersionsResponse;
 import software.amazon.awssdk.services.s3.model.ObjectIdentifier;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.core.exception.SdkClientException;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
 
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -76,14 +82,12 @@ class B2TransportBenchmarkIT {
                 + Instant.now().toEpochMilli()
                 + "-"
                 + UUID.randomUUID();
+        System.out.println("B2 benchmark run prefix: " + runPrefix);
 
-        S3Client syncClient = createSyncClient(settings);
-        S3AsyncClient asyncClient = createAsyncClient(settings);
-        S3TransferManager transferManager = S3TransferManager.builder()
-                .s3Client(asyncClient)
-                .build();
-
-        try {
+        try (S3Client syncClient = createSyncClient(settings);
+             S3AsyncClient asyncClient = createAsyncClient(settings);
+             S3AsyncClient transferAsyncClient = createAsyncClient(settings);
+             S3TransferManager transferManager = createTransferManager(transferAsyncClient)) {
             runTransport(
                     "sync",
                     settings,
@@ -108,13 +112,10 @@ class B2TransportBenchmarkIT {
                     runPrefix + "/transfer-manager",
                     source,
                     syncClient,
-                    asyncClient,
+                    transferAsyncClient,
                     transferManager
             );
         } finally {
-            transferManager.close();
-            asyncClient.close();
-            syncClient.close();
             deleteRecursively(tempDir);
         }
     }
@@ -133,8 +134,11 @@ class B2TransportBenchmarkIT {
                 .contentType("image/png")
                 .build();
         ExecutorService executor = Executors.newFixedThreadPool(settings.concurrency());
-        long started = System.nanoTime();
         try {
+            upload(transport, request.toBuilder().key(prefix + "/warmup.png").build(), source,
+                    syncClient, asyncClient, transferManager);
+
+            long started = System.nanoTime();
             List<Future<UploadObservation>> uploads = new ArrayList<>(settings.fileCount());
             AtomicInteger inFlight = new AtomicInteger();
             AtomicInteger peakInFlight = new AtomicInteger();
@@ -159,6 +163,8 @@ class B2TransportBenchmarkIT {
             );
             System.out.println(metrics);
             assertThat(metrics.successes() + metrics.failures()).isEqualTo(settings.fileCount());
+            assertThat(metrics.failures()).isZero();
+            assertThat(metrics.successes()).isEqualTo(settings.fileCount());
         } finally {
             executor.shutdownNow();
             cleanupVersions(syncClient, settings.bucket(), prefix);
@@ -198,7 +204,7 @@ class B2TransportBenchmarkIT {
             operation.run();
             return UploadObservation.success(System.nanoTime() - started);
         } catch (Exception exception) {
-            return UploadObservation.failure(System.nanoTime() - started);
+            return UploadObservation.failure(System.nanoTime() - started, classifyFailure(exception));
         } finally {
             inFlight.decrementAndGet();
         }
@@ -240,6 +246,27 @@ class B2TransportBenchmarkIT {
                         .writeTimeout(SOCKET_TIMEOUT))
                 .overrideConfiguration(clientOverrideConfiguration())
                 .build();
+    }
+
+    private static S3TransferManager createTransferManager(S3AsyncClient asyncClient) {
+        return S3TransferManager.builder().s3Client(asyncClient).build();
+    }
+
+    private static String classifyFailure(Throwable failure) {
+        Throwable cause = failure;
+        while (cause instanceof CompletionException || cause instanceof ExecutionException) {
+            if (cause.getCause() == null) {
+                break;
+            }
+            cause = cause.getCause();
+        }
+        if (cause instanceof S3Exception serviceException) {
+            return "S3:" + serviceException.statusCode();
+        }
+        if (cause instanceof SdkClientException) {
+            return "SdkClientException";
+        }
+        return cause.getClass().getSimpleName();
     }
 
     private static ClientOverrideConfiguration clientOverrideConfiguration() {
@@ -335,8 +362,12 @@ class B2TransportBenchmarkIT {
             String prefix = normalizePrefix(System.getenv().getOrDefault("B2_OBJECT_PREFIX", "validator/"));
             URI endpoint = URI.create(endpointValue);
             String host = endpoint.getHost();
-            if (host == null || !host.toLowerCase(Locale.ROOT).startsWith("s3.")) {
-                throw new IllegalArgumentException("B2_ENDPOINT must be a Backblaze S3 endpoint");
+            if (!"https".equalsIgnoreCase(endpoint.getScheme())) {
+                throw new IllegalArgumentException("B2_ENDPOINT must use HTTPS");
+            }
+            if (host == null || !host.toLowerCase(Locale.ROOT)
+                    .matches("s3\\.[^.]+\\.backblazeb2\\.com")) {
+                throw new IllegalArgumentException("B2_ENDPOINT must be s3.<region>.backblazeb2.com");
             }
             String[] hostParts = host.split("\\.");
             if (hostParts.length < 4) {
@@ -381,13 +412,13 @@ class B2TransportBenchmarkIT {
         }
     }
 
-    private record UploadObservation(boolean success, long latencyNanos) {
+    private record UploadObservation(boolean success, long latencyNanos, String failureCategory) {
         private static UploadObservation success(long latencyNanos) {
-            return new UploadObservation(true, latencyNanos);
+            return new UploadObservation(true, latencyNanos, null);
         }
 
-        private static UploadObservation failure(long latencyNanos) {
-            return new UploadObservation(false, latencyNanos);
+        private static UploadObservation failure(long latencyNanos, String failureCategory) {
+            return new UploadObservation(false, latencyNanos, failureCategory);
         }
     }
 
@@ -401,7 +432,8 @@ class B2TransportBenchmarkIT {
             int peakInFlight,
             long p50Nanos,
             long p95Nanos,
-            long p99Nanos
+            long p99Nanos,
+            Map<String, Integer> failureCategories
     ) {
         private static BenchmarkMetrics from(
                 String transport,
@@ -423,8 +455,18 @@ class B2TransportBenchmarkIT {
                     peakInFlight,
                     percentile(latencies, 0.50),
                     percentile(latencies, 0.95),
-                    percentile(latencies, 0.99)
+                    percentile(latencies, 0.99),
+                    failureCategories(observations)
             );
+        }
+
+        private static Map<String, Integer> failureCategories(List<UploadObservation> observations) {
+            Map<String, Integer> categories = new TreeMap<>();
+            observations.stream()
+                    .filter(observation -> !observation.success())
+                    .map(UploadObservation::failureCategory)
+                    .forEach(category -> categories.merge(category, 1, Integer::sum));
+            return categories;
         }
 
         private static long percentile(List<Long> values, double percentile) {
@@ -451,6 +493,7 @@ class B2TransportBenchmarkIT {
                     + ", p99Ms=" + nanosToMillis(p99Nanos)
                     + ", successes=" + successes
                     + ", failures=" + failures
+                    + ", failureCategories=" + failureCategories
                     + ", peakInFlight=" + peakInFlight;
         }
 
