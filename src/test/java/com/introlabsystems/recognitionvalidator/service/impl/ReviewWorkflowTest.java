@@ -17,6 +17,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoUnit;
@@ -74,6 +75,96 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
 
         assertThat(claimed.imageId()).isEqualTo(older);
         assertThat(claimed.imageId()).isNotEqualTo(newer);
+    }
+
+    @Test
+    void claimsAndCountsCloudOnlyImageButExcludesImageMissingFromBothStores() {
+        UUID operatorId = insertOperator("cloud-only-queue");
+        String cloudOnly = insertImage(
+                3,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "cloud-only-session",
+                false,
+                false
+        );
+        String missing = insertImage(
+                4,
+                Instant.parse("2026-07-30T11:00:00Z"),
+                "bj_igt",
+                "missing-session",
+                false,
+                false
+        );
+        jdbc.update("""
+                UPDATE image_asset
+                SET cloud_object_key = ?, cloud_uploaded_at = ?
+                WHERE id = ?
+                """, "validator/" + cloudOnly + ".png",
+                Timestamp.from(Instant.parse("2026-07-30T12:00:00Z")), cloudOnly);
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                ReviewFilters.none(),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(cloudOnly);
+        assertThat(result.remaining()).isEqualTo(1L);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM review_task WHERE image_id = ?", String.class, missing
+        )).isEqualTo("PENDING");
+    }
+
+    @Test
+    void excludesExpiredAndIncompleteCloudOnlyImagesFromQueue() {
+        UUID operatorId = insertOperator("valid-cloud-only-queue");
+        String expired = insertImage(
+                5,
+                Instant.parse("2026-08-18T08:00:00Z"),
+                "bj_igt",
+                "expired-cloud-session",
+                false,
+                false
+        );
+        String incomplete = insertImage(
+                6,
+                Instant.parse("2026-08-18T09:00:00Z"),
+                "bj_igt",
+                "incomplete-cloud-session",
+                false,
+                false
+        );
+        String fresh = insertImage(
+                7,
+                Instant.parse("2026-08-18T10:00:00Z"),
+                "bj_igt",
+                "fresh-cloud-session",
+                false,
+                false
+        );
+        jdbc.update(
+                "UPDATE image_asset SET cloud_object_key = ?, cloud_uploaded_at = ? WHERE id = ?",
+                "validator/" + expired + ".png",
+                Timestamp.from(Instant.now().minus(Duration.ofDays(21)).minusSeconds(1)),
+                expired
+        );
+        jdbc.update(
+                "UPDATE image_asset SET cloud_uploaded_at = now() WHERE id = ?",
+                incomplete
+        );
+        markCloudUploaded(fresh, Instant.now());
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                ReviewFilters.none(),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(fresh);
+        assertThat(result.remaining()).isEqualTo(1L);
     }
 
     @Test

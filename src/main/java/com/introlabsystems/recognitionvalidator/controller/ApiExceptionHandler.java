@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
 import com.introlabsystems.recognitionvalidator.exception.ImageNotFoundException;
+import com.introlabsystems.recognitionvalidator.exception.ImageStorageUnavailableException;
 import com.introlabsystems.recognitionvalidator.exception.DecisionConflictException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -33,6 +34,14 @@ public class ApiExceptionHandler {
         return ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 exception.getMessage()
+        );
+    }
+
+    @ExceptionHandler(ImageStorageUnavailableException.class)
+    ProblemDetail imageStorageUnavailable(ImageStorageUnavailableException exception) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Image storage is temporarily unavailable"
         );
     }
 

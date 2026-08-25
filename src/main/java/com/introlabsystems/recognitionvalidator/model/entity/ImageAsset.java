@@ -28,7 +28,11 @@ import java.util.UUID;
                 @Index(name = "ix_image_token", columnList = "token_id"),
                 @Index(name = "ix_image_session", columnList = "session_id"),
                 @Index(name = "ix_image_notification", columnList = "is_notification"),
-                @Index(name = "ix_image_retention", columnList = "file_created_at")
+                @Index(name = "ix_image_retention", columnList = "file_created_at"),
+                @Index(
+                        name = "ix_image_cloud_upload",
+                        columnList = "file_available,cloud_uploaded_at,cloud_upload_next_attempt_at,file_created_at,id"
+                )
         }
 )
 @Getter
@@ -112,10 +116,33 @@ public class ImageAsset {
     @Column(name = "processed_at")
     private Instant processedAt;
 
+    @Column(name = "cloud_object_key", length = 1024)
+    private String cloudObjectKey;
+
+    @Column(name = "cloud_uploaded_at")
+    private Instant cloudUploadedAt;
+
+    @Column(name = "cloud_upload_next_attempt_at")
+    private Instant cloudUploadNextAttemptAt;
+
+    @Column(
+            name = "cloud_upload_attempt_count",
+            nullable = false,
+            columnDefinition = "integer default 0"
+    )
+    private int cloudUploadAttemptCount;
+
     @Column(name = "recognition_duration_ms")
     private Long recognitionDurationMs;
 
     @Enumerated(EnumType.STRING)
     @Column(name = "parse_status", nullable = false, length = 16)
     private ParseStatus parseStatus;
+
+    public void clearCloudStorage() {
+        cloudObjectKey = null;
+        cloudUploadedAt = null;
+        cloudUploadNextAttemptAt = null;
+        cloudUploadAttemptCount = 0;
+    }
 }

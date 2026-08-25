@@ -50,6 +50,59 @@ COUNT_REMAINING_SCREENSHOTS=true
 сохраняется в PostgreSQL. `POSTGRES_DATA_ROOT_HOST` является постоянным хранилищем
 БД и не должен находиться внутри контейнера.
 
+### Опциональное хранилище Backblaze B2
+
+B2 отключено по умолчанию. Для включения заполните в `.env` все следующие значения
+(`compose.yaml` передаёт их в `validator-api-app` без изменения имён):
+
+```dotenv
+B2_ENABLED=true
+B2_ENDPOINT=https://s3.eu-central-003.backblazeb2.com
+B2_BUCKET=replace-with-one-bucket
+B2_ACCESS_KEY_ID=replace-with-application-key-id
+B2_SECRET_ACCESS_KEY=replace-with-application-key-secret
+B2_OBJECT_PREFIX=validator/
+B2_UPLOAD_BATCH_SIZE=1000
+B2_UPLOAD_CONCURRENCY=8
+B2_UPLOAD_DELAY=10s
+B2_UPLOAD_RETRY_DELAY=5m
+B2_LOCAL_PREFERRED_AGE=3d
+B2_PRESIGNED_URL_TTL=30m
+B2_METADATA_RETENTION=21d
+```
+
+`B2_METADATA_RETENTION` должен оставаться равным `21d`: приложение отклонит
+другое значение, чтобы срок метаданных не расходился с lifecycle bucket.
+
+`B2_ENDPOINT` берётся со страницы bucket без имени bucket; регион выводится из
+`s3.<region>.backblazeb2.com`. Соединение с B2 всегда HTTPS. Application key
+ограничьте одним bucket, правами чтения/записи и prefix `validator/`; право
+`list all buckets` для штатной работы не нужно. В B2 настройте lifecycle для
+prefix `validator/`: скрыть объекты через 21 день, удалить hidden versions ещё
+через 1 день.
+
+Внутри Compose PostgreSQL использует
+`jdbc:postgresql://validator-api-db:5432/<DB_NAME>`; отдельный host-порт B2 не
+нужен и в Compose не публикуется. До возраста 3 дней локальный PNG имеет приоритет;
+после 3 дней или при пропаже локального файла broker возвращает авторизованный
+`307 Temporary Redirect` на pre-signed URL с `Cache-Control: no-store`. ZIP-экспорт
+читает B2 серверным потоком. Локальные метаданные хранятся 4 календарных UTC-дня,
+cloud-backed — 21 день от `cloud_uploaded_at`; физические PNG Validator не удаляет.
+
+Для rollback установите `B2_ENABLED=false` и перезапустите `validator-api-app`.
+Новые upload, B2 client и scheduler отключатся, локальная индексация продолжит
+работать, а объекты B2 удаляться не будут (ими управляет lifecycle).
+
+#### Smoke-проверка (только после явного approval, не выполнять автоматически)
+
+Перед любым PUT в реальный bucket требуется отдельное письменное разрешение
+владельца. Используйте только один выделенный тестовый PNG и не рабочий файл,
+например `bj_xchange_1_00000000-0000-0000-0000-000000000001_d_A_01-01-2026-00-00-00_1.png`.
+После approval включите B2, дождитесь строки с этим именем в `image_asset` и
+`cloud_uploaded_at`, проверьте `cloud_object_key` с prefix `validator/`, затем
+проверьте в UI `307` и один серверный ZIP. Результат зафиксируйте; тестовый объект
+оставьте lifecycle или удалите отдельной согласованной процедурой.
+
 ## 2. Запуск и проверка
 
 Собрать и запустить приложение с PostgreSQL:
@@ -381,6 +434,100 @@ WHERE ds.statistics_date >= (current_date - 6)
 ORDER BY ds.statistics_date, u.username;
 "
 ```
+
+### Состояние B2 upload и двух окон хранения
+
+Все запросы ниже только читают PostgreSQL. `upload_backlog` — локальные строки
+без успешной загрузки; `due_now` — строки, которые scheduler может взять сейчас;
+`retrying` — строки с хотя бы одной неудачной попыткой.
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT
+  count(*) FILTER (WHERE cloud_uploaded_at IS NOT NULL) AS uploaded_count,
+  count(*) FILTER (
+    WHERE cloud_uploaded_at IS NULL
+      AND (file_available OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0))
+  ) AS upload_backlog,
+  count(*) FILTER (
+    WHERE cloud_uploaded_at IS NULL
+      AND (file_available OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0))
+      AND (cloud_upload_next_attempt_at IS NULL OR cloud_upload_next_attempt_at <= now())
+  ) AS due_now,
+  count(*) FILTER (
+    WHERE file_available AND cloud_uploaded_at IS NULL AND cloud_upload_attempt_count > 0
+  ) AS retrying
+FROM image_asset;
+"
+```
+
+Самый старый due-кандидат:
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT id, file_name, relative_path, file_created_at,
+       cloud_upload_next_attempt_at, cloud_upload_attempt_count
+FROM image_asset
+WHERE cloud_uploaded_at IS NULL
+  AND (file_available OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0))
+  AND (cloud_upload_next_attempt_at IS NULL OR cloud_upload_next_attempt_at <= now())
+ORDER BY file_created_at, id
+LIMIT 1;
+"
+```
+
+Локальная/cloud-доступность (очередь и rejected ZIP используют `local OR cloud`):
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT
+  count(*) FILTER (WHERE file_available AND cloud_uploaded_at IS NULL) AS local_only,
+  count(*) FILTER (
+    WHERE NOT file_available
+      AND cloud_object_key IS NOT NULL
+      AND cloud_uploaded_at > now() - interval '21 days'
+  ) AS cloud_only,
+  count(*) FILTER (
+    WHERE file_available
+      AND cloud_object_key IS NOT NULL
+      AND cloud_uploaded_at > now() - interval '21 days'
+  ) AS both_stores,
+  count(*) FILTER (
+    WHERE NOT file_available
+      AND NOT COALESCE((
+        cloud_object_key IS NOT NULL
+        AND cloud_uploaded_at > now() - interval '21 days'
+      ), FALSE)
+  ) AS unavailable,
+  count(*) FILTER (
+    WHERE file_available
+       OR (
+         cloud_object_key IS NOT NULL
+         AND cloud_uploaded_at > now() - interval '21 days'
+       )
+  ) AS logically_available
+FROM image_asset;
+"
+```
+
+Проверка 21-дневной cloud-очистки:
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT
+  count(*) FILTER (WHERE cloud_uploaded_at < now() - interval '21 days') AS past_cutoff,
+  count(*) FILTER (WHERE cloud_uploaded_at >= now() - interval '21 days') AS in_window,
+  min(cloud_uploaded_at) AS oldest_cloud_upload
+FROM image_asset
+WHERE cloud_uploaded_at IS NOT NULL;
+"
+```
+
+После ежедневного cleanup `past_cutoff` должен быть `0`. Сравнение строгое (`<`):
+точная граница 21 дня удаляется только после её прохождения. Для cloud-backed
+строк cleanup использует `B2_METADATA_RETENTION=21d`, для локальных —
+`VALIDATOR_RETENTION=4d` по календарным UTC-дням. Cleanup удаляет метаданные и
+связанные задания БД, но не PNG и не B2 objects.
 
 ## 9. Проверка watcher и новых файлов
 

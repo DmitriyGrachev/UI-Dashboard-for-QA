@@ -16,6 +16,18 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RejectedScreenshotExportRepository {
 
+    private static final String AVAILABLE_IMAGE_PREDICATE = """
+            (
+                ia.file_available = TRUE
+                OR (
+                    ia.cloud_object_key IS NOT NULL
+                    AND BTRIM(ia.cloud_object_key) <> ''
+                    AND ia.cloud_uploaded_at IS NOT NULL
+                    AND ia.cloud_uploaded_at > CURRENT_TIMESTAMP - INTERVAL '21 days'
+                )
+            )
+            """;
+
     private final NamedParameterJdbcTemplate jdbc;
 
     public List<ExportCandidate> findCandidates(
@@ -29,8 +41,8 @@ public class RejectedScreenshotExportRepository {
                 JOIN image_asset ia ON ia.id = rt.image_id
                 WHERE rt.status = 'COMPLETED'
                   AND rt.decision = 'REJECTED'
-                  AND ia.file_available = TRUE
-                """);
+                  AND %s
+                """.formatted(AVAILABLE_IMAGE_PREDICATE));
         MapSqlParameterSource parameters = new MapSqlParameterSource();
         if (!includePreviouslyDownloaded) {
             sql.append(" AND rt.rejected_downloaded_at IS NULL");

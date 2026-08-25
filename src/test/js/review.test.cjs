@@ -2,17 +2,46 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    createImageRetryPlan,
     createReviewDateRange,
     formatUtcDate,
     prepareViewForNextItem,
     readStoredScale,
     readStoredFilters,
+    reviewActionsDisabled,
     toUtcIso,
     toOptionalLong,
     toOptionalBoolean,
     writeStoredScale,
     writeStoredFilters
 } = require("../../main/resources/static/js/review.js");
+
+test("image loading retries twice with a fresh broker URL", () => {
+    assert.deepEqual(
+        createImageRetryPlan("/api/images/image-1/content", 0),
+        {
+            attempt: 1,
+            delayMs: 250,
+            url: "/api/images/image-1/content?_imageRetry=1"
+        }
+    );
+    assert.deepEqual(
+        createImageRetryPlan("/api/images/image-1/content?download=true", 1),
+        {
+            attempt: 2,
+            delayMs: 1000,
+            url: "/api/images/image-1/content?download=true&_imageRetry=2"
+        }
+    );
+    assert.equal(createImageRetryPlan("/api/images/image-1/content", 2), null);
+});
+
+test("review decisions stay disabled until the screenshot is visible", () => {
+    assert.equal(reviewActionsDisabled({busy: false, item: {imageId: "1"}, imageReady: false}), true);
+    assert.equal(reviewActionsDisabled({busy: false, item: {imageId: "1"}, imageReady: true}), false);
+    assert.equal(reviewActionsDisabled({busy: true, item: {imageId: "1"}, imageReady: true}), true);
+    assert.equal(reviewActionsDisabled({busy: false, item: null, imageReady: true}), true);
+});
 
 test("review delegates date range behavior to the shared picker", () => {
     assert.equal(typeof createReviewDateRange, "function");

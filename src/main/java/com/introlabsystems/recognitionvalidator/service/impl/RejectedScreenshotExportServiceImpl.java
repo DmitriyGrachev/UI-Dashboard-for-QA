@@ -46,11 +46,16 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
             )) {
                 try {
                     var content = storage.open(candidate.imageId());
-                    zip.putNextEntry(new ZipEntry(content.fileName()));
+                    boolean entryOpened = false;
                     try (InputStream input = content.resource().getInputStream()) {
+                        zip.putNextEntry(new ZipEntry(content.fileName()));
+                        entryOpened = true;
                         input.transferTo(zip);
+                    } finally {
+                        if (entryOpened) {
+                            zip.closeEntry();
+                        }
                     }
-                    zip.closeEntry();
                     writtenIds.add(candidate.imageId());
                 } catch (ImageNotFoundException ignored) {
                     // The storage service marks the stale database row unavailable.

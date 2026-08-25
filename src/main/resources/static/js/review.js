@@ -81,13 +81,33 @@ function createReviewDateRange(pickerApi, elements, applyFilters) {
     });
 }
 
+const IMAGE_LOAD_RETRY_DELAYS_MS = [250, 1000];
+
+function createImageRetryPlan(baseUrl, failedAttempts) {
+    const delayMs = IMAGE_LOAD_RETRY_DELAYS_MS[failedAttempts];
+    if (delayMs === undefined) return null;
+    const attempt = failedAttempts + 1;
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return {
+        attempt,
+        delayMs,
+        url: `${baseUrl}${separator}_imageRetry=${attempt}`
+    };
+}
+
+function reviewActionsDisabled(reviewState) {
+    return reviewState.busy || !reviewState.item || !reviewState.imageReady;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        createImageRetryPlan,
         createReviewDateRange,
         formatUtcDate,
         prepareViewForNextItem,
         readStoredFilters,
         readStoredScale,
+        reviewActionsDisabled,
         toUtcIso,
         toOptionalLong,
         toOptionalBoolean,
@@ -167,7 +187,10 @@ if (typeof document !== "undefined") {
         originY: 0,
         remaining: null,
         claimController: null,
-        filterTimer: null
+        filterTimer: null,
+        imageReady: false,
+        imageRetryAttempts: 0,
+        imageRetryTimer: null
     };
 
     function requestHeaders() {
@@ -377,7 +400,11 @@ if (typeof document !== "undefined") {
     }
 
     function renderItem(item) {
+        clearTimeout(state.imageRetryTimer);
         state.item = item;
+        state.imageReady = false;
+        state.imageRetryAttempts = 0;
+        state.imageRetryTimer = null;
         prepareViewForNextItem(state);
         elements.stage.classList.remove("dragging");
         elements.fileName.textContent = item.fileName;
@@ -404,7 +431,11 @@ if (typeof document !== "undefined") {
     }
 
     function showEmpty(message) {
+        clearTimeout(state.imageRetryTimer);
         state.item = null;
+        state.imageReady = false;
+        state.imageRetryAttempts = 0;
+        state.imageRetryTimer = null;
         elements.image.hidden = true;
         elements.image.removeAttribute("src");
         elements.viewerMessage.hidden = false;
@@ -502,7 +533,7 @@ if (typeof document !== "undefined") {
     }
 
     function updateActions() {
-        const disabled = state.busy || !state.item;
+        const disabled = reviewActionsDisabled(state);
         elements.accept.disabled = disabled;
         elements.reject.disabled = disabled;
     }
@@ -654,8 +685,31 @@ if (typeof document !== "undefined") {
     elements.stage.addEventListener("pointerup", finishDrag);
     elements.stage.addEventListener("pointercancel", finishDrag);
 
-    elements.image.addEventListener("error", () => {
+    elements.image.addEventListener("load", () => {
         if (!state.item) return;
+        state.imageReady = true;
+        updateActions();
+    });
+
+    elements.image.addEventListener("error", () => {
+        const item = state.item;
+        if (!item) return;
+        state.imageReady = false;
+        updateActions();
+
+        const retry = createImageRetryPlan(item.imageUrl, state.imageRetryAttempts);
+        if (retry) {
+            state.imageRetryAttempts = retry.attempt;
+            const expectedImageId = item.imageId;
+            clearTimeout(state.imageRetryTimer);
+            state.imageRetryTimer = window.setTimeout(() => {
+                state.imageRetryTimer = null;
+                if (!state.item || state.item.imageId !== expectedImageId) return;
+                elements.image.src = retry.url;
+            }, retry.delayMs);
+            return;
+        }
+
         state.item = null;
         showEmpty("The file is no longer available. Loading the next assignment…");
         claim({includeRemaining: remainingCountEnabled});

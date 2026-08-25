@@ -37,6 +37,17 @@ public class ReviewClaimRepository {
             JOIN image_asset ia ON ia.id = rt.image_id
             """;
     private static final RowMapper<ReviewItem> ITEM_MAPPER = ReviewClaimRepository::mapItem;
+    private static final String AVAILABLE_IMAGE_PREDICATE = """
+            (
+                ia.file_available = TRUE
+                OR (
+                    ia.cloud_object_key IS NOT NULL
+                    AND BTRIM(ia.cloud_object_key) <> ''
+                    AND ia.cloud_uploaded_at IS NOT NULL
+                    AND ia.cloud_uploaded_at > CURRENT_TIMESTAMP - INTERVAL '21 days'
+                )
+            )
+            """;
 
     private final NamedParameterJdbcTemplate jdbc;
 
@@ -97,10 +108,8 @@ public class ReviewClaimRepository {
 
     public Optional<ReviewItem> findItem(String imageId) {
         List<ReviewItem> items = jdbc.query(
-                ITEM_COLUMNS + """
-                         WHERE rt.image_id = :imageId
-                           AND ia.file_available = TRUE
-                        """,
+                ITEM_COLUMNS + " WHERE rt.image_id = :imageId AND "
+                        + AVAILABLE_IMAGE_PREDICATE,
                 new MapSqlParameterSource("imageId", imageId),
                 ITEM_MAPPER
         );
@@ -132,19 +141,18 @@ public class ReviewClaimRepository {
                           SELECT 1
                           FROM image_asset ia
                           WHERE ia.id = rt.image_id
-                            AND ia.file_available = TRUE
+                            AND %s
                       )
                   )
-                """, new MapSqlParameterSource("now", Timestamp.from(now)));
+                """.formatted(AVAILABLE_IMAGE_PREDICATE),
+                new MapSqlParameterSource("now", Timestamp.from(now)));
     }
 
     private Optional<ReviewItem> activeAssignment(UUID operatorId, ReviewFilters filters) {
         MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
-        StringBuilder sql = new StringBuilder(ITEM_COLUMNS).append("""
-                 WHERE rt.status = 'ASSIGNED'
-                   AND rt.assigned_to = :operatorId
-                   AND ia.file_available = TRUE
-                """);
+        StringBuilder sql = new StringBuilder(ITEM_COLUMNS)
+                .append(" WHERE rt.status = 'ASSIGNED' AND rt.assigned_to = :operatorId AND ")
+                .append(AVAILABLE_IMAGE_PREDICATE);
         appendFilters(sql, filters, parameters);
         sql.append(" LIMIT 1");
         List<ReviewItem> items = jdbc.query(
@@ -208,8 +216,8 @@ public class ReviewClaimRepository {
                 FROM review_task rt
                 JOIN image_asset ia ON ia.id = rt.image_id
                 WHERE rt.status = 'PENDING'
-                  AND ia.file_available = TRUE
-                """.formatted(projection));
+                  AND %s
+                """.formatted(projection, AVAILABLE_IMAGE_PREDICATE));
     }
 
     private void appendFilters(

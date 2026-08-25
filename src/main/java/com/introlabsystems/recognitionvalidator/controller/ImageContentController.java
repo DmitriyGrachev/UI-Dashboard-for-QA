@@ -7,6 +7,7 @@ import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,7 +24,15 @@ public class ImageContentController {
 
     @GetMapping("/{imageId}/content")
     ResponseEntity<?> content(@PathVariable String imageId) {
-        ImageStorageService.ImageContent content = storage.open(imageId);
+        ImageStorageService.BrowserDelivery delivery = storage.openForBrowser(imageId);
+        if (delivery instanceof ImageStorageService.BrowserDelivery.Redirect redirect) {
+            return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
+                    .header(HttpHeaders.LOCATION, redirect.location().toString())
+                    .cacheControl(CacheControl.noStore())
+                    .build();
+        }
+        ImageStorageService.ImageContent content =
+                ((ImageStorageService.BrowserDelivery.Local) delivery).content();
         ContentDisposition disposition = ContentDisposition.inline()
                 .filename(content.fileName(), StandardCharsets.UTF_8)
                 .build();
