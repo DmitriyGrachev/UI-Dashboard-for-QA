@@ -222,6 +222,32 @@ class B2StoragePropertiesTest {
     }
 
     @Test
+    void rejectsApiTimeoutsWhenAttemptIsShorterThanSocketTimeout() {
+        B2StorageProperties properties = propertiesWithTimeouts(
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(45),
+                Duration.ofSeconds(30),
+                Duration.ofMinutes(2),
+                4
+        );
+
+        assertThat(validate(properties)).isNotEmpty();
+    }
+
+    @Test
+    void rejectsNonPositiveSdkMaxAttempts() {
+        B2StorageProperties properties = propertiesWithTimeouts(
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                0
+        );
+
+        assertThat(validate(properties)).isNotEmpty();
+    }
+
+    @Test
     void redactsCredentialsFromToString() {
         B2StorageProperties properties = new B2StorageProperties(
                 true,
@@ -325,6 +351,35 @@ class B2StoragePropertiesTest {
                 Duration.ofDays(3),
                 Duration.ofMinutes(30),
                 Duration.ofDays(21)
+        );
+    }
+
+    private static B2StorageProperties propertiesWithTimeouts(
+            Duration connectTimeout,
+            Duration socketTimeout,
+            Duration apiCallAttemptTimeout,
+            Duration apiCallTimeout,
+            int maxAttempts
+    ) {
+        return new B2StorageProperties(
+                false,
+                ENDPOINT,
+                "bucket",
+                "",
+                "",
+                "validator",
+                1000,
+                8,
+                Duration.ofSeconds(10),
+                Duration.ofMinutes(5),
+                Duration.ofDays(3),
+                Duration.ofMinutes(30),
+                Duration.ofDays(21),
+                connectTimeout,
+                socketTimeout,
+                apiCallAttemptTimeout,
+                apiCallTimeout,
+                maxAttempts
         );
     }
 

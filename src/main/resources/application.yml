@@ -57,6 +57,11 @@ validator:
     local-preferred-age: ${B2_LOCAL_PREFERRED_AGE:3d}
     presigned-url-ttl: ${B2_PRESIGNED_URL_TTL:30m}
     metadata-retention: ${B2_METADATA_RETENTION:21d}
+    connect-timeout: ${B2_CONNECT_TIMEOUT:5s}
+    socket-timeout: ${B2_SOCKET_TIMEOUT:30s}
+    api-call-attempt-timeout: ${B2_API_CALL_ATTEMPT_TIMEOUT:45s}
+    api-call-timeout: ${B2_API_CALL_TIMEOUT:2m}
+    max-attempts: ${B2_MAX_ATTEMPTS:4}
   games:
     - bj_xchange
     - bj_relax

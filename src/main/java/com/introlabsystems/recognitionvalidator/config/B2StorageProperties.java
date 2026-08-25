@@ -3,6 +3,7 @@ package com.introlabsystems.recognitionvalidator.config;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
+import org.springframework.boot.context.properties.bind.ConstructorBinding;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 import software.amazon.awssdk.regions.Region;
@@ -27,7 +28,12 @@ public record B2StorageProperties(
         @NotNull Duration uploadRetryDelay,
         @NotNull Duration localPreferredAge,
         @NotNull Duration presignedUrlTtl,
-        @NotNull Duration metadataRetention
+        @NotNull Duration metadataRetention,
+        @NotNull Duration connectTimeout,
+        @NotNull Duration socketTimeout,
+        @NotNull Duration apiCallAttemptTimeout,
+        @NotNull Duration apiCallTimeout,
+        @Min(1) int maxAttempts
 ) {
 
     private static final Pattern B2_ENDPOINT = Pattern.compile(
@@ -37,8 +43,46 @@ public record B2StorageProperties(
     private static final Duration MAX_PRESIGNED_URL_TTL = Duration.ofDays(7);
     private static final Duration REQUIRED_METADATA_RETENTION = Duration.ofDays(21);
 
+    @ConstructorBinding
     public B2StorageProperties {
         objectPrefix = normalizePrefix(objectPrefix);
+    }
+
+    public B2StorageProperties(
+            boolean enabled,
+            URI endpoint,
+            String bucket,
+            String accessKeyId,
+            String secretAccessKey,
+            String objectPrefix,
+            int uploadBatchSize,
+            int uploadConcurrency,
+            Duration uploadDelay,
+            Duration uploadRetryDelay,
+            Duration localPreferredAge,
+            Duration presignedUrlTtl,
+            Duration metadataRetention
+    ) {
+        this(
+                enabled,
+                endpoint,
+                bucket,
+                accessKeyId,
+                secretAccessKey,
+                objectPrefix,
+                uploadBatchSize,
+                uploadConcurrency,
+                uploadDelay,
+                uploadRetryDelay,
+                localPreferredAge,
+                presignedUrlTtl,
+                metadataRetention,
+                Duration.ofSeconds(5),
+                Duration.ofSeconds(30),
+                Duration.ofSeconds(45),
+                Duration.ofMinutes(2),
+                4
+        );
     }
 
     public Region region() {
@@ -108,7 +152,22 @@ public record B2StorageProperties(
         return isPositive(uploadDelay)
                 && isPositive(uploadRetryDelay)
                 && isPositive(localPreferredAge)
-                && isPositive(metadataRetention);
+                && isPositive(metadataRetention)
+                && isPositive(connectTimeout)
+                && isPositive(socketTimeout)
+                && isPositive(apiCallAttemptTimeout)
+                && isPositive(apiCallTimeout);
+    }
+
+    @AssertTrue(message = "B2 API timeout ordering is invalid")
+    public boolean isApiTimeoutsValid() {
+        return isPositive(connectTimeout)
+                && isPositive(socketTimeout)
+                && isPositive(apiCallAttemptTimeout)
+                && isPositive(apiCallTimeout)
+                && connectTimeout.compareTo(socketTimeout) <= 0
+                && socketTimeout.compareTo(apiCallAttemptTimeout) <= 0
+                && apiCallAttemptTimeout.compareTo(apiCallTimeout) <= 0;
     }
 
     @AssertTrue(message = "B2 metadata retention must be exactly 21 days")
@@ -156,6 +215,11 @@ public record B2StorageProperties(
                 + ", localPreferredAge=" + localPreferredAge
                 + ", presignedUrlTtl=" + presignedUrlTtl
                 + ", metadataRetention=" + metadataRetention
+                + ", connectTimeout=" + connectTimeout
+                + ", socketTimeout=" + socketTimeout
+                + ", apiCallAttemptTimeout=" + apiCallAttemptTimeout
+                + ", apiCallTimeout=" + apiCallTimeout
+                + ", maxAttempts=" + maxAttempts
                 + ']';
     }
 
