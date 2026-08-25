@@ -2,7 +2,11 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    createImageAvailabilityRetryUrl,
     createImageRetryPlan,
+    createImageAvailabilityUrl,
+    isLoginRedirect,
+    imageAvailabilityAction,
     createReviewDateRange,
     formatUtcDate,
     prepareViewForNextItem,
@@ -34,6 +38,34 @@ test("image loading retries twice with a fresh broker URL", () => {
         }
     );
     assert.equal(createImageRetryPlan("/api/images/image-1/content", 2), null);
+});
+
+test("image availability uses an encoded same-origin endpoint", () => {
+    assert.equal(
+        createImageAvailabilityUrl("image/1 with spaces"),
+        "/api/images/image%2F1%20with%20spaces/availability"
+    );
+    assert.equal(
+        createImageAvailabilityRetryUrl("/api/images/image-1/content?source=cloud"),
+        "/api/images/image-1/content?source=cloud&_imageRetry=availability"
+    );
+});
+
+test("availability statuses select retry, advance, or hold", () => {
+    assert.equal(imageAvailabilityAction(204), "retry");
+    assert.equal(imageAvailabilityAction(404), "advance");
+    assert.equal(imageAvailabilityAction(503), "hold");
+});
+
+test("login redirects are recognized after fetch follows a 302", () => {
+    assert.equal(
+        isLoginRedirect({redirected: true, url: "https://app.example/login"}),
+        true
+    );
+    assert.equal(
+        isLoginRedirect({redirected: true, url: "https://app.example/review"}),
+        false
+    );
 });
 
 test("review decisions stay disabled until the screenshot is visible", () => {

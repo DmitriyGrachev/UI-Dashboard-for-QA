@@ -43,4 +43,14 @@ public class ImageContentController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
                 .body(content.resource());
     }
+
+    @GetMapping("/{imageId}/availability")
+    ResponseEntity<Void> availability(@PathVariable String imageId) {
+        HttpStatus status = storage.verifyForBrowser(imageId)
+                ? HttpStatus.NO_CONTENT
+                : HttpStatus.NOT_FOUND;
+        return ResponseEntity.status(status)
+                .cacheControl(CacheControl.noStore())
+                .build();
+    }
 }

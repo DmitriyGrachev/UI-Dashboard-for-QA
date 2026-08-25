@@ -8,6 +8,8 @@ public interface ImageStorageService {
 
     BrowserDelivery openForBrowser(String imageId);
 
+    boolean verifyForBrowser(String imageId);
+
     ImageContent open(String imageId);
 
     sealed interface BrowserDelivery permits BrowserDelivery.Local, BrowserDelivery.Redirect {

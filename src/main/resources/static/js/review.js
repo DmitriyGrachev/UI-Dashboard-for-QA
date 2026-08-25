@@ -95,12 +95,34 @@ function createImageRetryPlan(baseUrl, failedAttempts) {
     };
 }
 
+function createImageAvailabilityUrl(imageId) {
+    return `/api/images/${encodeURIComponent(imageId)}/availability`;
+}
+
+function createImageAvailabilityRetryUrl(baseUrl) {
+    const separator = baseUrl.includes("?") ? "&" : "?";
+    return `${baseUrl}${separator}_imageRetry=availability`;
+}
+
+function imageAvailabilityAction(status) {
+    if (status === 204) return "retry";
+    if (status === 404) return "advance";
+    return "hold";
+}
+
+function isLoginRedirect(response) {
+    if (!response.redirected || !response.url) return false;
+    return new URL(response.url, "http://localhost").pathname === "/login";
+}
+
 function reviewActionsDisabled(reviewState) {
     return reviewState.busy || !reviewState.item || !reviewState.imageReady;
 }
 
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        createImageAvailabilityRetryUrl,
+        createImageAvailabilityUrl,
         createImageRetryPlan,
         createReviewDateRange,
         formatUtcDate,
@@ -108,6 +130,8 @@ if (typeof module !== "undefined" && module.exports) {
         readStoredFilters,
         readStoredScale,
         reviewActionsDisabled,
+        imageAvailabilityAction,
+        isLoginRedirect,
         toUtcIso,
         toOptionalLong,
         toOptionalBoolean,
@@ -190,7 +214,9 @@ if (typeof document !== "undefined") {
         filterTimer: null,
         imageReady: false,
         imageRetryAttempts: 0,
-        imageRetryTimer: null
+        imageRetryTimer: null,
+        imageAvailabilityChecked: false,
+        imageAvailabilityInFlight: false
     };
 
     function requestHeaders() {
@@ -394,17 +420,14 @@ if (typeof document !== "undefined") {
         return response.json();
     }
 
-    function isLoginRedirect(response) {
-        if (!response.redirected || !response.url) return false;
-        return new URL(response.url, window.location.origin).pathname === "/login";
-    }
-
     function renderItem(item) {
         clearTimeout(state.imageRetryTimer);
         state.item = item;
         state.imageReady = false;
         state.imageRetryAttempts = 0;
         state.imageRetryTimer = null;
+        state.imageAvailabilityChecked = false;
+        state.imageAvailabilityInFlight = false;
         prepareViewForNextItem(state);
         elements.stage.classList.remove("dragging");
         elements.fileName.textContent = item.fileName;
@@ -436,6 +459,8 @@ if (typeof document !== "undefined") {
         state.imageReady = false;
         state.imageRetryAttempts = 0;
         state.imageRetryTimer = null;
+        state.imageAvailabilityChecked = false;
+        state.imageAvailabilityInFlight = false;
         elements.image.hidden = true;
         elements.image.removeAttribute("src");
         elements.viewerMessage.hidden = false;
@@ -691,11 +716,65 @@ if (typeof document !== "undefined") {
         updateActions();
     });
 
+    function showStorageUnavailable(message = "Image storage is temporarily unavailable. Try again later.") {
+        clearTimeout(state.imageRetryTimer);
+        state.imageReady = false;
+        elements.image.hidden = true;
+        elements.viewerMessage.hidden = false;
+        elements.viewerMessage.textContent = message;
+        elements.decisionMessage.textContent = "The assignment is kept. Try again later.";
+        updateActions();
+    }
+
+    async function verifyImageAvailability(item) {
+        const expectedImageId = item.imageId;
+        if (state.imageAvailabilityInFlight) return;
+        state.imageAvailabilityInFlight = true;
+        try {
+            const response = await fetch(createImageAvailabilityUrl(expectedImageId), {
+                cache: "no-store"
+            });
+            if (!state.item || state.item.imageId !== expectedImageId) return;
+            if (response.status === 401 || isLoginRedirect(response)) {
+                window.location.replace("/login?expired");
+                return;
+            }
+
+            state.imageAvailabilityChecked = true;
+            const action = imageAvailabilityAction(response.status);
+            if (action === "retry") {
+                state.imageRetryAttempts = 0;
+                elements.viewerMessage.hidden = true;
+                elements.image.hidden = false;
+                elements.image.src = createImageAvailabilityRetryUrl(item.imageUrl);
+            } else if (action === "advance") {
+                showEmpty("The file is no longer available. Loading the next assignment…");
+                claim({includeRemaining: remainingCountEnabled});
+            } else {
+                showStorageUnavailable();
+            }
+        } catch {
+            if (state.item && state.item.imageId === expectedImageId) {
+                state.imageAvailabilityChecked = true;
+                showStorageUnavailable();
+            }
+        } finally {
+            if (state.item && state.item.imageId === expectedImageId) {
+                state.imageAvailabilityInFlight = false;
+            }
+        }
+    }
+
     elements.image.addEventListener("error", () => {
         const item = state.item;
         if (!item) return;
         state.imageReady = false;
         updateActions();
+
+        if (state.imageAvailabilityChecked) {
+            showStorageUnavailable("The screenshot could not be loaded. Try again later.");
+            return;
+        }
 
         const retry = createImageRetryPlan(item.imageUrl, state.imageRetryAttempts);
         if (retry) {
@@ -710,9 +789,7 @@ if (typeof document !== "undefined") {
             return;
         }
 
-        state.item = null;
-        showEmpty("The file is no longer available. Loading the next assignment…");
-        claim({includeRemaining: remainingCountEnabled});
+        verifyImageAvailability(item);
     });
 
     document.addEventListener("keydown", event => {

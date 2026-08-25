@@ -85,6 +85,33 @@ public class ImageStorageServiceImpl implements ImageStorageService {
     }
 
     @Override
+    @Transactional(noRollbackFor = ImageStorageUnavailableException.class)
+    public boolean verifyForBrowser(String imageId) {
+        ImageAsset asset = findAsset(imageId);
+        boolean localAvailable = isLocalAvailable(asset);
+        boolean cloudAvailable = hasCloud(asset);
+        if (!localAvailable) {
+            markUnavailable(asset);
+        }
+
+        if (localAvailable && (!cloudAvailable || isFresh(asset))) {
+            return true;
+        }
+        if (cloudAvailable && cloudStorage != null) {
+            if (cloudExists(asset.getCloudObjectKey())) {
+                return true;
+            }
+            asset.clearCloudStorage();
+            if (isLocalAvailable(asset)) {
+                return true;
+            }
+            markUnavailable(asset);
+            return false;
+        }
+        return localAvailable && isLocalAvailable(asset);
+    }
+
+    @Override
     @Transactional(noRollbackFor = {
             ImageNotFoundException.class,
             ImageStorageUnavailableException.class
@@ -190,6 +217,14 @@ public class ImageStorageServiceImpl implements ImageStorageService {
     private java.net.URI presign(String objectKey) {
         try {
             return cloudStorage.presignGet(objectKey, b2Properties.presignedUrlTtl());
+        } catch (SdkException exception) {
+            throw new ImageStorageUnavailableException(exception);
+        }
+    }
+
+    private boolean cloudExists(String objectKey) {
+        try {
+            return cloudStorage.exists(objectKey);
         } catch (SdkException exception) {
             throw new ImageStorageUnavailableException(exception);
         }
