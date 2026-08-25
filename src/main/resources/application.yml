@@ -51,7 +51,7 @@ validator:
     secret-access-key: ${B2_SECRET_ACCESS_KEY:}
     object-prefix: ${B2_OBJECT_PREFIX:validator/}
     upload-batch-size: ${B2_UPLOAD_BATCH_SIZE:1000}
-    upload-concurrency: ${B2_UPLOAD_CONCURRENCY:8}
+    upload-concurrency: ${B2_UPLOAD_CONCURRENCY:32}
     upload-delay: ${B2_UPLOAD_DELAY:10s}
     upload-retry-delay: ${B2_UPLOAD_RETRY_DELAY:5m}
     local-preferred-age: ${B2_LOCAL_PREFERRED_AGE:3d}

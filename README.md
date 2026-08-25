@@ -68,7 +68,7 @@ B2 вимкнено за замовчуванням (`B2_ENABLED=false`). Уві
 | `B2_SECRET_ACCESS_KEY` | порожньо | Секрет application key |
 | `B2_OBJECT_PREFIX` | `validator/` | Префікс об'єктів і обмеження application key |
 | `B2_UPLOAD_BATCH_SIZE` | `1000` | Максимум кандидатів за один цикл |
-| `B2_UPLOAD_CONCURRENCY` | `8` | Максимум одночасних PUT |
+| `B2_UPLOAD_CONCURRENCY` | `32` | Максимум одночасних PUT; локальний benchmark не показав користі вище 32 |
 | `B2_UPLOAD_DELAY` | `10s` | Затримка між циклами завантаження |
 | `B2_UPLOAD_RETRY_DELAY` | `5m` | Затримка повторної спроби після помилки |
 | `B2_LOCAL_PREFERRED_AGE` | `3d` | Локальний файл має перевагу до цього віку |
