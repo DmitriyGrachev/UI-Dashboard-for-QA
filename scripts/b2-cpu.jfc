@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration version="2.0" label="B2 CPU benchmark" description="Bounded CPU and runtime telemetry for the B2 benchmark">
+  <event name="jdk.CPULoad">
+    <setting name="enabled">true</setting>
+    <setting name="period">1 s</setting>
+  </event>
+  <event name="jdk.ThreadCPULoad">
+    <setting name="enabled">true</setting>
+    <setting name="period">1 s</setting>
+  </event>
+  <event name="jdk.ExecutionSample">
+    <setting name="enabled">true</setting>
+    <setting name="period">20 ms</setting>
+    <setting name="stackTrace">true</setting>
+  </event>
+  <event name="jdk.NativeMethodSample">
+    <setting name="enabled">true</setting>
+    <setting name="period">20 ms</setting>
+    <setting name="stackTrace">true</setting>
+  </event>
+  <event name="jdk.GarbageCollection">
+    <setting name="enabled">true</setting>
+    <setting name="threshold">0 ms</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+  <event name="jdk.GCHeapSummary">
+    <setting name="enabled">true</setting>
+    <setting name="period">1 s</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+  <event name="jdk.Compilation">
+    <setting name="enabled">true</setting>
+    <setting name="threshold">0 ms</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+  <event name="jdk.FileRead">
+    <setting name="enabled">true</setting>
+    <setting name="threshold">20 ms</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+  <event name="jdk.FileWrite">
+    <setting name="enabled">true</setting>
+    <setting name="threshold">20 ms</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+  <event name="jdk.SocketRead">
+    <setting name="enabled">true</setting>
+    <setting name="threshold">20 ms</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+  <event name="jdk.SocketWrite">
+    <setting name="enabled">true</setting>
+    <setting name="threshold">20 ms</setting>
+    <setting name="stackTrace">false</setting>
+  </event>
+</configuration>

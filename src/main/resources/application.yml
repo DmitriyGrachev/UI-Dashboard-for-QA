@@ -44,6 +44,27 @@ validator:
   watch-flush-interval: ${VALIDATOR_WATCH_FLUSH_INTERVAL:2s}
   watch-max-pending-events: ${VALIDATOR_WATCH_MAX_PENDING_EVENTS:50000}
   count-remaining-screenshots: ${COUNT_REMAINING_SCREENSHOTS:true}
+  integration:
+    image-api-key: ${INTEGRATION_IMAGE_API_KEY:}
+  b2:
+    enabled: ${B2_ENABLED:false}
+    endpoint: ${B2_ENDPOINT:}
+    bucket: ${B2_BUCKET:}
+    access-key-id: ${B2_ACCESS_KEY_ID:}
+    secret-access-key: ${B2_SECRET_ACCESS_KEY:}
+    object-prefix: ${B2_OBJECT_PREFIX:validator/}
+    upload-batch-size: ${B2_UPLOAD_BATCH_SIZE:1000}
+    upload-concurrency: ${B2_UPLOAD_CONCURRENCY:8}
+    upload-delay: ${B2_UPLOAD_DELAY:10s}
+    upload-retry-delay: ${B2_UPLOAD_RETRY_DELAY:5m}
+    local-preferred-age: ${B2_LOCAL_PREFERRED_AGE:3d}
+    presigned-url-ttl: ${B2_PRESIGNED_URL_TTL:30m}
+    metadata-retention: ${B2_METADATA_RETENTION:21d}
+    connect-timeout: ${B2_CONNECT_TIMEOUT:5s}
+    socket-timeout: ${B2_SOCKET_TIMEOUT:30s}
+    api-call-attempt-timeout: ${B2_API_CALL_ATTEMPT_TIMEOUT:45s}
+    api-call-timeout: ${B2_API_CALL_TIMEOUT:2m}
+    max-attempts: ${B2_MAX_ATTEMPTS:4}
   games:
     - bj_xchange
     - bj_relax

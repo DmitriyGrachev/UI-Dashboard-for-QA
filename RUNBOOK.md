@@ -4,6 +4,9 @@
 Docker Compose. Команды выполняются из каталога проекта, где находятся
 `compose.yaml` и `.env`.
 
+Для первого включения B2 поверх работающей production-БД используйте
+[DEPLOY-B2.md](DEPLOY-B2.md): backup, проверка без upload, включение и отключение B2.
+
 ## 1. Подготовка окружения
 
 Требования:
@@ -49,6 +52,131 @@ COUNT_REMAINING_SCREENSHOTS=true
 `VALIDATOR_IMAGE_ROOT_HOST` монтируется в контейнер read-only. Содержимое PNG не
 сохраняется в PostgreSQL. `POSTGRES_DATA_ROOT_HOST` является постоянным хранилищем
 БД и не должен находиться внутри контейнера.
+
+### Опциональное хранилище Backblaze B2
+
+B2 отключено по умолчанию. Для включения заполните в `.env` все следующие значения
+(`compose.yaml` передаёт их в `validator-api-app` без изменения имён):
+
+```dotenv
+B2_ENABLED=true
+B2_ENDPOINT=https://s3.eu-central-003.backblazeb2.com
+B2_BUCKET=replace-with-one-bucket
+B2_ACCESS_KEY_ID=replace-with-application-key-id
+B2_SECRET_ACCESS_KEY=replace-with-application-key-secret
+B2_OBJECT_PREFIX=validator/
+B2_UPLOAD_BATCH_SIZE=1000
+B2_UPLOAD_CONCURRENCY=8
+B2_UPLOAD_DELAY=10s
+B2_UPLOAD_RETRY_DELAY=5m
+B2_LOCAL_PREFERRED_AGE=3d
+B2_PRESIGNED_URL_TTL=30m
+B2_METADATA_RETENTION=21d
+B2_CONNECT_TIMEOUT=5s
+B2_SOCKET_TIMEOUT=30s
+B2_API_CALL_ATTEMPT_TIMEOUT=45s
+B2_API_CALL_TIMEOUT=2m
+B2_MAX_ATTEMPTS=4
+```
+
+`B2_METADATA_RETENTION` должен оставаться равным `21d`: приложение отклонит
+другое значение, чтобы срок метаданных не расходился с lifecycle bucket.
+
+`B2_ENDPOINT` берётся со страницы bucket без имени bucket; регион выводится из
+`s3.<region>.backblazeb2.com`. Соединение с B2 всегда HTTPS. Application key
+ограничьте одним bucket, правами чтения/записи и prefix `validator/`; право
+`list all buckets` для штатной работы не нужно. В B2 настройте lifecycle для
+prefix `validator/`: скрыть объекты через 21 день, удалить hidden versions ещё
+через 1 день.
+
+Внутри Compose PostgreSQL использует
+`jdbc:postgresql://validator-api-db:5432/<DB_NAME>`; отдельный host-порт B2 не
+нужен и в Compose не публикуется. До возраста 3 дней локальный PNG имеет приоритет;
+после 3 дней или при пропаже локального файла broker возвращает авторизованный
+`307 Temporary Redirect` на pre-signed URL с `Cache-Control: no-store`. ZIP-экспорт
+читает B2 серверным потоком. Локальные метаданные хранятся 4 календарных UTC-дня,
+cloud-backed — 21 день от `cloud_uploaded_at`; физические PNG Validator не удаляет.
+
+Для rollback установите `B2_ENABLED=false` и перезапустите `validator-api-app`.
+Новые upload, B2 client и scheduler отключатся, локальная индексация продолжит
+работать, а объекты B2 удаляться не будут (ими управляет lifecycle).
+
+#### Smoke-проверка (только после явного approval, не выполнять автоматически)
+
+Перед любым PUT в реальный bucket требуется отдельное письменное разрешение
+владельца. Используйте только один выделенный тестовый PNG и не рабочий файл,
+например `bj_xchange_1_00000000-0000-0000-0000-000000000001_d_A_01-01-2026-00-00-00_1.png`.
+После approval включите B2, дождитесь строки с этим именем в `image_asset` и
+`cloud_uploaded_at`, проверьте `cloud_object_key` с prefix `validator/`, затем
+проверьте в UI `307` и один серверный ZIP. Результат зафиксируйте; тестовый объект
+оставьте lifecycle или удалите отдельной согласованной процедурой.
+
+### Read-only API изображений для другого сервиса
+
+```http
+GET /api/integration/images/{imageId}/content
+X-API-Key: <секрет интеграции>
+```
+
+`imageId` — существующий `image_asset.id`, не имя PNG. Запрос только читает
+изображение: не назначает review task и не меняет решение или статистику оператора.
+Существующий `/api/images/{imageId}/content` по-прежнему требует сессию оператора.
+
+Для включения задайте в `.env` отдельный случайный `INTEGRATION_IMAGE_API_KEY`
+(например, результат `openssl rand -hex 32`) и пересоздайте приложение после
+сборки обновлённого кода. Тот же ключ сохраните в конфигурации сервиса Игоря для
+исходящих запросов к Validator. Это не ключ B2 и не пароль пользователя; в Git,
+URL и логи его не помещать. Пустой ключ в конфигурации полностью закрывает API.
+Смена/очистка ключа применяется после пересоздания контейнера, БД не меняется.
+
+Используйте HTTPS с валидным сертификатом перед передачей ключа через интернет.
+Наличие ключа не шифрует запрос. Эта функция сама не настраивает домен или TLS.
+
+Ответы:
+
+- `200 image/png` — поток локального PNG, без загрузки всего файла в память.
+- `307 Temporary Redirect` — пустое тело и свежий pre-signed B2 URL в `Location`;
+  время жизни задаёт `B2_PRESIGNED_URL_TTL` (по умолчанию `30m`).
+- `401 application/problem+json` — ключ отсутствует, неверен или API отключён;
+  перенаправления на login нет. Browser session не заменяет ключ.
+- `403` — ключ действителен, но метод или integration route не разрешён.
+- `404` — изображение не найдено/недоступно по данным Validator.
+- `503` — временная ошибка хранилища; это не доказательство удаления PNG.
+
+Локальный/облачный источник выбирается по тем же правилам, что для оператора.
+Оба успешных ответа содержат `Cache-Control: no-store`. Наличие B2-объекта при
+создании ссылки отдельно не проверяется: после `307` сам B2 тоже может ответить
+`404`, например если объект уже удалён. Вызывающий сервис должен обработать это,
+а не считать пустой/ошибочный ответ изображением.
+
+Пример первого запроса (Bash; переменная ключа заранее задана в оболочке,
+Compose `.env` сам её в оболочку не экспортирует):
+
+```bash
+curl --silent --show-error --fail-with-body \
+  --header "X-API-Key: $INTEGRATION_IMAGE_API_KEY" \
+  --dump-header image-response.headers \
+  --output screenshot.png \
+  'https://validator.example.com/api/integration/images/<imageId>/content'
+```
+
+Подставьте реальный HTTPS-домен и ID. При `200` файл уже содержит PNG; при `307`
+он пустой — скачайте `Location` отдельным запросом **без `X-API-Key` и cookies**:
+
+```bash
+curl --silent --show-error --fail --output screenshot.png "$B2_LOCATION"
+```
+
+`B2_LOCATION` — значение `Location` из первого ответа. Перед переходом проверяйте,
+что URL использует HTTPS и ожидаемый host вашего B2. Не используйте слепо
+`curl -L -H 'X-API-Key: ...'`: пользовательский header может уйти на B2.
+В HTTP-клиенте Игоря также нужен отдельный запрос при redirect без ключа Validator.
+Не публикуйте `image-response.headers`: подписанная ссылка временно даёт доступ
+к приватному файлу. Просроченную ссылку заменяйте новым запросом к Validator.
+
+Ключ не даёт доступа к admin, статистике, решениям или ZIP-экспорту и не создаёт
+служебного оператора. CSRF и session-based авторизация UI остаются включёнными.
+Scheduler отправки в AI и обработка его результатов — отдельная задача.
 
 ## 2. Запуск и проверка
 
@@ -381,6 +509,100 @@ WHERE ds.statistics_date >= (current_date - 6)
 ORDER BY ds.statistics_date, u.username;
 "
 ```
+
+### Состояние B2 upload и двух окон хранения
+
+Все запросы ниже только читают PostgreSQL. `upload_backlog` — локальные строки
+без успешной загрузки; `due_now` — строки, которые scheduler может взять сейчас;
+`retrying` — строки с хотя бы одной неудачной попыткой.
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT
+  count(*) FILTER (WHERE cloud_uploaded_at IS NOT NULL) AS uploaded_count,
+  count(*) FILTER (
+    WHERE cloud_uploaded_at IS NULL
+      AND (file_available OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0))
+  ) AS upload_backlog,
+  count(*) FILTER (
+    WHERE cloud_uploaded_at IS NULL
+      AND (file_available OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0))
+      AND (cloud_upload_next_attempt_at IS NULL OR cloud_upload_next_attempt_at <= now())
+  ) AS due_now,
+  count(*) FILTER (
+    WHERE file_available AND cloud_uploaded_at IS NULL AND cloud_upload_attempt_count > 0
+  ) AS retrying
+FROM image_asset;
+"
+```
+
+Самый старый due-кандидат:
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT id, file_name, relative_path, file_created_at,
+       cloud_upload_next_attempt_at, cloud_upload_attempt_count
+FROM image_asset
+WHERE cloud_uploaded_at IS NULL
+  AND (file_available OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0))
+  AND (cloud_upload_next_attempt_at IS NULL OR cloud_upload_next_attempt_at <= now())
+ORDER BY file_created_at, id
+LIMIT 1;
+"
+```
+
+Локальная/cloud-доступность (очередь и rejected ZIP используют `local OR cloud`):
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT
+  count(*) FILTER (WHERE file_available AND cloud_uploaded_at IS NULL) AS local_only,
+  count(*) FILTER (
+    WHERE NOT file_available
+      AND cloud_object_key IS NOT NULL
+      AND cloud_uploaded_at > now() - interval '21 days'
+  ) AS cloud_only,
+  count(*) FILTER (
+    WHERE file_available
+      AND cloud_object_key IS NOT NULL
+      AND cloud_uploaded_at > now() - interval '21 days'
+  ) AS both_stores,
+  count(*) FILTER (
+    WHERE NOT file_available
+      AND NOT COALESCE((
+        cloud_object_key IS NOT NULL
+        AND cloud_uploaded_at > now() - interval '21 days'
+      ), FALSE)
+  ) AS unavailable,
+  count(*) FILTER (
+    WHERE file_available
+       OR (
+         cloud_object_key IS NOT NULL
+         AND cloud_uploaded_at > now() - interval '21 days'
+       )
+  ) AS logically_available
+FROM image_asset;
+"
+```
+
+Проверка 21-дневной cloud-очистки:
+
+```bash
+docker compose exec -T validator-api-db psql -U "$DB_USER" -d "$DB_NAME" -c "
+SELECT
+  count(*) FILTER (WHERE cloud_uploaded_at < now() - interval '21 days') AS past_cutoff,
+  count(*) FILTER (WHERE cloud_uploaded_at >= now() - interval '21 days') AS in_window,
+  min(cloud_uploaded_at) AS oldest_cloud_upload
+FROM image_asset
+WHERE cloud_uploaded_at IS NOT NULL;
+"
+```
+
+После ежедневного cleanup `past_cutoff` должен быть `0`. Сравнение строгое (`<`):
+точная граница 21 дня удаляется только после её прохождения. Для cloud-backed
+строк cleanup использует `B2_METADATA_RETENTION=21d`, для локальных —
+`VALIDATOR_RETENTION=4d` по календарным UTC-дням. Cleanup удаляет метаданные и
+связанные задания БД, но не PNG и не B2 objects.
 
 ## 9. Проверка watcher и новых файлов
 

@@ -1,8 +1,10 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
+import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.scheduler.RetentionCleanupService;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -17,13 +19,16 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class RetentionCleanupTest extends AbstractReviewIntegrationTest {
 
+    @Autowired
+    private B2StorageProperties b2Properties;
+
     @Test
     void usesStartOfCurrentUtcDateAsBoundaryAndLeavesPhysicalFiles() throws Exception {
         Instant now = Instant.parse("2026-08-03T02:00:00Z");
         Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
         Clock fixedClock = Clock.fixed(now, ZoneOffset.ofHours(-7));
         RetentionCleanupService service =
-                new RetentionCleanupService(namedJdbc, properties, fixedClock);
+                new RetentionCleanupService(namedJdbc, properties, b2Properties, fixedClock);
         String oldImageId = insertImage(
                 80,
                 cutoff.minusSeconds(1),
@@ -54,12 +59,60 @@ class RetentionCleanupTest extends AbstractReviewIntegrationTest {
     }
 
     @Test
+    void usesUploadInstantForCloudWindowAndCascadesOnlyExpiredImages() throws Exception {
+        Instant now = Instant.parse("2026-08-03T12:00:00Z");
+        Instant localCutoff = Instant.parse("2026-07-30T00:00:00Z");
+        Instant cloudCutoff = now.minus(b2Properties.metadataRetention());
+        Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
+        RetentionCleanupService service = new RetentionCleanupService(
+                namedJdbc,
+                properties,
+                b2Properties,
+                fixedClock
+        );
+
+        String localExpired = insertImage(
+                85, localCutoff.minusSeconds(1), "bj_igt", "local-expired", false, true
+        );
+        String localBoundary = insertImage(
+                86, localCutoff, "bj_igt", "local-boundary", false, true
+        );
+        String cloudExpired = insertImage(
+                87, now, "bj_igt", "cloud-expired", false, false
+        );
+        String cloudBoundary = insertImage(
+                88, now, "bj_igt", "cloud-boundary", false, false
+        );
+        String cloudBackedOldLocal = insertImage(
+                89, localCutoff.minusSeconds(1), "bj_igt", "cloud-backed-old-local", false, false
+        );
+        Path cloudPhysicalFile = temporaryDirectory.resolve(cloudExpired + ".png");
+        Files.writeString(cloudPhysicalFile, "not touched by retention");
+        markCloudUploaded(cloudExpired, cloudCutoff.minusSeconds(1));
+        markCloudUploaded(cloudBoundary, cloudCutoff);
+        markCloudUploaded(cloudBackedOldLocal, now.minusSeconds(1));
+
+        int deleted = service.runOnce();
+
+        assertThat(deleted).isEqualTo(2);
+        assertThat(rowCount("image_asset", localExpired)).isZero();
+        assertThat(rowCount("review_task", localExpired)).isZero();
+        assertThat(rowCount("image_asset", cloudExpired)).isZero();
+        assertThat(rowCount("review_task", cloudExpired)).isZero();
+        assertThat(cloudPhysicalFile).exists();
+        for (String imageId : List.of(localBoundary, cloudBoundary, cloudBackedOldLocal)) {
+            assertThat(rowCount("image_asset", imageId)).isOne();
+            assertThat(rowCount("review_task", imageId)).isOne();
+        }
+    }
+
+    @Test
     void deletesEveryReviewStatusAndKeepsDailyStatistics() {
         Instant now = Instant.parse("2026-08-03T12:00:00Z");
         Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
         Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
         RetentionCleanupService service =
-                new RetentionCleanupService(namedJdbc, properties, fixedClock);
+                new RetentionCleanupService(namedJdbc, properties, b2Properties, fixedClock);
         UUID operatorId = insertOperator("retention-statuses");
         String pendingImageId = insertImage(
                 82, cutoff.minusSeconds(1), "bj_igt", "pending", false, true
@@ -118,7 +171,7 @@ class RetentionCleanupTest extends AbstractReviewIntegrationTest {
         Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
         Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
         RetentionCleanupService service =
-                new RetentionCleanupService(namedJdbc, properties, fixedClock);
+                new RetentionCleanupService(namedJdbc, properties, b2Properties, fixedClock);
         for (int index = 0; index < 3; index++) {
             insertImage(
                     90 + index,
@@ -164,7 +217,7 @@ class RetentionCleanupTest extends AbstractReviewIntegrationTest {
         Instant cutoff = Instant.parse("2026-07-30T00:00:00Z");
         Clock fixedClock = Clock.fixed(now, ZoneOffset.UTC);
         RetentionCleanupService service =
-                new RetentionCleanupService(namedJdbc, properties, fixedClock);
+                new RetentionCleanupService(namedJdbc, properties, b2Properties, fixedClock);
         for (int index = 0; index < 5; index++) {
             insertImage(
                     100 + index,
@@ -194,6 +247,7 @@ class RetentionCleanupTest extends AbstractReviewIntegrationTest {
         RetentionCleanupService service = new RetentionCleanupService(
                 namedJdbc,
                 propertiesWithCleanupMaxBatches(0),
+                b2Properties,
                 fixedClock
         );
         for (int index = 0; index < 5; index++) {

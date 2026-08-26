@@ -2,17 +2,78 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    createImageAvailabilityRetryUrl,
+    createImageRetryPlan,
+    createImageAvailabilityUrl,
+    isLoginRedirect,
+    imageAvailabilityAction,
     createReviewDateRange,
     formatUtcDate,
     prepareViewForNextItem,
     readStoredScale,
     readStoredFilters,
+    reviewActionsDisabled,
     toUtcIso,
     toOptionalLong,
     toOptionalBoolean,
     writeStoredScale,
     writeStoredFilters
 } = require("../../main/resources/static/js/review.js");
+
+test("image loading retries twice with a fresh broker URL", () => {
+    assert.deepEqual(
+        createImageRetryPlan("/api/images/image-1/content", 0),
+        {
+            attempt: 1,
+            delayMs: 250,
+            url: "/api/images/image-1/content?_imageRetry=1"
+        }
+    );
+    assert.deepEqual(
+        createImageRetryPlan("/api/images/image-1/content?download=true", 1),
+        {
+            attempt: 2,
+            delayMs: 1000,
+            url: "/api/images/image-1/content?download=true&_imageRetry=2"
+        }
+    );
+    assert.equal(createImageRetryPlan("/api/images/image-1/content", 2), null);
+});
+
+test("image availability uses an encoded same-origin endpoint", () => {
+    assert.equal(
+        createImageAvailabilityUrl("image/1 with spaces"),
+        "/api/images/image%2F1%20with%20spaces/availability"
+    );
+    assert.equal(
+        createImageAvailabilityRetryUrl("/api/images/image-1/content?source=cloud"),
+        "/api/images/image-1/content?source=cloud&_imageRetry=availability"
+    );
+});
+
+test("availability statuses select retry, advance, or hold", () => {
+    assert.equal(imageAvailabilityAction(204), "retry");
+    assert.equal(imageAvailabilityAction(404), "advance");
+    assert.equal(imageAvailabilityAction(503), "hold");
+});
+
+test("login redirects are recognized after fetch follows a 302", () => {
+    assert.equal(
+        isLoginRedirect({redirected: true, url: "https://app.example/login"}),
+        true
+    );
+    assert.equal(
+        isLoginRedirect({redirected: true, url: "https://app.example/review"}),
+        false
+    );
+});
+
+test("review decisions stay disabled until the screenshot is visible", () => {
+    assert.equal(reviewActionsDisabled({busy: false, item: {imageId: "1"}, imageReady: false}), true);
+    assert.equal(reviewActionsDisabled({busy: false, item: {imageId: "1"}, imageReady: true}), false);
+    assert.equal(reviewActionsDisabled({busy: true, item: {imageId: "1"}, imageReady: true}), true);
+    assert.equal(reviewActionsDisabled({busy: false, item: null, imageReady: true}), true);
+});
 
 test("review delegates date range behavior to the shared picker", () => {
     assert.equal(typeof createReviewDateRange, "function");

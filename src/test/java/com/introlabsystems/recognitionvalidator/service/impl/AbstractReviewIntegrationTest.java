@@ -111,6 +111,14 @@ abstract class AbstractReviewIntegrationTest {
         );
     }
 
+    protected void markCloudUploaded(String imageId, Instant uploadedAt) {
+        jdbc.update("""
+                UPDATE image_asset
+                SET cloud_object_key = ?, cloud_uploaded_at = ?
+                WHERE id = ?
+                """, "validator/" + imageId + ".png", Timestamp.from(uploadedAt), imageId);
+    }
+
     protected void insertDailyStatistics(
             UUID operatorId,
             String date,

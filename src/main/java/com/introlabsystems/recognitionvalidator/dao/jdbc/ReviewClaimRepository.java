@@ -1,12 +1,12 @@
 package com.introlabsystems.recognitionvalidator.dao.jdbc;
 
+import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.model.enums.ParseStatus;
 import com.introlabsystems.recognitionvalidator.model.value.RecognitionResult;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewItem;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueSummary;
-import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -23,7 +23,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-@RequiredArgsConstructor
 public class ReviewClaimRepository {
 
     private static final String ITEM_COLUMNS = """
@@ -37,8 +36,30 @@ public class ReviewClaimRepository {
             JOIN image_asset ia ON ia.id = rt.image_id
             """;
     private static final RowMapper<ReviewItem> ITEM_MAPPER = ReviewClaimRepository::mapItem;
+    private static final String LOCAL_OR_CLOUD_IMAGE_PREDICATE = """
+            (
+                ia.file_available = TRUE
+                OR (
+                    ia.cloud_object_key IS NOT NULL
+                    AND BTRIM(ia.cloud_object_key) <> ''
+                    AND ia.cloud_uploaded_at IS NOT NULL
+                    AND ia.cloud_uploaded_at > CURRENT_TIMESTAMP - INTERVAL '21 days'
+                )
+            )
+            """;
 
     private final NamedParameterJdbcTemplate jdbc;
+    private final String availableImagePredicate;
+
+    public ReviewClaimRepository(
+            NamedParameterJdbcTemplate jdbc,
+            B2StorageProperties b2Properties
+    ) {
+        this.jdbc = jdbc;
+        this.availableImagePredicate = b2Properties.enabled()
+                ? LOCAL_OR_CLOUD_IMAGE_PREDICATE
+                : "ia.file_available = TRUE";
+    }
 
     @Transactional
     public ReviewQueueResult claim(
@@ -97,10 +118,8 @@ public class ReviewClaimRepository {
 
     public Optional<ReviewItem> findItem(String imageId) {
         List<ReviewItem> items = jdbc.query(
-                ITEM_COLUMNS + """
-                         WHERE rt.image_id = :imageId
-                           AND ia.file_available = TRUE
-                        """,
+                ITEM_COLUMNS + " WHERE rt.image_id = :imageId AND "
+                        + availableImagePredicate,
                 new MapSqlParameterSource("imageId", imageId),
                 ITEM_MAPPER
         );
@@ -132,19 +151,18 @@ public class ReviewClaimRepository {
                           SELECT 1
                           FROM image_asset ia
                           WHERE ia.id = rt.image_id
-                            AND ia.file_available = TRUE
+                            AND %s
                       )
                   )
-                """, new MapSqlParameterSource("now", Timestamp.from(now)));
+                """.formatted(availableImagePredicate),
+                new MapSqlParameterSource("now", Timestamp.from(now)));
     }
 
     private Optional<ReviewItem> activeAssignment(UUID operatorId, ReviewFilters filters) {
         MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
-        StringBuilder sql = new StringBuilder(ITEM_COLUMNS).append("""
-                 WHERE rt.status = 'ASSIGNED'
-                   AND rt.assigned_to = :operatorId
-                   AND ia.file_available = TRUE
-                """);
+        StringBuilder sql = new StringBuilder(ITEM_COLUMNS)
+                .append(" WHERE rt.status = 'ASSIGNED' AND rt.assigned_to = :operatorId AND ")
+                .append(availableImagePredicate);
         appendFilters(sql, filters, parameters);
         sql.append(" LIMIT 1");
         List<ReviewItem> items = jdbc.query(
@@ -208,8 +226,8 @@ public class ReviewClaimRepository {
                 FROM review_task rt
                 JOIN image_asset ia ON ia.id = rt.image_id
                 WHERE rt.status = 'PENDING'
-                  AND ia.file_available = TRUE
-                """.formatted(projection));
+                  AND %s
+                """.formatted(projection, availableImagePredicate));
     }
 
     private void appendFilters(
