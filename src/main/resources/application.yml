@@ -43,6 +43,8 @@ validator:
   watch-flush-interval: ${VALIDATOR_WATCH_FLUSH_INTERVAL:2s}
   watch-max-pending-events: ${VALIDATOR_WATCH_MAX_PENDING_EVENTS:50000}
   count-remaining-screenshots: ${COUNT_REMAINING_SCREENSHOTS:true}
+  integration:
+    image-api-key: ${INTEGRATION_IMAGE_API_KEY:}
   b2:
     enabled: ${B2_ENABLED:false}
     endpoint: ${B2_ENDPOINT:}
@@ -51,7 +53,7 @@ validator:
     secret-access-key: ${B2_SECRET_ACCESS_KEY:}
     object-prefix: ${B2_OBJECT_PREFIX:validator/}
     upload-batch-size: ${B2_UPLOAD_BATCH_SIZE:1000}
-    upload-concurrency: ${B2_UPLOAD_CONCURRENCY:32}
+    upload-concurrency: ${B2_UPLOAD_CONCURRENCY:8}
     upload-delay: ${B2_UPLOAD_DELAY:10s}
     upload-retry-delay: ${B2_UPLOAD_RETRY_DELAY:5m}
     local-preferred-age: ${B2_LOCAL_PREFERRED_AGE:3d}

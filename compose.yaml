@@ -40,6 +40,8 @@ services:
   validator-api-app:
     restart: unless-stopped
     mem_limit: ${APP_MEMORY_LIMIT:-5g}
+    # 0.0 preserves the current unlimited CPU setting; opt in to 2.0 after approval.
+    cpus: "${APP_CPU_LIMIT:-0.0}"
     build:
       context: .
       dockerfile: Dockerfile
@@ -67,6 +69,8 @@ services:
 
       COUNT_REMAINING_SCREENSHOTS: ${COUNT_REMAINING_SCREENSHOTS:-true}
 
+      INTEGRATION_IMAGE_API_KEY: ${INTEGRATION_IMAGE_API_KEY:-}
+
       B2_ENABLED: ${B2_ENABLED:-false}
       B2_ENDPOINT: ${B2_ENDPOINT:-}
       B2_BUCKET: ${B2_BUCKET:-}
@@ -74,7 +78,7 @@ services:
       B2_SECRET_ACCESS_KEY: ${B2_SECRET_ACCESS_KEY:-}
       B2_OBJECT_PREFIX: ${B2_OBJECT_PREFIX:-validator/}
       B2_UPLOAD_BATCH_SIZE: ${B2_UPLOAD_BATCH_SIZE:-1000}
-      B2_UPLOAD_CONCURRENCY: ${B2_UPLOAD_CONCURRENCY:-32}
+      B2_UPLOAD_CONCURRENCY: ${B2_UPLOAD_CONCURRENCY:-8}
       B2_UPLOAD_DELAY: ${B2_UPLOAD_DELAY:-10s}
       B2_UPLOAD_RETRY_DELAY: ${B2_UPLOAD_RETRY_DELAY:-5m}
       B2_LOCAL_PREFERRED_AGE: ${B2_LOCAL_PREFERRED_AGE:-3d}

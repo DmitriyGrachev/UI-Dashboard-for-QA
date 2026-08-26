@@ -7,6 +7,8 @@ MVP QA-застосунку для ручної перевірки повног�
 Команди запуску, створення адміністратора, перевірки результатів і діагностики
 зібрані в [RUNBOOK.md](RUNBOOK.md).
 
+Перший production-запуск B2 з чинною БД: [DEPLOY-B2.md](DEPLOY-B2.md).
+
 ## Що реалізовано
 
 - вхід оператора й адміністратора через звичайну сесію Spring Security та BCrypt;
@@ -68,7 +70,7 @@ B2 вимкнено за замовчуванням (`B2_ENABLED=false`). Уві
 | `B2_SECRET_ACCESS_KEY` | порожньо | Секрет application key |
 | `B2_OBJECT_PREFIX` | `validator/` | Префікс об'єктів і обмеження application key |
 | `B2_UPLOAD_BATCH_SIZE` | `1000` | Максимум кандидатів за один цикл |
-| `B2_UPLOAD_CONCURRENCY` | `32` | Максимум одночасних PUT; локальний benchmark не показав користі вище 32 |
+| `B2_UPLOAD_CONCURRENCY` | `8` | Вісім upload workers на один спільний batch; погоджений профіль першого production-запуску |
 | `B2_UPLOAD_DELAY` | `10s` | Затримка між циклами завантаження |
 | `B2_UPLOAD_RETRY_DELAY` | `5m` | Затримка повторної спроби після помилки |
 | `B2_LOCAL_PREFERRED_AGE` | `3d` | Локальний файл має перевагу до цього віку |
@@ -410,6 +412,7 @@ docker compose exec postgres-test pg_isready -U validator -d recognition_validat
 | `POSTGRES_MAX_PARALLEL_WORKERS_PER_GATHER` | `0` | Додаткові parallel workers одного SQL-запиту |
 | `SERVER_PORT` | `18080` | HTTP-порт на Docker-host |
 | `APP_MEMORY_LIMIT` | `5g` | Жорсткий Docker-ліміт усієї пам'яті JVM-процесу |
+| `APP_CPU_LIMIT` | `0.0` | `0.0` — без CPU-квоти, як раніше; `2.0` — опціональна квота для всього app, не лише B2 і не Docker build |
 | `VALIDATOR_IMAGE_ROOT_HOST` | `./data/images` | Папка скриншотів на Docker-host, що монтується read-only |
 | `VALIDATOR_BATCH_SIZE` | `1000` | Розмір DB-batch і поріг негайної обробки файлових подій |
 | `VALIDATOR_LEASE_DURATION` | `30m` | Час резервування завдання |
