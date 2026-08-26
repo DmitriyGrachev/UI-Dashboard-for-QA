@@ -171,7 +171,9 @@ class B2TransportBenchmarkIT {
                 + ", logicalUploadBudget=" + (WARMUP_UPLOAD_COUNT + settings.fileCount())
                 + ", warmupCount=" + WARMUP_UPLOAD_COUNT);
         // A collision must not make the benchmark delete someone else's objects.
+        phase("setup", "start", transport, repetition);
         ensurePrefixEmpty(clients.cleanupClient, settings.bucket(), prefix);
+        phase("setup", "end", transport, repetition);
 
         PutObjectRequest request = PutObjectRequest.builder()
                 .bucket(settings.bucket())
@@ -185,15 +187,18 @@ class B2TransportBenchmarkIT {
         boolean captureStarted = false;
         boolean safeCleanup = true;
         try {
+            phase("warmup", "start", transport, repetition);
             for (int index = 0; index < WARMUP_UPLOAD_COUNT; index++) {
                 upload(transport, request.toBuilder().key(prefix + "/warmup-" + index + ".png").build(),
                         source, clients, asyncCompletionUnconfirmed);
             }
+            phase("warmup", "end", transport, repetition);
 
             if (attemptCounter != null) {
                 attemptCounter.begin();
                 captureStarted = true;
             }
+            phase("upload", "start", transport, repetition);
             long started = System.nanoTime();
             AtomicInteger inFlight = new AtomicInteger();
             AtomicInteger peakInFlight = new AtomicInteger();
@@ -221,6 +226,8 @@ class B2TransportBenchmarkIT {
                     retryMetrics
             );
             System.out.println(metrics);
+            phase("upload", "end", transport, repetition);
+            phase("verify", "start", transport, repetition);
             VersionInventory inventory = inspectVersions(clients.cleanupClient, settings.bucket(), prefix);
             System.out.println("B2 benchmark " + transport
                     + ": versions=" + inventory.versionCount()
@@ -243,6 +250,7 @@ class B2TransportBenchmarkIT {
             assertThat(inventory.deleteMarkerCount()).isZero();
             assertThat(inventory.versionsByKey()).containsOnlyKeys(expectedKeys);
             assertThat(inventory.versionsByKey().values()).allMatch(count -> count == 1);
+            phase("verify", "end", transport, repetition);
             return metrics;
         } catch (UnsafeCleanupException exception) {
             safeCleanup = false;
@@ -260,13 +268,24 @@ class B2TransportBenchmarkIT {
             if (asyncCompletionUnconfirmed.get()) {
                 safeCleanup = false;
             }
+            phase("cleanup", "start", transport, repetition);
             if (safeCleanup) {
                 cleanupVersions(clients.cleanupClient, settings.bucket(), prefix);
+                phase("cleanup", "end", transport, repetition);
             } else {
                 throw new UnsafeCleanupException(prefix,
                         "an interrupted or timed-out async PUT may still be in flight");
             }
         }
+    }
+
+    private static void phase(String name, String state, String transport, int repetition) {
+        System.out.println("B2_BENCH_PHASE epoch_ms=" + Instant.now().toEpochMilli()
+                + " phase=" + name
+                + " state=" + state
+                + " transport=" + transport
+                + " repetition=" + repetition);
+        System.out.flush();
     }
 
     private static List<B2BenchmarkSupport.UploadObservation> collectUploads(
