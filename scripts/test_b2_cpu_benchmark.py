@@ -3,6 +3,7 @@ import json
 import tarfile
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
 
@@ -108,8 +109,55 @@ class B2CpuBenchmarkSweepTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertEqual(calls, [(2, 8, 1)])
 
+    def test_custom_sweep_skips_one_cpu_only_when_requested(self):
+        expected = [(2, 4, 1), (2, 4, 2), (2, 4, 3),
+                    (2, 8, 1), (2, 8, 2), (2, 8, 3)]
+        for skip_one_cpu in (False, True):
+            with self.subTest(skip_one_cpu=skip_one_cpu):
+                args = ["--dry-run", "--concurrency", "4", "8"]
+                if skip_one_cpu:
+                    args.append("--skip-one-cpu")
+                config = bench.parse_args(args)
+                records, complete, selected = bench.run_sweep(config, self._record)
+                wanted = expected if skip_one_cpu else expected + [(1, 4, 1), (1, 4, 2), (1, 4, 3)]
+                self.assertEqual([(r.cpu_quota, r.concurrency, r.repetition) for r in records], wanted)
+                self.assertTrue(complete)
+                self.assertEqual(selected, None if skip_one_cpu else 4)
+
 
 class B2CpuBenchmarkSafetyTest(unittest.TestCase):
+    def test_duplicate_and_unsupported_concurrency_values_are_rejected(self):
+        for values in (["4", "4"], ["0"], ["64"], []):
+            with self.subTest(values=values), redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as failure:
+                    bench.parse_args(["--dry-run", "--concurrency", *values])
+                self.assertEqual(failure.exception.code, 2)
+
+    def test_custom_dry_run_reports_only_requested_two_cpu_runs_and_budget(self):
+        with tempfile.TemporaryDirectory() as temp:
+            stdout, stderr = io.StringIO(), io.StringIO()
+            with redirect_stdout(stdout), redirect_stderr(stderr), \
+                    mock.patch.object(bench, "parse_env_file", side_effect=AssertionError("env read")), \
+                    mock.patch.object(bench.subprocess, "run", side_effect=AssertionError("docker invoked")):
+                try:
+                    code = bench.main([
+                        "--dry-run", "--output-dir", temp,
+                        "--concurrency", "4", "8", "--skip-one-cpu",
+                    ])
+                except SystemExit as exc:
+                    code = exc.code
+            self.assertEqual(code, 0, stderr.getvalue())
+            with tarfile.open(stdout.getvalue().strip(), "r:gz") as archive:
+                plan = json.loads(archive.extractfile("summary.json").read())
+            self.assertEqual(plan["matrix"], [
+                {"cpu_quota": 2, "concurrency": 4},
+                {"cpu_quota": 2, "concurrency": 8},
+            ])
+            self.assertFalse(plan["one_cpu_enabled"])
+            self.assertEqual(plan["repetitions"], 3)
+            self.assertEqual(plan["nominal_payload_bytes_per_run"], 443_842_560)
+            self.assertEqual(plan["nominal_total_bytes"], 2_663_055_360)
+
     def test_summary_reports_real_payload_cpu_and_dry_run_status(self):
         config = bench.BenchmarkConfig(count=2, dry_run=True)
         summary = bench._summary_md(config, [], False, None)

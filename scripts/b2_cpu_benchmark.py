@@ -54,6 +54,7 @@ class BenchmarkConfig:
     concurrency: tuple[int, ...] = CONCURRENCY_MATRIX
     image: str = MAVEN_IMAGE
     seed: int = 20260826
+    skip_one_cpu: bool = False
 
     @property
     def nominal_payload_bytes_per_run(self) -> int:
@@ -61,7 +62,8 @@ class BenchmarkConfig:
 
     @property
     def nominal_total_bytes(self) -> int:
-        return self.nominal_payload_bytes_per_run * self.repetitions * (len(self.concurrency) + 1)
+        one_cpu_runs = 0 if self.skip_one_cpu else 1
+        return self.nominal_payload_bytes_per_run * self.repetitions * (len(self.concurrency) + one_cpu_runs)
 
 
 @dataclasses.dataclass
@@ -347,13 +349,20 @@ def parse_args(argv: Sequence[str] | None = None) -> BenchmarkConfig:
     parser.add_argument("--baseline-seconds", type=int, default=60)
     parser.add_argument("--sample-seconds", type=int, default=2)
     parser.add_argument("--output-dir", type=Path)
+    parser.add_argument("--concurrency", nargs="+", type=int, choices=(4, 8, 16, 32), default=CONCURRENCY_MATRIX,
+                        help="2-CPU concurrency values (default: 8 16 32)")
+    parser.add_argument("--skip-one-cpu", action="store_true", help="run only the requested 2-CPU comparison")
     args = parser.parse_args(argv)
     if not args.dry_run and args.env_file is None:
         parser.error("--env-file is required unless --dry-run is used")
     for value, low, high, name in ((args.count, 1, 500, "count"), (args.repetitions, 1, 5, "repetitions"), (args.baseline_seconds, 0, 300, "baseline-seconds"), (args.sample_seconds, 1, 10, "sample-seconds")):
         if not low <= value <= high:
             parser.error(f"--{name} must be between {low} and {high}")
-    return BenchmarkConfig(args.env_file, args.dry_run, args.count, args.repetitions, args.baseline_seconds, args.sample_seconds, args.output_dir)
+    if len(set(args.concurrency)) != len(args.concurrency):
+        parser.error("--concurrency values must be unique")
+    return BenchmarkConfig(args.env_file, args.dry_run, args.count, args.repetitions, args.baseline_seconds,
+                           args.sample_seconds, args.output_dir, concurrency=tuple(args.concurrency),
+                           skip_one_cpu=args.skip_one_cpu)
 
 
 def _minimal_env(credentials: Mapping[str, str] | None = None) -> dict[str, str]:
@@ -706,6 +715,8 @@ def run_sweep(config: BenchmarkConfig, run_one: Callable[[int, int, int], RunRec
             records.append(record)
             if not record.ok:
                 return records, False, None
+    if config.skip_one_cpu:
+        return records, True, None
     selected = choose_minimal_concurrency(records)
     if selected is None:
         return records, False, None
@@ -773,8 +784,9 @@ def _summary_md(config: BenchmarkConfig, records: Sequence[RunRecord], complete:
         f"- Nominal logical payload for planned sweep: {config.nominal_total_bytes:,} bytes",
         "- Transport: Sync only. Retries can increase transferred bytes and temporary storage.",
         "- Docker 100% means one logical CPU; quota is not pinning or total host isolation.",
-        "- 1-CPU selection is the smallest concurrency within 90% of the best pooled files/s; "
-        "this is a heuristic, not a production recommendation.",
+        ("- 1-CPU comparison: disabled." if config.skip_one_cpu else
+         "- 1-CPU selection is the smallest concurrency within 90% of the best pooled files/s; "
+         "this is a heuristic, not a production recommendation."),
         "", "## Upload results", "",
         "| CPU quota | Concurrency | Repeat | Files/s | Retries | Failures | Cleanup | Status |",
         "| ---: | ---: | ---: | ---: | ---: | ---: | :---: | :---: |",
@@ -819,7 +831,8 @@ def _summary_md(config: BenchmarkConfig, records: Sequence[RunRecord], complete:
                 f"- {cpu} CPU / concurrency {concurrency}: "
                 f"{weighted_files_per_second(metrics):.3f} files/s across {len(metrics)} valid runs."
             )
-    lines += ["", f"Selected 1-CPU concurrency: {selected if selected is not None else 'unavailable'}", ""]
+    if not config.skip_one_cpu:
+        lines += ["", f"Selected 1-CPU concurrency: {selected if selected is not None else 'unavailable'}", ""]
     for record in records:
         if record.error:
             lines.append(f"- Incomplete run {record.cpu_quota} CPU / {record.concurrency} / {record.repetition}: {record.error}")
@@ -828,7 +841,7 @@ def _summary_md(config: BenchmarkConfig, records: Sequence[RunRecord], complete:
 
 def dry_run(config: BenchmarkConfig) -> Path:
     writer = ArtifactWriter(config.output_dir)
-    plan = {"status": "dry-run", "image": config.image, "transport": "sync", "count": config.count, "repetitions": config.repetitions, "baseline_seconds": config.baseline_seconds, "sample_seconds": config.sample_seconds, "matrix": [{"cpu_quota": cpu, "concurrency": value} for cpu, value in fixed_matrix(config)], "nominal_payload_bytes_per_run": config.nominal_payload_bytes_per_run, "nominal_total_bytes": config.nominal_total_bytes, "credentials_read": False, "docker_invoked": False}
+    plan = {"status": "dry-run", "image": config.image, "transport": "sync", "count": config.count, "repetitions": config.repetitions, "baseline_seconds": config.baseline_seconds, "sample_seconds": config.sample_seconds, "matrix": [{"cpu_quota": cpu, "concurrency": value} for cpu, value in fixed_matrix(config)], "one_cpu_enabled": not config.skip_one_cpu, "nominal_payload_bytes_per_run": config.nominal_payload_bytes_per_run, "nominal_total_bytes": config.nominal_total_bytes, "credentials_read": False, "docker_invoked": False}
     return writer.finalize([writer.write_json("summary.json", plan), writer.write_text("summary.md", _summary_md(config, [], False, None))])
 
 
@@ -882,7 +895,7 @@ def run_live(config: BenchmarkConfig) -> Path:
     finally:
         writer.write_json("metrics/runs.json", [_record_json(record) for record in records])
         safe_failure = redact(failure or "", (credentials.get(key, "") for key in SECRET_ENV_KEYS))
-        writer.write_json("summary.json", {"status": "complete" if complete and failure is None else "incomplete", "error": safe_failure or None, "image": config.image, "transport": "sync", "count": config.count, "repetitions": config.repetitions, "nominal_payload_bytes_per_run": config.nominal_payload_bytes_per_run, "nominal_total_bytes": config.nominal_total_bytes, "selected_one_cpu_concurrency": selected, "baseline": baseline_payload, "records": [_record_json(record) for record in records]})
+        writer.write_json("summary.json", {"status": "complete" if complete and failure is None else "incomplete", "error": safe_failure or None, "image": config.image, "transport": "sync", "count": config.count, "repetitions": config.repetitions, "nominal_payload_bytes_per_run": config.nominal_payload_bytes_per_run, "nominal_total_bytes": config.nominal_total_bytes, "one_cpu_enabled": not config.skip_one_cpu, "selected_one_cpu_concurrency": selected, "baseline": baseline_payload, "records": [_record_json(record) for record in records]})
         writer.write_text("summary.md", _summary_md(config, records, complete and failure is None, selected))
         archive = writer.finalize(writer.files)
     if failure is not None or not complete:
