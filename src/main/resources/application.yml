@@ -44,8 +44,6 @@ validator:
   watch-flush-interval: ${VALIDATOR_WATCH_FLUSH_INTERVAL:2s}
   watch-max-pending-events: ${VALIDATOR_WATCH_MAX_PENDING_EVENTS:50000}
   count-remaining-screenshots: ${COUNT_REMAINING_SCREENSHOTS:true}
-  integration:
-    image-api-key: ${INTEGRATION_IMAGE_API_KEY:}
   b2:
     enabled: ${B2_ENABLED:false}
     endpoint: ${B2_ENDPOINT:}

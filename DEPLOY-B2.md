@@ -64,7 +64,6 @@ git log -1 --oneline
 - Заполнить `B2_ENDPOINT` (с `https://`), bucket и два ключа клиента. Регион определяется по endpoint, отдельного `B2_REGION` нет.
 - Для первого запуска оставить **`B2_ENABLED=false`**; явно указать `B2_UPLOAD_CONCURRENCY=8`.
 - `APP_CPU_LIMIT=0.0`, либо `2.0`, если общая CPU-квота подтверждена.
-- `INTEGRATION_IMAGE_API_KEY` оставить пустым до готовности HTTPS. Потом задать отдельный случайный секрет для Игоря, не ключ B2. Пустой ключ закрывает integration API, но не мешает UI/B2.
 - Не изменять `DB_*`, `POSTGRES_DATA_ROOT_HOST`, `VALIDATOR_IMAGE_ROOT_HOST`, существующие порты и Slack-настройки.
 
 Production-пути остаются `/opt/dataox/validator-api-build/postgres-data` для БД и `/data/recognition-api/completed_recognition` для PNG. Изображения монтируются read-only. Не использовать `.env` от benchmark.
@@ -167,5 +166,4 @@ docker compose up -d --no-deps --no-build --force-recreate validator-api-app
 ## После запуска
 
 - Проверить в B2, что растёт именно production-prefix клиента и нет предупреждений об исчерпании лимита.
-- После готовности HTTPS настроить отдельный image API key и передать Игорю контракт из раздела «Read-only API изображений для другого сервиса» в [RUNBOOK.md](RUNBOOK.md).
 - AI scheduler, отправка запросов в сервис Игоря и SLA-мониторинг не входят в этот запуск.
