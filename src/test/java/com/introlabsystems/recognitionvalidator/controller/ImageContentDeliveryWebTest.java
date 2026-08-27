@@ -6,8 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -28,9 +30,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static software.amazon.awssdk.core.exception.SdkClientException.create;
 
+@TestPropertySource(properties = "validator.integration.image-api-key=integration-test-key")
 class ImageContentDeliveryWebTest extends AbstractWebIntegrationTest {
 
     private static final String CLOUD_KEY = "validator/cloud-image.png";
+    private static final String INTEGRATION_API_KEY = "integration-test-key";
 
     @MockitoBean
     private CloudObjectStorage cloudStorage;
@@ -101,6 +105,37 @@ class ImageContentDeliveryWebTest extends AbstractWebIntegrationTest {
 
         verify(cloudStorage).presignGet(CLOUD_KEY, Duration.ofMinutes(15));
         verify(cloudStorage, times(0)).exists(CLOUD_KEY);
+    }
+
+    @Test
+    void oldCloudBackedIntegrationImageIsProxiedAsPng() throws Exception {
+        byte[] cloudBytes = new byte[]{(byte) 0x89, 0x50, 0x4e, 0x47, 7, 8, 9};
+        String imageId = insertReviewImage(
+                414, "integration-cloud.png", false, "bj_igt", "integration-cloud-session",
+                null, "King", null
+        );
+        jdbc.update(
+                "UPDATE image_asset SET cloud_object_key = ?, cloud_uploaded_at = now() WHERE id = ?",
+                CLOUD_KEY, imageId
+        );
+        when(cloudStorage.open(CLOUD_KEY)).thenReturn(
+                new CloudObjectStorage.CloudContent(
+                        new ByteArrayInputStream(cloudBytes), cloudBytes.length
+                )
+        );
+
+        mockMvc.perform(get("/api/integration/images/{imageId}/content", imageId)
+                        .header("X-API-Key", INTEGRATION_API_KEY))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(cloudBytes))
+                .andExpect(header().doesNotExist("Location"))
+                .andExpect(header().longValue("Content-Length", cloudBytes.length))
+                .andExpect(header().string("Cache-Control", "no-store"));
+
+        verify(cloudStorage).open(CLOUD_KEY);
+        org.mockito.Mockito.verify(cloudStorage, times(0))
+                .presignGet(CLOUD_KEY, Duration.ofMinutes(15));
     }
 
     @Test

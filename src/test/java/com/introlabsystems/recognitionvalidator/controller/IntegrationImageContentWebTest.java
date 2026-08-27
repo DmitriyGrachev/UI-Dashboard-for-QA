@@ -75,22 +75,26 @@ class IntegrationImageContentWebTest {
 
         assertThat(result.getRequest().getSession(false)).isNull();
         mvc.perform(get(URL)).andExpect(status().isUnauthorized());
-        verify(storage).openForBrowser(IMAGE_ID);
+        verify(storage).open(IMAGE_ID);
     }
 
     @Test
-    void cloudDeliveryReturnsPresignedRedirectWithoutProxyingTheImage() throws Exception {
+    void cloudDeliveryIsProxiedAsPngWithoutExposingAStorageRedirect() throws Exception {
+        byte[] png = {(byte) 0x89, 0x50, 0x4e, 0x47, 4, 5, 6};
         URI location = URI.create("https://storage.example.invalid/frame.png?signature=test");
         when(storage.openForBrowser(IMAGE_ID))
                 .thenReturn(new ImageStorageService.BrowserDelivery.Redirect(location));
+        when(storage.open(IMAGE_ID)).thenReturn(imageContent(png));
 
         mvc.perform(get(URL).header("X-API-Key", API_KEY))
-                .andExpect(status().isTemporaryRedirect())
-                .andExpect(header().string("Location", location.toString()))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.IMAGE_PNG))
+                .andExpect(content().bytes(png))
+                .andExpect(header().doesNotExist("Location"))
                 .andExpect(header().string("Cache-Control", "no-store"))
-                .andExpect(content().string(""));
+                .andExpect(header().longValue("Content-Length", png.length));
 
-        verify(storage).openForBrowser(IMAGE_ID);
+        verify(storage).open(IMAGE_ID);
     }
 
     @ParameterizedTest
@@ -157,6 +161,8 @@ class IntegrationImageContentWebTest {
     @Test
     void existingOperatorImageAccessStillWorksWithoutAnApiKey() throws Exception {
         byte[] png = localImage();
+        when(storage.openForBrowser(IMAGE_ID))
+                .thenReturn(new ImageStorageService.BrowserDelivery.Local(imageContent(png)));
 
         mvc.perform(get("/api/images/{id}/content", IMAGE_ID)
                         .with(user("operator").roles("OPERATOR")))
@@ -173,7 +179,7 @@ class IntegrationImageContentWebTest {
 
     @Test
     void missingImageReturnsJson404() throws Exception {
-        when(storage.openForBrowser(IMAGE_ID)).thenThrow(new ImageNotFoundException(IMAGE_ID));
+        when(storage.open(IMAGE_ID)).thenThrow(new ImageNotFoundException(IMAGE_ID));
 
         mvc.perform(get(URL).header("X-API-Key", API_KEY))
                 .andExpect(status().isNotFound())
@@ -183,7 +189,7 @@ class IntegrationImageContentWebTest {
 
     @Test
     void temporaryStorageFailureReturnsJson503() throws Exception {
-        when(storage.openForBrowser(IMAGE_ID)).thenThrow(new ImageStorageUnavailableException());
+        when(storage.open(IMAGE_ID)).thenThrow(new ImageStorageUnavailableException());
 
         mvc.perform(get(URL).header("X-API-Key", API_KEY))
                 .andExpect(status().isServiceUnavailable())
@@ -193,10 +199,12 @@ class IntegrationImageContentWebTest {
 
     private byte[] localImage() {
         byte[] png = {(byte) 0x89, 0x50, 0x4e, 0x47, 1, 2, 3};
-        var content = new ImageStorageService.ImageContent(
-                new InputStreamResource(new ByteArrayInputStream(png)), png.length, "frame.png");
-        when(storage.openForBrowser(IMAGE_ID))
-                .thenReturn(new ImageStorageService.BrowserDelivery.Local(content));
+        when(storage.open(IMAGE_ID)).thenReturn(imageContent(png));
         return png;
+    }
+
+    private ImageStorageService.ImageContent imageContent(byte[] png) {
+        return new ImageStorageService.ImageContent(
+                new InputStreamResource(new ByteArrayInputStream(png)), png.length, "frame.png");
     }
 }

@@ -20,8 +20,8 @@ public class ImageContentController {
 
     private final ImageStorageService storage;
 
-    @GetMapping({"/api/images/{imageId}/content", "/api/integration/images/{imageId}/content"})
-    ResponseEntity<?> content(@PathVariable String imageId) {
+    @GetMapping("/api/images/{imageId}/content")
+    ResponseEntity<?> browserContent(@PathVariable String imageId) {
         ImageStorageService.BrowserDelivery delivery = storage.openForBrowser(imageId);
         if (delivery instanceof ImageStorageService.BrowserDelivery.Redirect redirect) {
             return ResponseEntity.status(HttpStatus.TEMPORARY_REDIRECT)
@@ -31,6 +31,15 @@ public class ImageContentController {
         }
         ImageStorageService.ImageContent content =
                 ((ImageStorageService.BrowserDelivery.Local) delivery).content();
+        return imageResponse(content);
+    }
+
+    @GetMapping("/api/integration/images/{imageId}/content")
+    ResponseEntity<?> integrationContent(@PathVariable String imageId) {
+        return imageResponse(storage.open(imageId));
+    }
+
+    private ResponseEntity<?> imageResponse(ImageStorageService.ImageContent content) {
         ContentDisposition disposition = ContentDisposition.inline()
                 .filename(content.fileName(), StandardCharsets.UTF_8)
                 .build();
