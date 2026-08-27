@@ -10,17 +10,19 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.nio.charset.StandardCharsets;
 
 @RestController
+@RequestMapping("/api/images")
 @RequiredArgsConstructor
 public class ImageContentController {
 
     private final ImageStorageService storage;
 
-    @GetMapping({"/api/images/{imageId}/content", "/api/integration/images/{imageId}/content"})
+    @GetMapping("/{imageId}/content")
     ResponseEntity<?> content(@PathVariable String imageId) {
         ImageStorageService.BrowserDelivery delivery = storage.openForBrowser(imageId);
         if (delivery instanceof ImageStorageService.BrowserDelivery.Redirect redirect) {
@@ -42,7 +44,7 @@ public class ImageContentController {
                 .body(content.resource());
     }
 
-    @GetMapping("/api/images/{imageId}/availability")
+    @GetMapping("/{imageId}/availability")
     ResponseEntity<Void> availability(@PathVariable String imageId) {
         HttpStatus status = storage.verifyForBrowser(imageId)
                 ? HttpStatus.NO_CONTENT
