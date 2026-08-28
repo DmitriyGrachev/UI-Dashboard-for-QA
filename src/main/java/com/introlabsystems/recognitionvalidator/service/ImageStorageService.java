@@ -3,6 +3,7 @@ package com.introlabsystems.recognitionvalidator.service;
 import org.springframework.core.io.InputStreamResource;
 
 import java.net.URI;
+import java.time.Instant;
 
 public interface ImageStorageService {
 
@@ -11,6 +12,8 @@ public interface ImageStorageService {
     boolean verifyForBrowser(String imageId);
 
     ImageContent open(String imageId);
+
+    TemporaryLink temporaryCloudLink(String imageId);
 
     sealed interface BrowserDelivery permits BrowserDelivery.Local, BrowserDelivery.Redirect {
 
@@ -26,5 +29,8 @@ public interface ImageStorageService {
             long contentLength,
             String fileName
     ) {
+    }
+
+    record TemporaryLink(URI url, Instant expiresAt) {
     }
 }

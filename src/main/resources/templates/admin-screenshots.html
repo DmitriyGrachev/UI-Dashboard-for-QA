@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Screenshot explorer — Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet"
+          th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <script defer
+            th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
+    <script defer th:src="@{/js/time-segment-combobox.js}"></script>
+    <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
+    <script defer th:src="@{/js/admin-screenshots.js}"></script>
+</head>
+<body>
+<div class="app-shell admin-explorer-shell">
+    <header class="topbar explorer-topbar">
+        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
+            <span class="brand-mark" aria-hidden="true">RV</span>
+            <span>
+                <strong>Recognition Validator</strong>
+                <small>Screenshot explorer</small>
+            </span>
+        </a>
+        <nav class="topbar-actions" aria-label="Admin navigation">
+            <a th:href="@{/admin}">Operators</a>
+            <a class="is-current" th:href="@{/admin/screenshots}" aria-current="page">
+                Screenshots
+            </a>
+            <button class="theme-toggle" type="button" data-theme-toggle
+                    aria-label="Switch to light theme" title="Switch to light theme">
+                <span aria-hidden="true" data-theme-icon>☀</span>
+                <span data-theme-label>Light</span>
+            </button>
+            <span class="signed-in-user" th:text="${adminName}">admin</span>
+            <form method="post" th:action="@{/logout}">
+                <button class="link-button" type="submit">Sign out</button>
+            </form>
+        </nav>
+    </header>
+
+    <section class="storage-dashboard" id="storage-dashboard"
+             aria-labelledby="storage-dashboard-title">
+        <header>
+            <span>
+                <span class="section-kicker">Storage health</span>
+                <strong id="storage-dashboard-title">Local + B2</strong>
+            </span>
+            <button type="button" class="compact-button" id="refresh-storage">Refresh</button>
+        </header>
+        <dl class="storage-metrics" aria-live="polite">
+            <div><dt>Cloud uploaded</dt><dd id="storage-uploaded">—</dd></div>
+            <div><dt>Upload backlog</dt><dd id="storage-backlog">—</dd></div>
+            <div><dt>Due now</dt><dd id="storage-due-now">—</dd></div>
+            <div><dt>Retrying</dt><dd id="storage-retrying">—</dd></div>
+            <div><dt>Unavailable</dt><dd id="storage-unavailable">—</dd></div>
+            <div><dt>Oldest pending, UTC</dt><dd id="storage-oldest-pending">—</dd></div>
+        </dl>
+        <p class="storage-status-message" id="storage-status-message" role="status"></p>
+    </section>
+
+    <main class="screenshot-explorer">
+        <aside class="explorer-sidebar" aria-labelledby="explorer-filter-title">
+            <header class="explorer-panel-heading">
+                <div>
+                    <span class="section-kicker">Find screenshots</span>
+                    <h1 id="explorer-filter-title">Screenshot explorer</h1>
+                </div>
+                <button type="button" class="compact-button" id="reset-screenshot-filters">
+                    Reset
+                </button>
+            </header>
+
+            <form id="screenshot-filter-form" class="explorer-filters" data-utc-date-range>
+                <div class="quick-date-presets" aria-label="Quick date ranges">
+                    <button type="button" data-range-hours="24">Last 24h</button>
+                    <button type="button" data-range-days="4">Last 4 days</button>
+                    <button type="button" data-range-days="21">Last 21 days</button>
+                </div>
+
+                <label>
+                    <span>Created from (UTC)</span>
+                    <span class="utc-datetime-control" data-utc-boundary>
+                        <input id="explorer-created-from" type="hidden">
+                        <span class="utc-date-control" data-date-wrap>
+                            <input id="explorer-created-from-date" type="text"
+                                   data-input data-date-input autocomplete="off"
+                                   placeholder="DD.MM.YYYY" aria-label="Created from date"
+                                   aria-describedby="explorer-date-range-error">
+                            <button class="utc-calendar-toggle" type="button" data-toggle
+                                    aria-label="Open Created from calendar" title="Open calendar">
+                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                                </svg>
+                            </button>
+                        </span>
+                        <span class="utc-time-segment" data-hour-segment>
+                            <input id="explorer-created-from-hour" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created from hour"
+                                   aria-describedby="explorer-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created from hour">▾</button>
+                            <span class="utc-time-listbox" data-segment-listbox hidden></span>
+                        </span>
+                        <span class="utc-time-separator" aria-hidden="true">:</span>
+                        <span class="utc-time-segment" data-minute-segment>
+                            <input id="explorer-created-from-minute" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created from minute"
+                                   aria-describedby="explorer-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created from minute">▾</button>
+                            <span class="utc-time-listbox" data-segment-listbox hidden></span>
+                        </span>
+                    </span>
+                </label>
+
+                <label>
+                    <span>Created to (UTC)</span>
+                    <span class="utc-datetime-control" data-utc-boundary>
+                        <input id="explorer-created-to" type="hidden">
+                        <span class="utc-date-control" data-date-wrap>
+                            <input id="explorer-created-to-date" type="text"
+                                   data-input data-date-input autocomplete="off"
+                                   placeholder="DD.MM.YYYY" aria-label="Created to date"
+                                   aria-describedby="explorer-date-range-error">
+                            <button class="utc-calendar-toggle" type="button" data-toggle
+                                    aria-label="Open Created to calendar" title="Open calendar">
+                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
+                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
+                                </svg>
+                            </button>
+                        </span>
+                        <span class="utc-time-segment" data-hour-segment>
+                            <input id="explorer-created-to-hour" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created to hour"
+                                   aria-describedby="explorer-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created to hour">▾</button>
+                            <span class="utc-time-listbox" data-segment-listbox hidden></span>
+                        </span>
+                        <span class="utc-time-separator" aria-hidden="true">:</span>
+                        <span class="utc-time-segment" data-minute-segment>
+                            <input id="explorer-created-to-minute" type="text" value="00"
+                                   inputmode="numeric" maxlength="2" autocomplete="off"
+                                   data-segment-input aria-label="Created to minute"
+                                   aria-describedby="explorer-date-range-error">
+                            <button type="button" data-segment-toggle
+                                    aria-label="Choose Created to minute">▾</button>
+                            <span class="utc-time-listbox" data-segment-listbox hidden></span>
+                        </span>
+                    </span>
+                </label>
+                <p class="utc-date-error" id="explorer-date-range-error" role="alert" hidden></p>
+
+                <label class="primary-state-filter">
+                    Checked state
+                    <select id="review-state">
+                        <option value="ALL">All</option>
+                        <option value="CHECKED">Checked</option>
+                        <option value="UNCHECKED">Unchecked</option>
+                    </select>
+                </label>
+
+                <details class="explorer-more-filters">
+                    <summary>More filters</summary>
+                    <div class="filter-field-grid">
+                    <label>
+                        Game
+                        <select id="explorer-game-code">
+                            <option value="">All games</option>
+                            <option th:each="game : ${games}"
+                                    th:value="${game}" th:text="${game}"></option>
+                        </select>
+                    </label>
+                    <label>
+                        Token ID
+                        <input id="explorer-token-id" type="number" min="0" step="1"
+                               placeholder="token_id" autocomplete="off">
+                    </label>
+                    <label>
+                        Session
+                        <input id="explorer-session-id" type="search"
+                               placeholder="session_id" autocomplete="off">
+                    </label>
+                    <label>
+                        Decision
+                        <select id="explorer-decision">
+                            <option value="">Any</option>
+                            <option value="ACCEPTED">Matches</option>
+                            <option value="REJECTED">Does not match</option>
+                        </select>
+                    </label>
+                    <label>
+                        Reviewed by
+                        <input id="explorer-reviewed-by" type="search"
+                               placeholder="operator" autocomplete="off">
+                    </label>
+                    <label>
+                        Storage
+                        <select id="explorer-storage-state">
+                            <option value="">Any</option>
+                            <option value="LOCAL_ONLY">Local only</option>
+                            <option value="B2_ONLY">B2 only</option>
+                            <option value="BOTH">Local + B2</option>
+                            <option value="MISSING">Missing</option>
+                        </select>
+                    </label>
+                    <label>
+                        Parse status
+                        <select id="explorer-parse-status">
+                            <option value="">Any</option>
+                            <option value="SUCCESS">Success</option>
+                            <option value="PARTIAL">Partial</option>
+                            <option value="ERROR">Error</option>
+                        </select>
+                    </label>
+                    <label>
+                        Notification
+                        <select id="explorer-notification">
+                            <option value="">Any</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </label>
+                    <label>
+                        Has user hand
+                        <select id="explorer-has-user-hand">
+                            <option value="">Any</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </label>
+                    </div>
+                </details>
+
+                <details class="exact-filter-disclosure">
+                    <summary>Exact lookup</summary>
+                    <label>
+                        Image ID
+                        <input id="explorer-image-id" type="search"
+                               placeholder="SHA-256 ID" autocomplete="off">
+                    </label>
+                    <label>
+                        File name
+                        <input id="explorer-file-name" type="search"
+                               placeholder="image.png" autocomplete="off">
+                    </label>
+                </details>
+
+                <button class="button primary" type="submit">Search</button>
+            </form>
+
+            <section class="explorer-results-panel" aria-labelledby="results-title">
+                <header>
+                    <span>
+                        <span class="section-kicker">Results</span>
+                        <strong id="results-title"><output id="result-count">0</output> found</strong>
+                    </span>
+                    <span class="result-range" id="result-range">—</span>
+                </header>
+                <div class="screenshot-results" id="screenshot-results"
+                     role="listbox" aria-label="Matching screenshots"></div>
+                <button class="load-more-results" type="button" id="load-more-results" hidden>
+                    Load more
+                </button>
+            </section>
+        </aside>
+
+        <section class="explorer-viewer" aria-label="Selected screenshot">
+            <header class="viewer-bar">
+                <div>
+                    <span class="section-kicker">Selected screenshot</span>
+                    <strong id="explorer-file-summary">Choose a result</strong>
+                </div>
+                <div class="viewer-tools" aria-label="Image controls">
+                    <button type="button" id="explorer-zoom-out" aria-label="Zoom out">−</button>
+                    <output id="explorer-zoom-value">100%</output>
+                    <button type="button" id="explorer-zoom-in" aria-label="Zoom in">+</button>
+                    <button type="button" id="explorer-zoom-reset">Reset</button>
+                    <button type="button" id="explorer-fullscreen">Fullscreen</button>
+                </div>
+            </header>
+            <div class="image-stage" id="explorer-image-stage">
+                <img id="explorer-image" alt="Selected screenshot" draggable="false" hidden>
+                <div class="viewer-message" id="explorer-viewer-message"
+                     role="status" aria-live="polite">
+                    Set filters or choose a result to inspect it.
+                </div>
+            </div>
+            <p class="viewer-hint">
+                ←/→ — navigate · D — download · wheel — zoom · drag — pan · 0 — reset
+            </p>
+            <footer class="explorer-actions">
+                <button type="button" id="previous-screenshot" disabled>← Previous</button>
+                <button type="button" id="next-screenshot" disabled>Next →</button>
+                <a class="button primary" id="download-screenshot" href="#"
+                   aria-disabled="true">Download PNG <kbd>D</kbd></a>
+                <button type="button" id="open-temporary-link" disabled>Open B2 link</button>
+                <button type="button" id="copy-technical-report" disabled>Copy report</button>
+            </footer>
+        </section>
+
+        <aside class="explorer-details" aria-labelledby="explorer-details-title">
+            <header class="explorer-panel-heading">
+                <div>
+                    <span class="section-kicker">Inspection</span>
+                    <h2 id="explorer-details-title">Screenshot details</h2>
+                </div>
+                <span class="detail-status" id="detail-review-state">—</span>
+            </header>
+            <div class="detail-placeholder" id="detail-placeholder">
+                Select a screenshot to see parsed data and review information.
+            </div>
+            <div class="detail-content" id="detail-content" hidden>
+                <dl class="detail-primary">
+                    <div><dt>Game</dt><dd id="detail-game">—</dd></div>
+                    <div><dt>Decision</dt><dd id="detail-decision">—</dd></div>
+                    <div><dt>Dealer</dt><dd id="detail-dealer">—</dd></div>
+                    <div><dt>Active hand</dt><dd id="detail-active-hand">—</dd></div>
+                    <div><dt>Other hands</dt><dd id="detail-other-hands">—</dd></div>
+                    <div><dt>Buttons</dt><dd id="detail-buttons">—</dd></div>
+                    <div><dt>Available actions</dt><dd id="detail-actions">—</dd></div>
+                </dl>
+                <dl class="detail-technical">
+                    <div><dt>Image ID</dt><dd id="detail-image-id">—</dd></div>
+                    <div><dt>File name</dt><dd id="detail-file-name">—</dd></div>
+                    <div><dt>Token ID</dt><dd id="detail-token-id">—</dd></div>
+                    <div><dt>Session</dt><dd id="detail-session-id">—</dd></div>
+                    <div><dt>Created, UTC</dt><dd id="detail-created-at">—</dd></div>
+                    <div><dt>Processed, UTC</dt><dd id="detail-processed-at">—</dd></div>
+                    <div><dt>Reviewed by</dt><dd id="detail-reviewed-by">—</dd></div>
+                    <div><dt>Reviewed, UTC</dt><dd id="detail-reviewed-at">—</dd></div>
+                    <div><dt>Recognition time</dt><dd id="detail-duration">—</dd></div>
+                    <div><dt>Notification</dt><dd id="detail-notification">—</dd></div>
+                    <div><dt>Parse status</dt><dd id="detail-parse-status">—</dd></div>
+                    <div><dt>Storage</dt><dd id="detail-storage-state">—</dd></div>
+                    <div><dt>Cloud uploaded</dt><dd id="detail-cloud-uploaded-at">—</dd></div>
+                    <div><dt>Raw payload</dt><dd id="detail-payload">—</dd></div>
+                </dl>
+            </div>
+        </aside>
+    </main>
+</div>
+</body>
+</html>

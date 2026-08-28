@@ -3,6 +3,7 @@ package com.introlabsystems.recognitionvalidator.service.impl;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import com.introlabsystems.recognitionvalidator.dao.jpa.ImageAssetRepository;
+import com.introlabsystems.recognitionvalidator.exception.CloudImageNotAvailableException;
 import com.introlabsystems.recognitionvalidator.exception.ImageNotFoundException;
 import com.introlabsystems.recognitionvalidator.exception.ImageStorageUnavailableException;
 import com.introlabsystems.recognitionvalidator.model.entity.ImageAsset;
@@ -143,6 +144,17 @@ public class ImageStorageServiceImpl implements ImageStorageService {
 
         markUnavailable(asset);
         throw new ImageNotFoundException(imageId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TemporaryLink temporaryCloudLink(String imageId) {
+        ImageAsset asset = findAsset(imageId);
+        if (!hasCloud(asset) || cloudStorage == null) {
+            throw new CloudImageNotAvailableException();
+        }
+        Instant expiresAt = clock.instant().plus(b2Properties.presignedUrlTtl());
+        return new TemporaryLink(presign(asset.getCloudObjectKey()), expiresAt);
     }
 
     private ImageAsset findAsset(String imageId) {

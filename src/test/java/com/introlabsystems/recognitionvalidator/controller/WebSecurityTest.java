@@ -102,6 +102,39 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     }
 
     @Test
+    void screenshotExplorerIsAdminOnlyAndProvidesItsControls() throws Exception {
+        mockMvc.perform(get("/admin/screenshots"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/login"));
+
+        mockMvc.perform(get("/admin/screenshots")
+                        .with(user("operator").roles("OPERATOR")))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/review"));
+
+        mockMvc.perform(get("/admin/screenshots")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Screenshot explorer")))
+                .andExpect(content().string(containsString("id=\"screenshot-filter-form\"")))
+                .andExpect(content().string(containsString("id=\"review-state\"")))
+                .andExpect(content().string(containsString("id=\"screenshot-results\"")))
+                .andExpect(content().string(containsString("id=\"explorer-image\"")))
+                .andExpect(content().string(containsString("id=\"download-screenshot\"")))
+                .andExpect(content().string(containsString("id=\"copy-technical-report\"")))
+                .andExpect(content().string(containsString("id=\"storage-dashboard\"")))
+                .andExpect(content().string(containsString("/js/admin-screenshots.js")))
+                .andExpect(content().string(containsString("data-utc-date-range")));
+    }
+
+    @Test
+    void adminDashboardLinksToScreenshotExplorer() throws Exception {
+        mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"/admin/screenshots\"")));
+    }
+
+    @Test
     void adminPageProgressivelyDisclosesOperatorCreation() throws Exception {
         mockMvc.perform(get("/admin")
                         .with(user("admin").roles("ADMIN")))

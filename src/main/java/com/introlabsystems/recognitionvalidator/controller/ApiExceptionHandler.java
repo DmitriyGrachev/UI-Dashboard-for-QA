@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
+import com.introlabsystems.recognitionvalidator.exception.CloudImageNotAvailableException;
 import com.introlabsystems.recognitionvalidator.exception.ImageNotFoundException;
 import com.introlabsystems.recognitionvalidator.exception.ImageStorageUnavailableException;
 import com.introlabsystems.recognitionvalidator.exception.DecisionConflictException;
@@ -42,6 +43,14 @@ public class ApiExceptionHandler {
         return ProblemDetail.forStatusAndDetail(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "Image storage is temporarily unavailable"
+        );
+    }
+
+    @ExceptionHandler(CloudImageNotAvailableException.class)
+    ProblemDetail cloudImageNotAvailable(CloudImageNotAvailableException exception) {
+        return ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                exception.getMessage()
         );
     }
 
