@@ -143,6 +143,43 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
     }
 
     @Test
+    void queueFiltersRemainStableWhenAssetMetadataIsUpdated() {
+        UUID operatorId = insertOperator("stable-search-filter");
+        Instant createdAt = Instant.parse("2026-07-30T10:00:00Z");
+        String expected = insertImage(
+                1013,
+                createdAt,
+                "bj_igt",
+                "39_stable-session",
+                false,
+                true
+        );
+        setTokenId(expected, 39L);
+        jdbc.update("""
+                UPDATE image_asset
+                SET game_code = 'bj_relax',
+                    token_id = 99,
+                    session_id = 'changed-session',
+                    is_notification = TRUE
+                WHERE id = ?
+                """, expected);
+        ReviewFilters filters = new ReviewFilters(
+                null,
+                null,
+                39L,
+                "39_stable-session",
+                "bj_igt",
+                false,
+                null
+        );
+
+        ReviewQueueResult result = queueService.claim(operatorId, filters, true, true);
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(expected);
+        assertThat(result.remaining()).isEqualTo(1L);
+    }
+
+    @Test
     void excludesCloudOnlyImageWhenB2IsDisabled() {
         UUID operatorId = insertOperator("cloud-only-queue");
         String cloudOnly = insertImage(
@@ -346,8 +383,8 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 "bj_igt", "37_stale-session", false, true);
         String expected = insertImage(121, Instant.parse("2026-07-30T10:00:00Z"),
                 "bj_igt", "36_expected-session", false, true);
-        jdbc.update("UPDATE image_asset SET token_id = 37 WHERE id = ?", stale);
-        jdbc.update("UPDATE image_asset SET token_id = 36 WHERE id = ?", expected);
+        setTokenId(stale, 37L);
+        setTokenId(expected, 36L);
         queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
 
         ReviewQueueResult result = queueService.claim(
@@ -364,6 +401,100 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 stale
         )).containsEntry("status", "PENDING")
                 .containsEntry("assigned_to", null);
+    }
+
+    @Test
+    void tokenAndSessionFiltersWorkTogether() {
+        UUID operatorId = insertOperator("token-session-filter");
+        Instant createdAt = Instant.parse("2026-07-30T10:00:00Z");
+        String expected = insertImage(
+                122,
+                createdAt,
+                "bj_igt",
+                "36_target-session",
+                false,
+                true
+        );
+        String wrongSession = insertImage(
+                123,
+                createdAt.minusSeconds(60),
+                "bj_igt",
+                "36_other-session",
+                false,
+                true
+        );
+        String wrongToken = insertImage(
+                124,
+                createdAt.minusSeconds(120),
+                "bj_igt",
+                "36_target-session",
+                false,
+                true
+        );
+        setTokenId(expected, 36L);
+        setTokenId(wrongSession, 36L);
+        setTokenId(wrongToken, 37L);
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(
+                        null,
+                        null,
+                        36L,
+                        "36_target-session",
+                        null,
+                        null,
+                        null
+                ),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(expected);
+        assertThat(result.remaining()).isEqualTo(1L);
+    }
+
+    @Test
+    void userHandFilterUsesTheQueueProjection() {
+        UUID operatorId = insertOperator("user-hand-filter");
+        String withHand = insertImage(
+                125,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "with-hand",
+                false,
+                true
+        );
+        insertImage(
+                126,
+                Instant.parse("2026-07-30T09:00:00Z"),
+                "bj_igt",
+                "without-hand",
+                false,
+                true
+        );
+        jdbc.update(
+                "UPDATE image_asset SET active_user_cards = 'Jack' WHERE id = ?",
+                withHand
+        );
+        jdbc.update(
+                "UPDATE review_task SET has_user_hand = TRUE WHERE image_id = ?",
+                withHand
+        );
+        jdbc.update(
+                "UPDATE image_asset SET active_user_cards = NULL WHERE id = ?",
+                withHand
+        );
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(null, null, null, null, null, null, true),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(withHand);
+        assertThat(result.remaining()).isEqualTo(1L);
     }
 
     @Test

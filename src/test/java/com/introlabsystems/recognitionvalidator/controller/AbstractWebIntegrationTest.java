@@ -113,13 +113,23 @@ abstract class AbstractWebIntegrationTest {
                 inactiveCards,
                 Timestamp.from(createdAt)
         );
-        jdbc.update(
-                "INSERT INTO review_task (image_id, status, file_created_at) "
-                        + "VALUES (?, 'PENDING', ?)",
+        jdbc.update("""
+                INSERT INTO review_task (
+                    image_id, status, file_created_at, game_code, token_id,
+                    session_id, is_notification, has_user_hand
+                ) VALUES (?, 'PENDING', ?, ?, NULL, ?, FALSE, ?)
+                """,
                 id,
-                Timestamp.from(createdAt)
+                Timestamp.from(createdAt),
+                gameCode,
+                sessionId,
+                hasText(activeCards) || hasText(inactiveCards)
         );
         return id;
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     protected String insertRejectedExportImage(int number, String fileName, byte[] bytes)

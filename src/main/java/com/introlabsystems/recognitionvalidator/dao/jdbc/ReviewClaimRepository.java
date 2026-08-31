@@ -269,35 +269,24 @@ public class ReviewClaimRepository {
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
         if (filters.tokenId() != null) {
-            sql.append(" AND ia.token_id = :tokenId");
+            sql.append(" AND rt.token_id = :tokenId");
             parameters.addValue("tokenId", filters.tokenId());
         }
         if (hasText(filters.sessionId())) {
-            sql.append(" AND ia.session_id = :sessionId");
+            sql.append(" AND rt.session_id = :sessionId");
             parameters.addValue("sessionId", filters.sessionId());
         }
         if (hasText(filters.gameCode())) {
-            sql.append(" AND ia.game_code = :gameCode");
+            sql.append(" AND rt.game_code = :gameCode");
             parameters.addValue("gameCode", filters.gameCode());
         }
         if (filters.notification() != null) {
-            sql.append(" AND ia.is_notification = :notification");
+            sql.append(" AND rt.is_notification = :notification");
             parameters.addValue("notification", filters.notification());
         }
         if (filters.hasUserHand() != null) {
-            if (filters.hasUserHand()) {
-                sql.append("""
-                         AND (
-                             NULLIF(BTRIM(ia.active_user_cards), '') IS NOT NULL
-                             OR NULLIF(BTRIM(ia.inactive_user_cards), '') IS NOT NULL
-                         )
-                        """);
-            } else {
-                sql.append("""
-                         AND NULLIF(BTRIM(ia.active_user_cards), '') IS NULL
-                         AND NULLIF(BTRIM(ia.inactive_user_cards), '') IS NULL
-                        """);
-            }
+            sql.append(" AND rt.has_user_hand = :hasUserHand");
+            parameters.addValue("hasUserHand", filters.hasUserHand());
         }
     }
 

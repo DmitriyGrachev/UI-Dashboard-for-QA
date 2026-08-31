@@ -631,7 +631,9 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 null, "Nine", null
         );
         jdbc.update("UPDATE image_asset SET token_id = 137 WHERE id = ?", differentToken);
+        jdbc.update("UPDATE review_task SET token_id = 137 WHERE image_id = ?", differentToken);
         jdbc.update("UPDATE image_asset SET token_id = 37 WHERE id = ?", expected);
+        jdbc.update("UPDATE review_task SET token_id = 37 WHERE image_id = ?", expected);
 
         mockMvc.perform(post("/api/review-tasks/claim")
                         .with(user(principal(operatorId, "token-filter-operator")))
