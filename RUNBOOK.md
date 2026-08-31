@@ -640,6 +640,61 @@ docker compose ps
 Не удаляйте вручную `POSTGRES_DATA_ROOT_HOST` при работающем PostgreSQL. Не
 используйте глобальную остановку всех Docker-контейнеров на общем сервере.
 
+### Обязательная миграция очереди перед первым деплоем оптимизации
+
+Перед первым запуском версии с `review_task.file_created_at` остановите только
+приложение Validator и выполните миграцию. PostgreSQL и остальные сервисы сервера
+останавливать не нужно:
+
+```bash
+docker compose stop validator-api-app
+
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < scripts/review-queue-performance.sql
+```
+
+Скрипт повторяемый: он дополняет старые задания датой создания пакетами по 10 000,
+проверяет отсутствие `NULL`, создаёт два индекса без блокировки чтения таблиц и
+обновляет статистику планировщика. На production с большим числом строк операция
+может занять несколько минут. Не запускайте новое приложение, пока команда не
+завершилась строкой `Review queue performance migration completed`.
+
+Проверка результата:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT count(*) FILTER (WHERE file_created_at IS NULL) AS missing_queue_dates
+FROM review_task;
+
+SELECT indexrelid::regclass AS index_name, indisvalid, indisready
+FROM pg_index
+WHERE indexrelid::regclass::text IN (
+  'ix_review_pending_order',
+  'ix_image_cloud_pending_order'
+)
+ORDER BY index_name;
+
+SELECT stxname
+FROM pg_statistic_ext
+WHERE stxname = 'st_image_user_hand_presence';
+SQL
+```
+
+Ожидается `missing_queue_dates = 0`, оба индекса имеют `indisvalid = t` и
+`indisready = t`, статистика присутствует. После этого пересоберите только
+приложение:
+
+```bash
+docker compose up -d --build --no-deps validator-api-app
+```
+
+Если миграция завершилась ошибкой, не запускайте новую версию. Верните тот же
+остановленный контейнер старого приложения командой
+`docker compose start validator-api-app`: он игнорирует добавленную колонку, а
+миграцию можно безопасно повторить после устранения причины.
+
 ## 12. Типовые проблемы
 
 ### UI не открывается
