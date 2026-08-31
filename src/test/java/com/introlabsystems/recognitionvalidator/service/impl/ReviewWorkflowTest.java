@@ -180,6 +180,37 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
     }
 
     @Test
+    void notificationTrueFilterClaimsOnlyNotificationTasks() {
+        UUID operatorId = insertOperator("notification-filter");
+        insertImage(
+                1014,
+                Instant.parse("2026-07-30T09:00:00Z"),
+                "bj_igt",
+                "regular-session",
+                false,
+                true
+        );
+        String notification = insertImage(
+                1015,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "notification-session",
+                true,
+                true
+        );
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(null, null, null, null, null, true, null),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(notification);
+        assertThat(result.remaining()).isEqualTo(1L);
+    }
+
+    @Test
     void excludesCloudOnlyImageWhenB2IsDisabled() {
         UUID operatorId = insertOperator("cloud-only-queue");
         String cloudOnly = insertImage(

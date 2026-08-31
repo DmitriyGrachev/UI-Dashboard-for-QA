@@ -281,8 +281,11 @@ public class ReviewClaimRepository {
             parameters.addValue("gameCode", filters.gameCode());
         }
         if (filters.notification() != null) {
-            sql.append(" AND rt.is_notification = :notification");
-            parameters.addValue("notification", filters.notification());
+            // A literal lets PostgreSQL prove the partial notification-index predicate
+            // even after the JDBC statement switches to a generic prepared plan.
+            sql.append(filters.notification()
+                    ? " AND rt.is_notification = TRUE"
+                    : " AND rt.is_notification = FALSE");
         }
         if (filters.hasUserHand() != null) {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
