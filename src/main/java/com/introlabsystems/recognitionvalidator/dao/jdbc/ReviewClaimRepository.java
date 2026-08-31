@@ -126,6 +126,24 @@ public class ReviewClaimRepository {
         return items.stream().findFirst();
     }
 
+    public ReviewQueueSummary summarize(UUID operatorId, ReviewFilters filters) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
+        StringBuilder sql = new StringBuilder("""
+                SELECT COUNT(*) AS remaining,
+                       MIN(ia.file_created_at) AS oldest_created_at,
+                       MAX(ia.file_created_at) AS newest_created_at
+                FROM review_task rt
+                JOIN image_asset ia ON ia.id = rt.image_id
+                WHERE (
+                    rt.status = 'PENDING'
+                    OR (rt.status = 'ASSIGNED' AND rt.assigned_to = :operatorId)
+                )
+                  AND %s
+                """.formatted(availableImagePredicate));
+        appendFilters(sql, filters, parameters);
+        return mapSummary(sql, parameters);
+    }
+
     private void lockOperator(UUID operatorId) {
         List<UUID> operators = jdbc.query(
                 "SELECT id FROM app_user WHERE id = :operatorId FOR UPDATE",
@@ -195,6 +213,13 @@ public class ReviewClaimRepository {
                 MAX(ia.file_created_at) AS newest_created_at
                 """);
         appendFilters(sql, filters, parameters);
+        return mapSummary(sql, parameters);
+    }
+
+    private ReviewQueueSummary mapSummary(
+            StringBuilder sql,
+            MapSqlParameterSource parameters
+    ) {
         return jdbc.queryForObject(sql.toString(), parameters, (resultSet, rowNumber) -> {
             Timestamp oldest = resultSet.getTimestamp("oldest_created_at");
             Timestamp newest = resultSet.getTimestamp("newest_created_at");

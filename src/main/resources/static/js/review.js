@@ -119,6 +119,21 @@ function reviewActionsDisabled(reviewState) {
     return reviewState.busy || !reviewState.item || !reviewState.imageReady;
 }
 
+async function loadClaimThenSummary(claimAction, summaryAction, summaryEnabled) {
+    const claimed = await claimAction();
+    if (claimed && summaryEnabled) {
+        void summaryAction();
+    }
+    return claimed;
+}
+
+function scheduleLatestTimer(timerApi, currentTimer, action, delayMs) {
+    if (currentTimer !== null) {
+        timerApi.clearTimeout(currentTimer);
+    }
+    return timerApi.setTimeout(action, delayMs);
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         createImageAvailabilityRetryUrl,
@@ -130,8 +145,10 @@ if (typeof module !== "undefined" && module.exports) {
         readStoredFilters,
         readStoredScale,
         reviewActionsDisabled,
+        scheduleLatestTimer,
         imageAvailabilityAction,
         isLoginRedirect,
+        loadClaimThenSummary,
         toUtcIso,
         toOptionalLong,
         toOptionalBoolean,
@@ -211,6 +228,7 @@ if (typeof document !== "undefined") {
         originY: 0,
         remaining: null,
         claimController: null,
+        summaryController: null,
         filterTimer: null,
         imageReady: false,
         imageRetryAttempts: 0,
@@ -314,7 +332,7 @@ if (typeof document !== "undefined") {
         return normalized === "" ? null : normalized;
     }
 
-    async function claim({replaceCurrent = false, includeRemaining = false} = {}) {
+    async function claim({replaceCurrent = false} = {}) {
         if (state.claimController) {
             state.claimController.abort();
         }
@@ -328,28 +346,27 @@ if (typeof document !== "undefined") {
                 body: JSON.stringify({
                     filters: filters(),
                     replaceCurrent,
-                    includeRemaining
+                    includeRemaining: false
                 }),
                 signal: controller.signal
             });
             const payload = await responsePayload(response);
-            if (!payload) return;
-            if (payload.remaining != null) {
-                updateQueueSummary(payload);
-            }
+            if (!payload) return false;
             if (payload.item) {
                 renderItem(payload.item);
             } else {
                 showEmpty("No screenshots are available for these filters.");
             }
+            return true;
         } catch (error) {
             if (error.name === "AbortError") {
-                return;
+                return false;
             }
             elements.decisionMessage.textContent = error.message;
             if (!state.item) {
                 showEmpty("Could not load an assignment. Refresh the page or change the filters.");
             }
+            return false;
         } finally {
             if (state.claimController === controller) {
                 state.claimController = null;
@@ -358,10 +375,53 @@ if (typeof document !== "undefined") {
         }
     }
 
+    function cancelQueueSummary() {
+        if (state.summaryController) {
+            state.summaryController.abort();
+            state.summaryController = null;
+        }
+    }
+
+    async function refreshQueueSummary() {
+        cancelQueueSummary();
+        const controller = new AbortController();
+        state.summaryController = controller;
+        try {
+            const response = await fetch("/api/review-tasks/summary", {
+                method: "POST",
+                headers: requestHeaders(),
+                body: JSON.stringify(filters()),
+                signal: controller.signal
+            });
+            const payload = await responsePayload(response);
+            if (payload) {
+                updateQueueSummary(payload);
+            }
+        } catch (error) {
+            if (error.name !== "AbortError") {
+                console.warn("Could not refresh the review queue summary.", error);
+            }
+        } finally {
+            if (state.summaryController === controller) {
+                state.summaryController = null;
+            }
+        }
+    }
+
+    async function loadQueue({replaceCurrent = false} = {}) {
+        cancelQueueSummary();
+        return loadClaimThenSummary(
+            () => claim({replaceCurrent}),
+            refreshQueueSummary,
+            remainingCountEnabled
+        );
+    }
+
     async function decide(decision) {
         if (!state.item || state.busy) {
             return;
         }
+        cancelQueueSummary();
         setBusy(true, "Saving decision…");
         try {
             const response = await fetch(
@@ -374,7 +434,7 @@ if (typeof document !== "undefined") {
             );
             if (response.status === 409) {
                 state.item = null;
-                await claim({includeRemaining: remainingCountEnabled});
+                await loadQueue();
                 return;
             }
             const payload = await responsePayload(response);
@@ -592,24 +652,25 @@ if (typeof document !== "undefined") {
         clearTimeout(state.filterTimer);
         persistFilters();
         updateActiveFilterCount();
-        claim({
-            replaceCurrent: true,
-            includeRemaining: remainingCountEnabled
-        });
+        loadQueue({replaceCurrent: true});
     }
 
     function scheduleFilterApplication() {
-        clearTimeout(state.filterTimer);
         persistFilters();
         updateActiveFilterCount();
-        state.filterTimer = setTimeout(applyFilters, 400);
+        state.filterTimer = scheduleLatestTimer(
+            window,
+            state.filterTimer,
+            applyFilters,
+            400
+        );
     }
 
     restoreFilters();
     const dateRange = createReviewDateRange(
         window.UtcDateTimePicker,
         elements,
-        applyFilters
+        scheduleFilterApplication
     );
 
     elements.filterForm.addEventListener("submit", event => {
@@ -622,7 +683,7 @@ if (typeof document !== "undefined") {
         elements.notification,
         elements.hasUserHand
     ]
-        .forEach(element => element.addEventListener("change", applyFilters));
+        .forEach(element => element.addEventListener("change", scheduleFilterApplication));
 
     [elements.tokenId, elements.sessionId].forEach(element => {
         element.addEventListener("input", scheduleFilterApplication);
@@ -749,7 +810,7 @@ if (typeof document !== "undefined") {
                 elements.image.src = createImageAvailabilityRetryUrl(item.imageUrl);
             } else if (action === "advance") {
                 showEmpty("The file is no longer available. Loading the next assignment…");
-                claim({includeRemaining: remainingCountEnabled});
+                loadQueue();
             } else {
                 showStorageUnavailable();
             }
@@ -813,6 +874,6 @@ if (typeof document !== "undefined") {
     });
 
     setFiltersCollapsed(storedFiltersCollapsed(), false);
-    claim({includeRemaining: remainingCountEnabled});
+    loadQueue();
 })();
 }

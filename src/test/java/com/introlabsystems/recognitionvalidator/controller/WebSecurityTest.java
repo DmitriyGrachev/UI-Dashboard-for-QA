@@ -714,6 +714,42 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     }
 
     @Test
+    void summaryReturnsTheFilteredQueueIncludingTheCurrentAssignment() throws Exception {
+        UUID operatorId = insertOperator("summary-operator", "password");
+        insertReviewImage(
+                108, "summary-first.png", true, "bj_igt", "session",
+                null, "Jack", null
+        );
+        insertReviewImage(
+                109, "summary-second.png", true, "bj_igt", "session",
+                null, "Nine", null
+        );
+        insertReviewImage(
+                110, "summary-other-game.png", true, "bj_relax", "session",
+                null, "Eight", null
+        );
+        OperatorPrincipal principal = principal(operatorId, "summary-operator");
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/review-tasks/summary")
+                        .with(user(principal))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameCode\":\"bj_igt\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.remaining").value(2))
+                .andExpect(jsonPath("$.oldestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"))
+                .andExpect(jsonPath("$.newestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"));
+    }
+
+    @Test
     void repeatedDecisionReturnsConflict() throws Exception {
         UUID operatorId = insertOperator("decision-operator", "password");
         String imageId = insertReviewImage(
@@ -740,11 +776,9 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .content(decision))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.item.imageId").value(nextImageId))
-                .andExpect(jsonPath("$.remaining").value(1))
-                .andExpect(jsonPath("$.oldestCreatedAt")
-                        .value("2026-07-30T10:00:00Z"))
-                .andExpect(jsonPath("$.newestCreatedAt")
-                        .value("2026-07-30T10:00:00Z"));
+                .andExpect(jsonPath("$.remaining").doesNotExist())
+                .andExpect(jsonPath("$.oldestCreatedAt").doesNotExist())
+                .andExpect(jsonPath("$.newestCreatedAt").doesNotExist());
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
                         .with(user(principal))
                         .with(csrf())

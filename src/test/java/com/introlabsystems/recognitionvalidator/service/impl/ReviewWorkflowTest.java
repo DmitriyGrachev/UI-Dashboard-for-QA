@@ -514,7 +514,7 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                         eq(operatorId),
                         any(ReviewFilters.class),
                         eq(false),
-                        eq(true)
+                        eq(false)
                 );
 
         assertThatThrownBy(() -> workflowService.decideAndClaimNext(
@@ -534,6 +534,40 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 FROM operator_daily_statistics
                 WHERE operator_id = ?
                 """, Long.class, operatorId)).isEqualTo(1L);
+    }
+
+    @Test
+    void decisionClaimsTheNextImageWithoutRecountingTheQueue() {
+        UUID operatorId = insertOperator("decision-without-summary");
+        String first = insertImage(
+                65,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "first-session",
+                false,
+                true
+        );
+        String second = insertImage(
+                66,
+                Instant.parse("2026-07-30T11:00:00Z"),
+                "bj_igt",
+                "second-session",
+                false,
+                true
+        );
+        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+
+        ReviewQueueResult result = workflowService.decideAndClaimNext(
+                first,
+                operatorId,
+                Decision.ACCEPTED,
+                ReviewFilters.none()
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(second);
+        assertThat(result.remaining()).isNull();
+        assertThat(result.oldestCreatedAt()).isNull();
+        assertThat(result.newestCreatedAt()).isNull();
     }
 
     @Test

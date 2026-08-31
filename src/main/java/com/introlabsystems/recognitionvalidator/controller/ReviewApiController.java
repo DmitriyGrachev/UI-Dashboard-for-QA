@@ -6,7 +6,9 @@ import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
 import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
 import com.introlabsystems.recognitionvalidator.dto.request.DecisionRequest;
 import com.introlabsystems.recognitionvalidator.dto.request.ReviewClaimRequest;
+import com.introlabsystems.recognitionvalidator.dto.request.ReviewFilterRequest;
 import com.introlabsystems.recognitionvalidator.dto.response.ReviewQueueResponse;
+import com.introlabsystems.recognitionvalidator.dto.response.ReviewQueueSummaryResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -39,6 +41,17 @@ public class ReviewApiController {
                 replaceCurrent,
                 includeRemaining
         )));
+    }
+
+    @PostMapping("/summary")
+    ResponseEntity<ReviewQueueSummaryResponse> summary(
+            @AuthenticationPrincipal OperatorPrincipal principal,
+            @Valid @RequestBody(required = false) ReviewFilterRequest request
+    ) {
+        ReviewFilters filters = request == null ? ReviewFilters.none() : request.toFilters();
+        return ResponseEntity.ok(ReviewQueueSummaryResponse.from(
+                queueService.summarize(principal.id(), filters)
+        ));
     }
 
     @PostMapping("/{imageId}/decision")
