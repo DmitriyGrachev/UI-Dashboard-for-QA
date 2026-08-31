@@ -699,6 +699,11 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 Timestamp.from(Instant.parse("2026-07-30T12:00:00Z")),
                 newestId
         );
+        jdbc.update(
+                "UPDATE review_task SET file_created_at = ? WHERE image_id = ?",
+                Timestamp.from(Instant.parse("2026-07-30T12:00:00Z")),
+                newestId
+        );
 
         mockMvc.perform(post("/api/review-tasks/claim")
                         .with(user(principal(operatorId, "range-operator")))

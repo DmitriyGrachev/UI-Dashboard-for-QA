@@ -82,8 +82,10 @@ abstract class AbstractReviewIntegrationTest {
                 notification
         );
         jdbc.update(
-                "INSERT INTO review_task (image_id, status) VALUES (?, 'PENDING')",
-                id
+                "INSERT INTO review_task (image_id, status, file_created_at) "
+                        + "VALUES (?, 'PENDING', ?)",
+                id,
+                Timestamp.from(createdAt)
         );
         return id;
     }

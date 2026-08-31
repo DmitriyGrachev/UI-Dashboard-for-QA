@@ -130,8 +130,8 @@ public class ReviewClaimRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
         StringBuilder sql = new StringBuilder("""
                 SELECT COUNT(*) AS remaining,
-                       MIN(ia.file_created_at) AS oldest_created_at,
-                       MAX(ia.file_created_at) AS newest_created_at
+                       MIN(rt.file_created_at) AS oldest_created_at,
+                       MAX(rt.file_created_at) AS newest_created_at
                 FROM review_task rt
                 JOIN image_asset ia ON ia.id = rt.image_id
                 WHERE (
@@ -209,8 +209,8 @@ public class ReviewClaimRepository {
     ) {
         StringBuilder sql = pendingSql("""
                 COUNT(*) AS remaining,
-                MIN(ia.file_created_at) AS oldest_created_at,
-                MAX(ia.file_created_at) AS newest_created_at
+                MIN(rt.file_created_at) AS oldest_created_at,
+                MAX(rt.file_created_at) AS newest_created_at
                 """);
         appendFilters(sql, filters, parameters);
         return mapSummary(sql, parameters);
@@ -238,7 +238,7 @@ public class ReviewClaimRepository {
         StringBuilder sql = pendingSql("rt.image_id");
         appendFilters(sql, filters, parameters);
         sql.append("""
-                 ORDER BY ia.file_created_at ASC, ia.id ASC
+                 ORDER BY rt.file_created_at ASC, rt.image_id ASC
                  FOR UPDATE OF rt SKIP LOCKED
                  LIMIT 1
                 """);
@@ -261,11 +261,11 @@ public class ReviewClaimRepository {
             MapSqlParameterSource parameters
     ) {
         if (filters.createdFrom() != null) {
-            sql.append(" AND ia.file_created_at >= :createdFrom");
+            sql.append(" AND rt.file_created_at >= :createdFrom");
             parameters.addValue("createdFrom", Timestamp.from(filters.createdFrom()));
         }
         if (filters.createdTo() != null) {
-            sql.append(" AND ia.file_created_at < :createdTo");
+            sql.append(" AND rt.file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
         if (filters.tokenId() != null) {

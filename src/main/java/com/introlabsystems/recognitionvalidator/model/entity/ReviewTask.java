@@ -72,4 +72,7 @@ public class ReviewTask {
 
     @Column(name = "rejected_downloaded_at")
     private Instant rejectedDownloadedAt;
+
+    @Column(name = "file_created_at", nullable = false)
+    private Instant fileCreatedAt;
 }

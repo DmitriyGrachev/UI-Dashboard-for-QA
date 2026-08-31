@@ -46,8 +46,8 @@ public class ImageAssetBatchWriter {
                OR image_asset.has_surrender IS DISTINCT FROM EXCLUDED.has_surrender
             """;
     private static final String INSERT_TASK = """
-            INSERT INTO review_task (image_id, status)
-            VALUES (:id, 'PENDING')
+            INSERT INTO review_task (image_id, status, file_created_at)
+            VALUES (:id, 'PENDING', :fileCreatedAt)
             ON CONFLICT (image_id) DO NOTHING
             """;
 

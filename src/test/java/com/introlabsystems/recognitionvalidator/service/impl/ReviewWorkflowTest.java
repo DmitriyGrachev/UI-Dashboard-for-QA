@@ -66,6 +66,16 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
         assertThat(tableExists("image_asset")).isTrue();
         assertThat(tableExists("review_task")).isTrue();
         assertThat(tableExists("operator_daily_statistics")).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'review_task'
+                      AND column_name = 'file_created_at'
+                      AND is_nullable = 'NO'
+                )
+                """, Boolean.class)).isTrue();
         assertThat(applicationContext.getBeanDefinitionNames())
                 .noneMatch(name -> name.toLowerCase(Locale.ROOT).contains("flyway"));
     }
@@ -82,6 +92,54 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
 
         assertThat(claimed.imageId()).isEqualTo(older);
         assertThat(claimed.imageId()).isNotEqualTo(newer);
+    }
+
+    @Test
+    void queueOrderRemainsStableWhenAssetMetadataIsUpdated() {
+        UUID operatorId = insertOperator("stable-oldest");
+        String older = insertImage(1010, Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt", "older-session", false, true);
+        String newer = insertImage(1011, Instant.parse("2026-07-30T11:00:00Z"),
+                "bj_igt", "newer-session", false, true);
+        jdbc.update(
+                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                Timestamp.from(Instant.parse("2026-07-31T10:00:00Z")),
+                older
+        );
+
+        ReviewItem claimed = queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+
+        assertThat(claimed.imageId()).isEqualTo(older);
+        assertThat(claimed.imageId()).isNotEqualTo(newer);
+    }
+
+    @Test
+    void queueSummaryAndDateFilterUseTheTaskCreationTime() {
+        UUID operatorId = insertOperator("stable-date-filter");
+        Instant taskCreatedAt = Instant.parse("2026-07-30T10:00:00Z");
+        String imageId = insertImage(1012, taskCreatedAt,
+                "bj_igt", "stable-date-session", false, true);
+        jdbc.update(
+                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                Timestamp.from(Instant.parse("2026-08-01T10:00:00Z")),
+                imageId
+        );
+        ReviewFilters filters = new ReviewFilters(
+                taskCreatedAt.minusSeconds(60),
+                taskCreatedAt.plusSeconds(60),
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        ReviewQueueResult result = queueService.claim(operatorId, filters, true, true);
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(imageId);
+        assertThat(result.remaining()).isEqualTo(1L);
+        assertThat(result.oldestCreatedAt()).isEqualTo(taskCreatedAt);
+        assertThat(result.newestCreatedAt()).isEqualTo(taskCreatedAt);
     }
 
     @Test
