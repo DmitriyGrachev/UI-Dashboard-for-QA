@@ -103,6 +103,61 @@ class ImageIndexingTest {
     }
 
     @Test
+    void indexingCopiesImmutableSearchFieldsIntoTheReviewTask() throws Exception {
+        Files.write(imageRoot.resolve(VALID_FILE), new byte[]{1});
+
+        indexer.scanRoot();
+
+        assertThat(jdbc.queryForMap("""
+                SELECT game_code, token_id, session_id,
+                       is_notification, has_user_hand
+                FROM review_task
+                """))
+                .containsEntry("game_code", "bj_igt")
+                .containsEntry("token_id", 39L)
+                .containsEntry(
+                        "session_id",
+                        "39_850746c3-874d-495d-aefa-5ea3636cfb51"
+                )
+                .containsEntry("is_notification", false)
+                .containsEntry("has_user_hand", true);
+    }
+
+    @Test
+    void reindexingRepairsAReviewTaskWithMissingSearchFields() throws Exception {
+        Path file = imageRoot.resolve(VALID_FILE);
+        Files.write(file, new byte[]{1});
+        indexer.scanRoot();
+        String imageId = imageRepository.findAll().getFirst().getId();
+        jdbc.update("""
+                UPDATE review_task
+                SET game_code = NULL,
+                    token_id = NULL,
+                    session_id = NULL,
+                    is_notification = NULL,
+                    has_user_hand = NULL
+                WHERE image_id = ?
+                """, imageId);
+
+        indexer.index(file);
+
+        assertThat(jdbc.queryForMap("""
+                SELECT game_code, token_id, session_id,
+                       is_notification, has_user_hand
+                FROM review_task
+                WHERE image_id = ?
+                """, imageId))
+                .containsEntry("game_code", "bj_igt")
+                .containsEntry("token_id", 39L)
+                .containsEntry(
+                        "session_id",
+                        "39_850746c3-874d-495d-aefa-5ea3636cfb51"
+                )
+                .containsEntry("is_notification", false)
+                .containsEntry("has_user_hand", true);
+    }
+
+    @Test
     void repeatedReconciliationDoesNotRewriteKnownAvailableAsset() throws Exception {
         Files.write(imageRoot.resolve(VALID_FILE), new byte[]{1});
         indexer.scanRoot();

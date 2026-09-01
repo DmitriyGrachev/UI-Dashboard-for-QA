@@ -66,6 +66,16 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
         assertThat(tableExists("image_asset")).isTrue();
         assertThat(tableExists("review_task")).isTrue();
         assertThat(tableExists("operator_daily_statistics")).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'public'
+                      AND table_name = 'review_task'
+                      AND column_name = 'file_created_at'
+                      AND is_nullable = 'NO'
+                )
+                """, Boolean.class)).isTrue();
         assertThat(applicationContext.getBeanDefinitionNames())
                 .noneMatch(name -> name.toLowerCase(Locale.ROOT).contains("flyway"));
     }
@@ -82,6 +92,122 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
 
         assertThat(claimed.imageId()).isEqualTo(older);
         assertThat(claimed.imageId()).isNotEqualTo(newer);
+    }
+
+    @Test
+    void queueOrderRemainsStableWhenAssetMetadataIsUpdated() {
+        UUID operatorId = insertOperator("stable-oldest");
+        String older = insertImage(1010, Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt", "older-session", false, true);
+        String newer = insertImage(1011, Instant.parse("2026-07-30T11:00:00Z"),
+                "bj_igt", "newer-session", false, true);
+        jdbc.update(
+                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                Timestamp.from(Instant.parse("2026-07-31T10:00:00Z")),
+                older
+        );
+
+        ReviewItem claimed = queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+
+        assertThat(claimed.imageId()).isEqualTo(older);
+        assertThat(claimed.imageId()).isNotEqualTo(newer);
+    }
+
+    @Test
+    void queueSummaryAndDateFilterUseTheTaskCreationTime() {
+        UUID operatorId = insertOperator("stable-date-filter");
+        Instant taskCreatedAt = Instant.parse("2026-07-30T10:00:00Z");
+        String imageId = insertImage(1012, taskCreatedAt,
+                "bj_igt", "stable-date-session", false, true);
+        jdbc.update(
+                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                Timestamp.from(Instant.parse("2026-08-01T10:00:00Z")),
+                imageId
+        );
+        ReviewFilters filters = new ReviewFilters(
+                taskCreatedAt.minusSeconds(60),
+                taskCreatedAt.plusSeconds(60),
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        ReviewQueueResult result = queueService.claim(operatorId, filters, true, true);
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(imageId);
+        assertThat(result.remaining()).isEqualTo(1L);
+        assertThat(result.oldestCreatedAt()).isEqualTo(taskCreatedAt);
+        assertThat(result.newestCreatedAt()).isEqualTo(taskCreatedAt);
+    }
+
+    @Test
+    void queueFiltersRemainStableWhenAssetMetadataIsUpdated() {
+        UUID operatorId = insertOperator("stable-search-filter");
+        Instant createdAt = Instant.parse("2026-07-30T10:00:00Z");
+        String expected = insertImage(
+                1013,
+                createdAt,
+                "bj_igt",
+                "39_stable-session",
+                false,
+                true
+        );
+        setTokenId(expected, 39L);
+        jdbc.update("""
+                UPDATE image_asset
+                SET game_code = 'bj_relax',
+                    token_id = 99,
+                    session_id = 'changed-session',
+                    is_notification = TRUE
+                WHERE id = ?
+                """, expected);
+        ReviewFilters filters = new ReviewFilters(
+                null,
+                null,
+                39L,
+                "39_stable-session",
+                "bj_igt",
+                false,
+                null
+        );
+
+        ReviewQueueResult result = queueService.claim(operatorId, filters, true, true);
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(expected);
+        assertThat(result.remaining()).isEqualTo(1L);
+    }
+
+    @Test
+    void notificationTrueFilterClaimsOnlyNotificationTasks() {
+        UUID operatorId = insertOperator("notification-filter");
+        insertImage(
+                1014,
+                Instant.parse("2026-07-30T09:00:00Z"),
+                "bj_igt",
+                "regular-session",
+                false,
+                true
+        );
+        String notification = insertImage(
+                1015,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "notification-session",
+                true,
+                true
+        );
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(null, null, null, null, null, true, null),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(notification);
+        assertThat(result.remaining()).isEqualTo(1L);
     }
 
     @Test
@@ -288,8 +414,8 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 "bj_igt", "37_stale-session", false, true);
         String expected = insertImage(121, Instant.parse("2026-07-30T10:00:00Z"),
                 "bj_igt", "36_expected-session", false, true);
-        jdbc.update("UPDATE image_asset SET token_id = 37 WHERE id = ?", stale);
-        jdbc.update("UPDATE image_asset SET token_id = 36 WHERE id = ?", expected);
+        setTokenId(stale, 37L);
+        setTokenId(expected, 36L);
         queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
 
         ReviewQueueResult result = queueService.claim(
@@ -306,6 +432,100 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 stale
         )).containsEntry("status", "PENDING")
                 .containsEntry("assigned_to", null);
+    }
+
+    @Test
+    void tokenAndSessionFiltersWorkTogether() {
+        UUID operatorId = insertOperator("token-session-filter");
+        Instant createdAt = Instant.parse("2026-07-30T10:00:00Z");
+        String expected = insertImage(
+                122,
+                createdAt,
+                "bj_igt",
+                "36_target-session",
+                false,
+                true
+        );
+        String wrongSession = insertImage(
+                123,
+                createdAt.minusSeconds(60),
+                "bj_igt",
+                "36_other-session",
+                false,
+                true
+        );
+        String wrongToken = insertImage(
+                124,
+                createdAt.minusSeconds(120),
+                "bj_igt",
+                "36_target-session",
+                false,
+                true
+        );
+        setTokenId(expected, 36L);
+        setTokenId(wrongSession, 36L);
+        setTokenId(wrongToken, 37L);
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(
+                        null,
+                        null,
+                        36L,
+                        "36_target-session",
+                        null,
+                        null,
+                        null
+                ),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(expected);
+        assertThat(result.remaining()).isEqualTo(1L);
+    }
+
+    @Test
+    void userHandFilterUsesTheQueueProjection() {
+        UUID operatorId = insertOperator("user-hand-filter");
+        String withHand = insertImage(
+                125,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "with-hand",
+                false,
+                true
+        );
+        insertImage(
+                126,
+                Instant.parse("2026-07-30T09:00:00Z"),
+                "bj_igt",
+                "without-hand",
+                false,
+                true
+        );
+        jdbc.update(
+                "UPDATE image_asset SET active_user_cards = 'Jack' WHERE id = ?",
+                withHand
+        );
+        jdbc.update(
+                "UPDATE review_task SET has_user_hand = TRUE WHERE image_id = ?",
+                withHand
+        );
+        jdbc.update(
+                "UPDATE image_asset SET active_user_cards = NULL WHERE id = ?",
+                withHand
+        );
+
+        ReviewQueueResult result = queueService.claim(
+                operatorId,
+                new ReviewFilters(null, null, null, null, null, null, true),
+                true,
+                true
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(withHand);
+        assertThat(result.remaining()).isEqualTo(1L);
     }
 
     @Test
@@ -514,7 +734,7 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                         eq(operatorId),
                         any(ReviewFilters.class),
                         eq(false),
-                        eq(true)
+                        eq(false)
                 );
 
         assertThatThrownBy(() -> workflowService.decideAndClaimNext(
@@ -534,6 +754,40 @@ class ReviewWorkflowTest extends AbstractReviewIntegrationTest {
                 FROM operator_daily_statistics
                 WHERE operator_id = ?
                 """, Long.class, operatorId)).isEqualTo(1L);
+    }
+
+    @Test
+    void decisionClaimsTheNextImageWithoutRecountingTheQueue() {
+        UUID operatorId = insertOperator("decision-without-summary");
+        String first = insertImage(
+                65,
+                Instant.parse("2026-07-30T10:00:00Z"),
+                "bj_igt",
+                "first-session",
+                false,
+                true
+        );
+        String second = insertImage(
+                66,
+                Instant.parse("2026-07-30T11:00:00Z"),
+                "bj_igt",
+                "second-session",
+                false,
+                true
+        );
+        queueService.claim(operatorId, ReviewFilters.none()).orElseThrow();
+
+        ReviewQueueResult result = workflowService.decideAndClaimNext(
+                first,
+                operatorId,
+                Decision.ACCEPTED,
+                ReviewFilters.none()
+        );
+
+        assertThat(result.item()).map(ReviewItem::imageId).contains(second);
+        assertThat(result.remaining()).isNull();
+        assertThat(result.oldestCreatedAt()).isNull();
+        assertThat(result.newestCreatedAt()).isNull();
     }
 
     @Test

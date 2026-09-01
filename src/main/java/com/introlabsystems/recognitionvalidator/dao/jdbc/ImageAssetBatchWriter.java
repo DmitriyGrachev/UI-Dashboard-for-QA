@@ -46,9 +46,23 @@ public class ImageAssetBatchWriter {
                OR image_asset.has_surrender IS DISTINCT FROM EXCLUDED.has_surrender
             """;
     private static final String INSERT_TASK = """
-            INSERT INTO review_task (image_id, status)
-            VALUES (:id, 'PENDING')
-            ON CONFLICT (image_id) DO NOTHING
+            INSERT INTO review_task (
+                image_id, status, file_created_at, game_code, token_id,
+                session_id, is_notification, has_user_hand
+            ) VALUES (
+                :id, 'PENDING', :fileCreatedAt, :gameCode, :tokenId,
+                :sessionId, :notification, :hasUserHand
+            )
+            ON CONFLICT (image_id) DO UPDATE SET
+                file_created_at = EXCLUDED.file_created_at,
+                game_code = EXCLUDED.game_code,
+                token_id = EXCLUDED.token_id,
+                session_id = EXCLUDED.session_id,
+                is_notification = EXCLUDED.is_notification,
+                has_user_hand = EXCLUDED.has_user_hand
+            WHERE review_task.game_code IS NULL
+               OR review_task.is_notification IS NULL
+               OR review_task.has_user_hand IS NULL
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -153,6 +167,11 @@ public class ImageAssetBatchWriter {
                 .addValue("payloadRaw", recognition.payloadRaw())
                 .addValue("buttonsRaw", recognition.buttonsRaw())
                 .addValue("notification", recognition.notification())
+                .addValue(
+                        "hasUserHand",
+                        hasText(recognition.activeUserCards())
+                                || hasText(recognition.inactiveUserCards())
+                )
                 .addValue("stand", recognition.stand())
                 .addValue("hit", recognition.hit())
                 .addValue("doubleAction", recognition.doubleAction())
@@ -161,6 +180,10 @@ public class ImageAssetBatchWriter {
                 .addValue("processedAt", timestamp(recognition.processedAt()))
                 .addValue("recognitionDurationMs", recognition.recognitionDurationMs())
                 .addValue("parseStatus", recognition.parseStatus().name());
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     private static Timestamp timestamp(Instant value) {

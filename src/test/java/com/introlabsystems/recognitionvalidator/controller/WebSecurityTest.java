@@ -102,6 +102,41 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     }
 
     @Test
+    void screenshotExplorerIsAdminOnlyAndProvidesItsControls() throws Exception {
+        mockMvc.perform(get("/admin/screenshots"))
+                .andExpect(status().isFound())
+                .andExpect(header().string("Location", "/login"));
+
+        mockMvc.perform(get("/admin/screenshots")
+                        .with(user("operator").roles("OPERATOR")))
+                .andExpect(status().isFound())
+                .andExpect(redirectedUrl("/review"));
+
+        mockMvc.perform(get("/admin/screenshots")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Screenshot explorer")))
+                .andExpect(content().string(containsString("id=\"screenshot-filter-form\"")))
+                .andExpect(content().string(containsString("id=\"review-state\"")))
+                .andExpect(content().string(containsString("id=\"screenshot-results\"")))
+                .andExpect(content().string(containsString("id=\"explorer-image\"")))
+                .andExpect(content().string(containsString("id=\"download-screenshot\"")))
+                .andExpect(content().string(containsString("id=\"copy-screenshot-link\"")))
+                .andExpect(content().string(containsString("id=\"copy-technical-report\"")))
+                .andExpect(content().string(containsString("id=\"loaded-result-count\"")))
+                .andExpect(content().string(containsString("id=\"storage-dashboard\"")))
+                .andExpect(content().string(containsString("/js/admin-screenshots.js")))
+                .andExpect(content().string(containsString("data-utc-date-range")));
+    }
+
+    @Test
+    void adminDashboardLinksToScreenshotExplorer() throws Exception {
+        mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("href=\"/admin/screenshots\"")));
+    }
+
+    @Test
     void adminPageProgressivelyDisclosesOperatorCreation() throws Exception {
         mockMvc.perform(get("/admin")
                         .with(user("admin").roles("ADMIN")))
@@ -631,7 +666,9 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 null, "Nine", null
         );
         jdbc.update("UPDATE image_asset SET token_id = 137 WHERE id = ?", differentToken);
+        jdbc.update("UPDATE review_task SET token_id = 137 WHERE image_id = ?", differentToken);
         jdbc.update("UPDATE image_asset SET token_id = 37 WHERE id = ?", expected);
+        jdbc.update("UPDATE review_task SET token_id = 37 WHERE image_id = ?", expected);
 
         mockMvc.perform(post("/api/review-tasks/claim")
                         .with(user(principal(operatorId, "token-filter-operator")))
@@ -699,6 +736,11 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 Timestamp.from(Instant.parse("2026-07-30T12:00:00Z")),
                 newestId
         );
+        jdbc.update(
+                "UPDATE review_task SET file_created_at = ? WHERE image_id = ?",
+                Timestamp.from(Instant.parse("2026-07-30T12:00:00Z")),
+                newestId
+        );
 
         mockMvc.perform(post("/api/review-tasks/claim")
                         .with(user(principal(operatorId, "range-operator")))
@@ -711,6 +753,42 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                         .value("2026-07-30T10:00:00Z"))
                 .andExpect(jsonPath("$.newestCreatedAt")
                         .value("2026-07-30T12:00:00Z"));
+    }
+
+    @Test
+    void summaryReturnsTheFilteredQueueIncludingTheCurrentAssignment() throws Exception {
+        UUID operatorId = insertOperator("summary-operator", "password");
+        insertReviewImage(
+                108, "summary-first.png", true, "bj_igt", "session",
+                null, "Jack", null
+        );
+        insertReviewImage(
+                109, "summary-second.png", true, "bj_igt", "session",
+                null, "Nine", null
+        );
+        insertReviewImage(
+                110, "summary-other-game.png", true, "bj_relax", "session",
+                null, "Eight", null
+        );
+        OperatorPrincipal principal = principal(operatorId, "summary-operator");
+        mockMvc.perform(post("/api/review-tasks/claim")
+                        .with(user(principal))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/review-tasks/summary")
+                        .with(user(principal))
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"gameCode\":\"bj_igt\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.remaining").value(2))
+                .andExpect(jsonPath("$.oldestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"))
+                .andExpect(jsonPath("$.newestCreatedAt")
+                        .value("2026-07-30T10:00:00Z"));
     }
 
     @Test
@@ -740,11 +818,9 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .content(decision))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.item.imageId").value(nextImageId))
-                .andExpect(jsonPath("$.remaining").value(1))
-                .andExpect(jsonPath("$.oldestCreatedAt")
-                        .value("2026-07-30T10:00:00Z"))
-                .andExpect(jsonPath("$.newestCreatedAt")
-                        .value("2026-07-30T10:00:00Z"));
+                .andExpect(jsonPath("$.remaining").doesNotExist())
+                .andExpect(jsonPath("$.oldestCreatedAt").doesNotExist())
+                .andExpect(jsonPath("$.newestCreatedAt").doesNotExist());
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
                         .with(user(principal))
                         .with(csrf())

@@ -696,6 +696,159 @@ docker compose ps
 Не удаляйте вручную `POSTGRES_DATA_ROOT_HOST` при работающем PostgreSQL. Не
 используйте глобальную остановку всех Docker-контейнеров на общем сервере.
 
+### Обязательная миграция очереди перед первым деплоем оптимизации
+
+Перед первым запуском версии с `review_task.file_created_at` остановите только
+приложение Validator и выполните миграцию. PostgreSQL и остальные сервисы сервера
+останавливать не нужно:
+
+```bash
+docker compose stop validator-api-app
+
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < scripts/review-queue-performance.sql
+```
+
+Скрипт повторяемый: он дополняет старые задания датой создания пакетами по 10 000,
+проверяет отсутствие `NULL`, создаёт два индекса без блокировки чтения таблиц и
+обновляет статистику планировщика. На production с большим числом строк операция
+может занять несколько минут. Не запускайте новое приложение, пока команда не
+завершилась строкой `Review queue performance migration completed`.
+
+Проверка результата:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT count(*) FILTER (WHERE file_created_at IS NULL) AS missing_queue_dates
+FROM review_task;
+
+SELECT indexrelid::regclass AS index_name, indisvalid, indisready
+FROM pg_index
+WHERE indexrelid::regclass::text IN (
+  'ix_review_pending_order',
+  'ix_image_cloud_pending_order'
+)
+ORDER BY index_name;
+
+SELECT stxname
+FROM pg_statistic_ext
+WHERE stxname = 'st_image_user_hand_presence';
+SQL
+```
+
+Ожидается `missing_queue_dates = 0`, оба индекса имеют `indisvalid = t` и
+`indisready = t`, статистика присутствует. После этого пересоберите только
+приложение:
+
+```bash
+docker compose up -d --build --no-deps validator-api-app
+```
+
+Если миграция завершилась ошибкой, не запускайте новую версию. Верните тот же
+остановленный контейнер старого приложения командой
+`docker compose start validator-api-app`: он игнорирует добавленную колонку, а
+миграцию можно безопасно повторить после устранения причины.
+
+### Миграция быстрых фильтров очереди
+
+Перед первым запуском версии с быстрыми фильтрами сначала соберите новый image,
+не останавливая текущий контейнер. Затем остановите только Validator, перенесите
+поля поиска в `review_task` и запустите уже собранную версию:
+
+```bash
+docker compose build validator-api-app
+docker compose stop validator-api-app
+
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < scripts/review-filter-performance.sql
+
+docker compose up -d \
+  --no-build \
+  --no-deps \
+  --force-recreate \
+  validator-api-app
+```
+
+Скрипт повторяемый. Он пакетами по 10 000 копирует в задачу immutable-поля
+`game`, `token`, `session`, `notification` и признак руки пользователя, создаёт
+индексы без блокировки чтения таблицы и обновляет статистику планировщика.
+Колонки намеренно остаются nullable: при ошибке миграции старый остановленный
+контейнер можно вернуть через `docker compose start validator-api-app`.
+
+Проверка до запуска новой версии:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT count(*) FILTER (
+  WHERE game_code IS NULL
+     OR is_notification IS NULL
+     OR has_user_hand IS NULL
+) AS missing_filter_projections
+FROM review_task;
+
+SELECT indexrelid::regclass AS index_name, indisvalid, indisready
+FROM pg_index
+WHERE indexrelid::regclass::text IN (
+  'ix_review_pending_game_order',
+  'ix_review_pending_token_order',
+  'ix_review_pending_session_order',
+  'ix_review_pending_notification_true_order'
+)
+ORDER BY index_name;
+
+SELECT stxname
+FROM pg_statistic_ext
+WHERE stxname = 'st_review_token_session';
+SQL
+```
+
+Ожидается `missing_filter_projections = 0`, четыре индекса с
+`indisvalid = t`, `indisready = t` и статистика `st_review_token_session`.
+Если после успешной миграции пришлось временно вернуть старую версию, перед
+следующей попыткой запуска новой версии выполните скрипт ещё раз: он дополнит
+задачи, созданные старым приложением во время rollback.
+
+### Индексы Screenshot Explorer
+
+Перед первым запуском версии с `/admin/screenshots` создайте индексы для
+cursor pagination и основных административных фильтров. Скрипт использует
+`CREATE INDEX CONCURRENTLY`, поэтому PostgreSQL продолжает обслуживать приложение,
+но лучше выполнять его в согласованное окно с минимальной активностью операторов:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < scripts/admin-screenshot-performance.sql
+```
+
+Скрипт повторяемый: при следующих деплоях его запуск безопасен, но обязателен
+только один раз для каждой production-БД. Он восстанавливает незавершённый
+невалидный индекс, если предыдущий запуск оборвался.
+
+Проверка результата:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT indexrelid::regclass AS index_name, indisvalid, indisready
+FROM pg_index
+WHERE indexrelid::regclass::text IN (
+  'ix_admin_review_order',
+  'ix_admin_review_state_order',
+  'ix_admin_review_game_order',
+  'ix_admin_image_file_name'
+)
+ORDER BY index_name;
+SQL
+```
+
+Ожидаются четыре строки с `indisvalid = t` и `indisready = t`. После этого
+можно пересоздать только контейнер приложения уже собранным image.
+
 ## 12. Типовые проблемы
 
 ### UI не открывается

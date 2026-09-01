@@ -81,11 +81,28 @@ abstract class AbstractReviewIntegrationTest {
                 sessionId,
                 notification
         );
-        jdbc.update(
-                "INSERT INTO review_task (image_id, status) VALUES (?, 'PENDING')",
-                id
+        jdbc.update("""
+                INSERT INTO review_task (
+                    image_id, status, file_created_at, game_code, token_id,
+                    session_id, is_notification, has_user_hand
+                ) VALUES (?, 'PENDING', ?, ?, NULL, ?, ?, FALSE)
+                """,
+                id,
+                Timestamp.from(createdAt),
+                gameCode,
+                sessionId,
+                notification
         );
         return id;
+    }
+
+    protected void setTokenId(String imageId, long tokenId) {
+        jdbc.update("UPDATE image_asset SET token_id = ? WHERE id = ?", tokenId, imageId);
+        jdbc.update(
+                "UPDATE review_task SET token_id = ? WHERE image_id = ?",
+                tokenId,
+                imageId
+        );
     }
 
     protected void completeReview(
