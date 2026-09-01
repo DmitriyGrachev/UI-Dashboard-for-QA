@@ -72,4 +72,22 @@ public class ReviewTask {
 
     @Column(name = "rejected_downloaded_at")
     private Instant rejectedDownloadedAt;
+
+    @Column(name = "file_created_at", nullable = false)
+    private Instant fileCreatedAt;
+
+    @Column(name = "game_code", length = 100)
+    private String gameCode;
+
+    @Column(name = "token_id")
+    private Long tokenId;
+
+    @Column(name = "session_id", length = 128)
+    private String sessionId;
+
+    @Column(name = "is_notification")
+    private Boolean notification;
+
+    @Column(name = "has_user_hand")
+    private Boolean hasUserHand;
 }

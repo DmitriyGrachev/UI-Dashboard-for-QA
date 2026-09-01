@@ -25,6 +25,6 @@ public class ReviewWorkflowServiceImpl implements ReviewWorkflowService {
             ReviewFilters filters
     ) {
         decisionService.decide(imageId, operatorId, decision);
-        return queueService.claim(operatorId, filters, false, true);
+        return queueService.claim(operatorId, filters, false, false);
     }
 }

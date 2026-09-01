@@ -126,6 +126,24 @@ public class ReviewClaimRepository {
         return items.stream().findFirst();
     }
 
+    public ReviewQueueSummary summarize(UUID operatorId, ReviewFilters filters) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
+        StringBuilder sql = new StringBuilder("""
+                SELECT COUNT(*) AS remaining,
+                       MIN(rt.file_created_at) AS oldest_created_at,
+                       MAX(rt.file_created_at) AS newest_created_at
+                FROM review_task rt
+                JOIN image_asset ia ON ia.id = rt.image_id
+                WHERE (
+                    rt.status = 'PENDING'
+                    OR (rt.status = 'ASSIGNED' AND rt.assigned_to = :operatorId)
+                )
+                  AND %s
+                """.formatted(availableImagePredicate));
+        appendFilters(sql, filters, parameters);
+        return mapSummary(sql, parameters);
+    }
+
     private void lockOperator(UUID operatorId) {
         List<UUID> operators = jdbc.query(
                 "SELECT id FROM app_user WHERE id = :operatorId FOR UPDATE",
@@ -191,10 +209,17 @@ public class ReviewClaimRepository {
     ) {
         StringBuilder sql = pendingSql("""
                 COUNT(*) AS remaining,
-                MIN(ia.file_created_at) AS oldest_created_at,
-                MAX(ia.file_created_at) AS newest_created_at
+                MIN(rt.file_created_at) AS oldest_created_at,
+                MAX(rt.file_created_at) AS newest_created_at
                 """);
         appendFilters(sql, filters, parameters);
+        return mapSummary(sql, parameters);
+    }
+
+    private ReviewQueueSummary mapSummary(
+            StringBuilder sql,
+            MapSqlParameterSource parameters
+    ) {
         return jdbc.queryForObject(sql.toString(), parameters, (resultSet, rowNumber) -> {
             Timestamp oldest = resultSet.getTimestamp("oldest_created_at");
             Timestamp newest = resultSet.getTimestamp("newest_created_at");
@@ -213,7 +238,7 @@ public class ReviewClaimRepository {
         StringBuilder sql = pendingSql("rt.image_id");
         appendFilters(sql, filters, parameters);
         sql.append("""
-                 ORDER BY ia.file_created_at ASC, ia.id ASC
+                 ORDER BY rt.file_created_at ASC, rt.image_id ASC
                  FOR UPDATE OF rt SKIP LOCKED
                  LIMIT 1
                 """);
@@ -236,43 +261,35 @@ public class ReviewClaimRepository {
             MapSqlParameterSource parameters
     ) {
         if (filters.createdFrom() != null) {
-            sql.append(" AND ia.file_created_at >= :createdFrom");
+            sql.append(" AND rt.file_created_at >= :createdFrom");
             parameters.addValue("createdFrom", Timestamp.from(filters.createdFrom()));
         }
         if (filters.createdTo() != null) {
-            sql.append(" AND ia.file_created_at < :createdTo");
+            sql.append(" AND rt.file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
         if (filters.tokenId() != null) {
-            sql.append(" AND ia.token_id = :tokenId");
+            sql.append(" AND rt.token_id = :tokenId");
             parameters.addValue("tokenId", filters.tokenId());
         }
         if (hasText(filters.sessionId())) {
-            sql.append(" AND ia.session_id = :sessionId");
+            sql.append(" AND rt.session_id = :sessionId");
             parameters.addValue("sessionId", filters.sessionId());
         }
         if (hasText(filters.gameCode())) {
-            sql.append(" AND ia.game_code = :gameCode");
+            sql.append(" AND rt.game_code = :gameCode");
             parameters.addValue("gameCode", filters.gameCode());
         }
         if (filters.notification() != null) {
-            sql.append(" AND ia.is_notification = :notification");
-            parameters.addValue("notification", filters.notification());
+            // A literal lets PostgreSQL prove the partial notification-index predicate
+            // even after the JDBC statement switches to a generic prepared plan.
+            sql.append(filters.notification()
+                    ? " AND rt.is_notification = TRUE"
+                    : " AND rt.is_notification = FALSE");
         }
         if (filters.hasUserHand() != null) {
-            if (filters.hasUserHand()) {
-                sql.append("""
-                         AND (
-                             NULLIF(BTRIM(ia.active_user_cards), '') IS NOT NULL
-                             OR NULLIF(BTRIM(ia.inactive_user_cards), '') IS NOT NULL
-                         )
-                        """);
-            } else {
-                sql.append("""
-                         AND NULLIF(BTRIM(ia.active_user_cards), '') IS NULL
-                         AND NULLIF(BTRIM(ia.inactive_user_cards), '') IS NULL
-                        """);
-            }
+            sql.append(" AND rt.has_user_hand = :hasUserHand");
+            parameters.addValue("hasUserHand", filters.hasUserHand());
         }
     }
 

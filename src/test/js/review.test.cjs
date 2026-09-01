@@ -9,16 +9,67 @@ const {
     imageAvailabilityAction,
     createReviewDateRange,
     formatUtcDate,
+    loadClaimThenSummary,
     prepareViewForNextItem,
     readStoredScale,
     readStoredFilters,
     reviewActionsDisabled,
+    scheduleLatestTimer,
     toUtcIso,
     toOptionalLong,
     toOptionalBoolean,
     writeStoredScale,
     writeStoredFilters
 } = require("../../main/resources/static/js/review.js");
+
+test("queue summary starts only after the screenshot claim is rendered", async () => {
+    const events = [];
+    let finishSummary;
+    const summaryFinished = new Promise(resolve => {
+        finishSummary = resolve;
+    });
+
+    const loaded = await loadClaimThenSummary(
+        async () => {
+            events.push("claim");
+            return true;
+        },
+        async () => {
+            events.push("summary");
+            await summaryFinished;
+        },
+        true
+    );
+
+    assert.equal(loaded, true);
+    assert.deepEqual(events, ["claim", "summary"]);
+    finishSummary();
+});
+
+test("rapid automatic filter changes run only the latest request", () => {
+    const timers = new Map();
+    const cleared = [];
+    let nextId = 1;
+    const timerApi = {
+        setTimeout(action) {
+            const id = nextId++;
+            timers.set(id, action);
+            return id;
+        },
+        clearTimeout(id) {
+            cleared.push(id);
+            timers.delete(id);
+        }
+    };
+    const applied = [];
+
+    const first = scheduleLatestTimer(timerApi, null, () => applied.push("first"), 400);
+    const second = scheduleLatestTimer(timerApi, first, () => applied.push("second"), 400);
+    timers.get(second)();
+
+    assert.deepEqual(cleared, [first]);
+    assert.deepEqual(applied, ["second"]);
+});
 
 test("image loading retries twice with a fresh broker URL", () => {
     assert.deepEqual(

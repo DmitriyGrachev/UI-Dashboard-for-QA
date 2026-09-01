@@ -5,6 +5,7 @@ import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewClaimRepository;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewItem;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
+import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueSummary;
 import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,17 @@ public class ReviewQueueServiceImpl implements ReviewQueueService {
                 properties.leaseDuration(),
                 replaceCurrent,
                 includeRemaining && properties.countRemainingScreenshots()
+        );
+    }
+
+    @Override
+    public ReviewQueueSummary summarize(UUID operatorId, ReviewFilters filters) {
+        if (!properties.countRemainingScreenshots()) {
+            return new ReviewQueueSummary(0, null, null);
+        }
+        return claimRepository.summarize(
+                operatorId,
+                filters == null ? ReviewFilters.none() : filters
         );
     }
 }
