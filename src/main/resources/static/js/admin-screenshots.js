@@ -104,13 +104,47 @@ function createTechnicalReport(details) {
     ].join("\n");
 }
 
+function formatLoadedCount(loaded, total) {
+    const loadedLabel = Number(loaded).toLocaleString("en-US");
+    if (total === null || total === undefined) return `${loadedLabel} loaded`;
+    return `Loaded ${loadedLabel} of ${Number(total).toLocaleString("en-US")}`;
+}
+
+async function copyShareLink(clipboard, url) {
+    await clipboard.writeText(url);
+}
+
+async function loadPageThenSummary(loadPage, startSummary, renderPage = () => {}) {
+    const page = await loadPage();
+    renderPage(page);
+    try {
+        void Promise.resolve(startSummary(page)).catch(() => {});
+    } catch {
+        // Summary failures must never hide an already loaded page.
+    }
+    return page;
+}
+
+function nextSearchSequence(current, append) {
+    return append ? current : current + 1;
+}
+
+function resolveSearchFilters(liveFilters, appliedFilters, append) {
+    return append && appliedFilters ? appliedFilters : liveFilters;
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
+        copyShareLink,
         createTechnicalReport,
         formatUtcDate,
+        formatLoadedCount,
         keyboardAction,
+        loadPageThenSummary,
+        nextSearchSequence,
         presetRange,
+        resolveSearchFilters,
         storageSupportsTemporaryLink
     };
 }
@@ -140,6 +174,7 @@ if (typeof document !== "undefined") {
         resetFilters: byId("reset-screenshot-filters"),
         results: byId("screenshot-results"),
         resultCount: byId("result-count"),
+        loadedResultCount: byId("loaded-result-count"),
         resultRange: byId("result-range"),
         loadMore: byId("load-more-results"),
         previous: byId("previous-screenshot"),
@@ -155,6 +190,7 @@ if (typeof document !== "undefined") {
         fullscreen: byId("explorer-fullscreen"),
         download: byId("download-screenshot"),
         temporaryLink: byId("open-temporary-link"),
+        copyLink: byId("copy-screenshot-link"),
         copyReport: byId("copy-technical-report"),
         detailPlaceholder: byId("detail-placeholder"),
         detailContent: byId("detail-content"),
@@ -200,9 +236,11 @@ if (typeof document !== "undefined") {
         selectedIndex: -1,
         selectedDetails: null,
         nextCursor: null,
+        totalCount: null,
         searching: false,
         loadingMore: false,
         searchSequence: 0,
+        appliedFilters: null,
         scale: 1,
         x: 0,
         y: 0,
@@ -284,7 +322,7 @@ if (typeof document !== "undefined") {
     }
 
     function writeSearchUrl(selectedId = null) {
-        const params = buildSearchParams(currentFilters());
+        const params = buildSearchParams(state.appliedFilters || currentFilters());
         params.delete("limit");
         if (selectedId) params.set("selected", selectedId);
         const query = params.toString();
@@ -386,36 +424,89 @@ if (typeof document !== "undefined") {
             || state.selectedIndex >= state.items.length - 1 && !state.nextCursor;
     }
 
+    function updateLoadedCount() {
+        elements.loadedResultCount.textContent = formatLoadedCount(
+            state.items.length,
+            state.totalCount
+        );
+    }
+
+    async function refreshSummary(params, sequence) {
+        try {
+            const summary = await fetchJson(`/admin/api/screenshots/summary?${params}`);
+            if (sequence !== state.searchSequence) return;
+            state.totalCount = Number(summary.totalCount);
+            elements.resultCount.textContent = state.totalCount.toLocaleString("en-US");
+            elements.resultRange.textContent = state.totalCount
+                ? `${formatUtcDate(summary.oldestCreatedAt)} — ${formatUtcDate(summary.newestCreatedAt)}`
+                : "—";
+            updateLoadedCount();
+        } catch {
+            if (sequence !== state.searchSequence) return;
+            state.totalCount = null;
+            elements.resultCount.textContent = "—";
+            elements.resultRange.textContent = "Summary unavailable";
+            updateLoadedCount();
+        }
+    }
+
+    function applyPage(page, append) {
+        state.items = append ? state.items.concat(page.items) : page.items;
+        state.nextCursor = page.nextCreatedAt && page.nextId
+            ? {createdAt: page.nextCreatedAt, id: page.nextId}
+            : null;
+        elements.loadMore.hidden = !state.nextCursor;
+        elements.loadMore.disabled = false;
+        updateLoadedCount();
+        renderResults();
+    }
+
     async function search({append = false, selectedId = null} = {}) {
         if (state.searching || state.loadingMore) return;
         if (!dateRange.validate()) return;
-        const sequence = ++state.searchSequence;
+        const sequence = nextSearchSequence(state.searchSequence, append);
+        state.searchSequence = sequence;
+        const filters = resolveSearchFilters(
+            currentFilters(),
+            state.appliedFilters,
+            append
+        );
+        if (!append) state.appliedFilters = filters;
         append ? state.loadingMore = true : state.searching = true;
         if (!append) {
             showResultsMessage("Searching…");
             state.items = [];
             state.selectedIndex = -1;
+            state.nextCursor = null;
+            state.totalCount = null;
+            elements.loadMore.hidden = true;
+            elements.resultCount.textContent = "…";
+            elements.resultRange.textContent = "Calculating…";
+            updateLoadedCount();
         }
         elements.loadMore.disabled = true;
-        const params = buildSearchParams(currentFilters(), append ? state.nextCursor : null);
+        const params = buildSearchParams(filters, append ? state.nextCursor : null);
         try {
-            const page = await fetchJson(`/admin/api/screenshots?${params}`);
+            let page;
+            if (append) {
+                page = await fetchJson(`/admin/api/screenshots?${params}`);
+                if (sequence !== state.searchSequence) return;
+                applyPage(page, true);
+            } else {
+                const summaryParams = buildSearchParams(filters);
+                page = await loadPageThenSummary(
+                    () => fetchJson(`/admin/api/screenshots?${params}`),
+                    () => refreshSummary(summaryParams, sequence),
+                    loadedPage => {
+                        if (sequence === state.searchSequence) applyPage(loadedPage, false);
+                    }
+                );
+            }
             if (sequence !== state.searchSequence) return;
-            state.items = append ? state.items.concat(page.items) : page.items;
-            state.nextCursor = page.nextCreatedAt && page.nextId
-                ? {createdAt: page.nextCreatedAt, id: page.nextId}
-                : null;
-            elements.resultCount.textContent = Number(page.totalCount).toLocaleString("en-US");
-            elements.resultRange.textContent = page.totalCount
-                ? `${formatUtcDate(page.oldestCreatedAt)} — ${formatUtcDate(page.newestCreatedAt)}`
-                : "—";
-            elements.loadMore.hidden = !state.nextCursor;
-            elements.loadMore.disabled = false;
 
             let targetIndex = -1;
             if (selectedId) targetIndex = state.items.findIndex(item => item.imageId === selectedId);
             if (targetIndex < 0 && !append && state.items.length > 0) targetIndex = 0;
-            renderResults();
             if (targetIndex >= 0) await selectResult(targetIndex);
             else if (!append && state.items.length === 0) clearSelection();
             writeSearchUrl(state.items[state.selectedIndex]?.imageId || null);
@@ -482,6 +573,7 @@ if (typeof document !== "undefined") {
         elements.download.setAttribute("aria-disabled", "true");
         elements.download.href = "#";
         elements.temporaryLink.disabled = true;
+        elements.copyLink.disabled = true;
         elements.copyReport.disabled = true;
         updateNavigation();
     }
@@ -499,6 +591,7 @@ if (typeof document !== "undefined") {
         elements.image.hidden = true;
         elements.download.setAttribute("aria-disabled", "true");
         elements.temporaryLink.disabled = true;
+        elements.copyLink.disabled = false;
         elements.copyReport.disabled = true;
         writeSearchUrl(item.imageId);
 
@@ -586,6 +679,18 @@ if (typeof document !== "undefined") {
         }
     }
 
+    async function copyCurrentLink() {
+        if (state.selectedIndex < 0) return;
+        try {
+            await copyShareLink(navigator.clipboard, window.location.href);
+            const original = elements.copyLink.textContent;
+            elements.copyLink.textContent = "Copied";
+            setTimeout(() => elements.copyLink.textContent = original, 1200);
+        } catch {
+            elements.copyLink.textContent = "Copy failed";
+        }
+    }
+
     async function refreshStorage() {
         elements.refreshStorage.disabled = true;
         elements.storageMessage.textContent = "Refreshing…";
@@ -659,6 +764,7 @@ if (typeof document !== "undefined") {
     elements.zoomReset.addEventListener("click", resetZoom);
     elements.fullscreen.addEventListener("click", () => elements.stage.requestFullscreen?.());
     elements.temporaryLink.addEventListener("click", openTemporaryLink);
+    elements.copyLink.addEventListener("click", copyCurrentLink);
     elements.copyReport.addEventListener("click", copyReport);
     elements.refreshStorage.addEventListener("click", refreshStorage);
     elements.download.addEventListener("click", event => {

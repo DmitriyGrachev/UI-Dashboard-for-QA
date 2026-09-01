@@ -5,6 +5,7 @@ import com.introlabsystems.recognitionvalidator.dto.response.AdminScreenshotDeta
 import com.introlabsystems.recognitionvalidator.dto.response.TemporaryImageLinkResponse;
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotPage;
+import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotSummary;
 import com.introlabsystems.recognitionvalidator.service.AdminScreenshotService;
 import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,17 @@ public class AdminScreenshotApiController {
 
     @GetMapping
     AdminScreenshotPage search(@ModelAttribute AdminScreenshotSearchRequest request) {
+        validate(request, true);
+        return screenshots.search(request.toFilters());
+    }
+
+    @GetMapping("/summary")
+    AdminScreenshotSummary summary(@ModelAttribute AdminScreenshotSearchRequest request) {
+        validate(request, false);
+        return screenshots.summary(request.toFilters());
+    }
+
+    private static void validate(AdminScreenshotSearchRequest request, boolean cursorAllowed) {
         if (request.getCreatedFrom() != null
                 && request.getCreatedTo() != null
                 && !request.getCreatedFrom().isBefore(request.getCreatedTo())) {
@@ -50,13 +62,18 @@ public class AdminScreenshotApiController {
         }
         boolean hasCursorTime = request.getCursorCreatedAt() != null;
         boolean hasCursorId = hasText(request.getCursorId());
+        if (!cursorAllowed && (hasCursorTime || hasCursorId)) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Summary does not accept a cursor"
+            );
+        }
         if (hasCursorTime != hasCursorId) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
                     "Cursor timestamp and image ID must be provided together"
             );
         }
-        return screenshots.search(request.toFilters());
     }
 
     @GetMapping("/{imageId}")

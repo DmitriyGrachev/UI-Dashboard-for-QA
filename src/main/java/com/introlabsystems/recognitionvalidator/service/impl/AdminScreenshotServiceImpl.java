@@ -6,6 +6,7 @@ import com.introlabsystems.recognitionvalidator.exception.ImageNotFoundException
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotDetails;
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotFilters;
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotPage;
+import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotSummary;
 import com.introlabsystems.recognitionvalidator.service.AdminScreenshotService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -23,6 +24,14 @@ public class AdminScreenshotServiceImpl implements AdminScreenshotService {
     @Override
     public AdminScreenshotPage search(AdminScreenshotFilters filters) {
         return screenshots.search(
+                filters,
+                clock.instant().minus(b2Properties.metadataRetention())
+        );
+    }
+
+    @Override
+    public AdminScreenshotSummary summary(AdminScreenshotFilters filters) {
+        return screenshots.summary(
                 filters,
                 clock.instant().minus(b2Properties.metadataRetention())
         );

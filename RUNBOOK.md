@@ -756,6 +756,43 @@ SQL
 следующей попыткой запуска новой версии выполните скрипт ещё раз: он дополнит
 задачи, созданные старым приложением во время rollback.
 
+### Индексы Screenshot Explorer
+
+Перед первым запуском версии с `/admin/screenshots` создайте индексы для
+cursor pagination и основных административных фильтров. Скрипт использует
+`CREATE INDEX CONCURRENTLY`, поэтому PostgreSQL продолжает обслуживать приложение,
+но лучше выполнять его в согласованное окно с минимальной активностью операторов:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+  < scripts/admin-screenshot-performance.sql
+```
+
+Скрипт повторяемый: при следующих деплоях его запуск безопасен, но обязателен
+только один раз для каждой production-БД. Он восстанавливает незавершённый
+невалидный индекс, если предыдущий запуск оборвался.
+
+Проверка результата:
+
+```bash
+docker compose exec -T validator-api-db \
+  sh -lc 'psql -X -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"' <<'SQL'
+SELECT indexrelid::regclass AS index_name, indisvalid, indisready
+FROM pg_index
+WHERE indexrelid::regclass::text IN (
+  'ix_admin_review_order',
+  'ix_admin_review_state_order',
+  'ix_admin_review_game_order',
+  'ix_admin_image_file_name'
+)
+ORDER BY index_name;
+SQL
+```
+
+Ожидаются четыре строки с `indisvalid = t` и `indisready = t`. После этого
+можно пересоздать только контейнер приложения уже собранным image.
+
 ## 12. Типовые проблемы
 
 ### UI не открывается

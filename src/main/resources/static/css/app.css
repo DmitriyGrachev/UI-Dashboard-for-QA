@@ -2759,6 +2759,13 @@ span.flatpickr-weekday {
     display: block;
 }
 
+#loaded-result-count {
+    margin-top: 2px;
+    color: var(--muted);
+    font-size: 9px;
+    font-weight: 500;
+}
+
 .result-range {
     max-width: 150px;
     overflow: hidden;

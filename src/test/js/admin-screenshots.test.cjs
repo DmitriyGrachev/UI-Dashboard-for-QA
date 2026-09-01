@@ -3,10 +3,15 @@ const assert = require("node:assert/strict");
 
 const {
     buildSearchParams,
+    copyShareLink,
     createTechnicalReport,
     formatUtcDate,
+    formatLoadedCount,
     keyboardAction,
+    loadPageThenSummary,
+    nextSearchSequence,
     presetRange,
+    resolveSearchFilters,
     storageSupportsTemporaryLink
 } = require("../../main/resources/static/js/admin-screenshots.js");
 
@@ -103,4 +108,63 @@ test("UTC dates are formatted consistently", () => {
     assert.equal(formatUtcDate(null), "—");
     assert.match(formatUtcDate("2026-08-28T10:00:00Z"), /28\/08\/2026/);
     assert.match(formatUtcDate("2026-08-28T10:00:00Z"), /UTC/);
+});
+
+test("page results render before the independent summary starts", async () => {
+    const events = [];
+    const page = {items: [{imageId: "first"}], nextCreatedAt: null, nextId: null};
+
+    const result = await loadPageThenSummary(
+        async () => {
+            events.push("page");
+            return page;
+        },
+        async () => events.push("summary")
+    );
+
+    assert.equal(result, page);
+    assert.deepEqual(events, ["page", "summary"]);
+});
+
+test("a summary startup failure never discards an already loaded page", async () => {
+    const page = {items: [{imageId: "first"}], nextCreatedAt: null, nextId: null};
+
+    const result = await loadPageThenSummary(
+        async () => page,
+        () => {
+            throw new Error("summary unavailable");
+        }
+    );
+
+    assert.equal(result, page);
+});
+
+test("loaded count distinguishes browser rows from the matching total", () => {
+    assert.equal(formatLoadedCount(50, null), "50 loaded");
+    assert.equal(formatLoadedCount(50, 1_500_000), "Loaded 50 of 1,500,000");
+});
+
+test("copy link writes the exact current explorer URL", async () => {
+    const copied = [];
+    await copyShareLink(
+        {writeText: async value => copied.push(value)},
+        "https://validator.example/admin/screenshots?reviewState=CHECKED&selected=abc"
+    );
+
+    assert.deepEqual(copied, [
+        "https://validator.example/admin/screenshots?reviewState=CHECKED&selected=abc"
+    ]);
+});
+
+test("loading another page keeps the active summary generation", () => {
+    assert.equal(nextSearchSequence(7, true), 7);
+    assert.equal(nextSearchSequence(7, false), 8);
+});
+
+test("loading another page keeps the filters of the applied search", () => {
+    const applied = {gameCode: "bj_igt", reviewState: "CHECKED"};
+    const edited = {gameCode: "bj_playtech", reviewState: "UNCHECKED"};
+
+    assert.equal(resolveSearchFilters(edited, applied, true), applied);
+    assert.equal(resolveSearchFilters(edited, applied, false), edited);
 });

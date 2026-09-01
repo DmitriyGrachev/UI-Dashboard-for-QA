@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.scheduling.TaskScheduler;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.ActiveProfiles;
@@ -36,7 +37,7 @@ import static org.mockito.Mockito.verify;
         "validator.b2.object-prefix=validator/",
         "validator.b2.upload-batch-size=10",
         "validator.b2.upload-concurrency=2",
-        "validator.b2.upload-delay=365d",
+        "validator.b2.upload-delay=25ms",
         "validator.b2.upload-retry-delay=5m",
         "validator.b2.local-preferred-age=3d",
         "validator.b2.presigned-url-ttl=30m",
@@ -65,6 +66,9 @@ class CloudUploadSchedulerEnabledWiringTest {
     @MockitoBean
     private com.introlabsystems.recognitionvalidator.storage.CloudObjectStorage cloudStorage;
 
+    @MockitoBean(name = "taskScheduler")
+    private TaskScheduler taskScheduler;
+
     @BeforeEach
     void emptyTestQueue() throws Exception {
         Files.deleteIfExists(TEST_IMAGE);
@@ -84,6 +88,40 @@ class CloudUploadSchedulerEnabledWiringTest {
         ThreadPoolExecutor pool = (ThreadPoolExecutor) uploadExecutor;
         assertThat(pool.getCorePoolSize()).isEqualTo(2);
         assertThat(pool.getMaximumPoolSize()).isEqualTo(2);
+    }
+
+    @Test
+    void testContextDoesNotRunScheduledUploadBatchesAutomatically() throws Exception {
+        Files.createDirectories(TEST_IMAGE.getParent());
+        Files.write(TEST_IMAGE, new byte[]{1, 2, 3, 4});
+        Instant now = Instant.now();
+        jdbc.update("""
+                INSERT INTO image_asset (
+                    id, file_name, relative_path, file_created_at, file_modified_at,
+                    discovered_at, last_seen_at, file_available, game_code,
+                    is_notification, has_stand, has_hit, has_double, has_split,
+                    parse_status, cloud_upload_attempt_count
+                ) VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, TRUE, 'bj_igt',
+                    FALSE, FALSE, FALSE, FALSE, FALSE, 'SUCCESS', 0
+                )
+                """,
+                "spring-wired",
+                TEST_IMAGE.getFileName().toString(),
+                TEST_IMAGE.getFileName().toString(),
+                Timestamp.from(now),
+                Timestamp.from(now),
+                Timestamp.from(now),
+                Timestamp.from(now)
+        );
+
+        Thread.sleep(150);
+
+        assertThat(jdbc.queryForObject("""
+                SELECT cloud_uploaded_at IS NULL
+                FROM image_asset
+                WHERE id = 'spring-wired'
+                """, Boolean.class)).isTrue();
     }
 
     @Test

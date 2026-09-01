@@ -28,6 +28,7 @@ import java.util.UUID;
                 @Index(name = "ix_image_token", columnList = "token_id"),
                 @Index(name = "ix_image_session", columnList = "session_id"),
                 @Index(name = "ix_image_notification", columnList = "is_notification"),
+                @Index(name = "ix_admin_image_file_name", columnList = "file_name"),
                 @Index(name = "ix_image_retention", columnList = "file_created_at"),
                 @Index(
                         name = "ix_image_cloud_upload",

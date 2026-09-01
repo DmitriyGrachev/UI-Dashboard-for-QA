@@ -32,6 +32,18 @@ import java.time.Instant;
                 @Index(
                         name = "ix_review_rejected_export",
                         columnList = "decision,rejected_downloaded_at,image_id"
+                ),
+                @Index(
+                        name = "ix_admin_review_order",
+                        columnList = "file_created_at,image_id"
+                ),
+                @Index(
+                        name = "ix_admin_review_state_order",
+                        columnList = "status,file_created_at,image_id"
+                ),
+                @Index(
+                        name = "ix_admin_review_game_order",
+                        columnList = "game_code,file_created_at,image_id"
                 )
         }
 )

@@ -8,6 +8,7 @@ import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotDetai
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotFilters;
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotListItem;
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotPage;
+import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotSummary;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -24,7 +25,18 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AdminScreenshotRepository {
 
-    private static final String FROM = """
+    private static final String SEARCH_FROM = """
+            FROM review_task rt
+            JOIN image_asset ia ON ia.id = rt.image_id
+            LEFT JOIN app_user reviewer ON reviewer.id = rt.assigned_to
+            WHERE TRUE
+            """;
+    private static final String SUMMARY_FROM = """
+            FROM review_task rt
+            LEFT JOIN app_user reviewer ON reviewer.id = rt.assigned_to
+            WHERE TRUE
+            """;
+    private static final String DETAILS_FROM = """
             FROM image_asset ia
             LEFT JOIN review_task rt ON rt.image_id = ia.id
             LEFT JOIN app_user reviewer ON reviewer.id = rt.assigned_to
@@ -46,7 +58,7 @@ public class AdminScreenshotRepository {
         String baseConditions = conditions(filters, parameters);
         String listConditions = baseConditions + cursorCondition(filters, parameters);
         List<AdminScreenshotListItem> items = jdbc.query("""
-                SELECT ia.id, ia.file_name, ia.file_created_at, ia.game_code, ia.session_id,
+                SELECT ia.id, ia.file_name, rt.file_created_at, ia.game_code, ia.session_id,
                        CASE WHEN rt.status = 'COMPLETED' THEN 'CHECKED' ELSE 'UNCHECKED' END
                            AS review_state,
                        CASE
@@ -57,24 +69,12 @@ public class AdminScreenshotRepository {
                        END AS storage_state
                 %s
                 %s
-                ORDER BY ia.file_created_at DESC, ia.id DESC
+                ORDER BY rt.file_created_at DESC, rt.image_id DESC
                 LIMIT :fetchLimit
-                """.formatted(VALID_CLOUD, VALID_CLOUD, FROM, listConditions),
+                """.formatted(VALID_CLOUD, VALID_CLOUD, SEARCH_FROM, listConditions),
                 parameters,
                 AdminScreenshotRepository::mapItem
         );
-
-        Summary summary = jdbc.queryForObject("""
-                SELECT COUNT(*) AS total_count,
-                       MIN(ia.file_created_at) AS oldest_created_at,
-                       MAX(ia.file_created_at) AS newest_created_at
-                %s
-                %s
-                """.formatted(FROM, baseConditions), parameters, (resultSet, rowNumber) -> new Summary(
-                resultSet.getLong("total_count"),
-                instant(resultSet, "oldest_created_at"),
-                instant(resultSet, "newest_created_at")
-        ));
 
         boolean hasMore = items.size() > filters.limit();
         List<AdminScreenshotListItem> visibleItems = hasMore
@@ -85,12 +85,28 @@ public class AdminScreenshotRepository {
                 : null;
         return new AdminScreenshotPage(
                 visibleItems,
-                summary.totalCount(),
-                summary.oldestCreatedAt(),
-                summary.newestCreatedAt(),
                 last == null ? null : last.fileCreatedAt(),
                 last == null ? null : last.imageId()
         );
+    }
+
+    public AdminScreenshotSummary summary(AdminScreenshotFilters filters, Instant cloudCutoff) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource()
+                .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
+        String baseConditions = conditions(filters, parameters);
+        String summaryFrom = requiresImageAsset(filters) ? SEARCH_FROM : SUMMARY_FROM;
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) AS total_count,
+                       MIN(rt.file_created_at) AS oldest_created_at,
+                       MAX(rt.file_created_at) AS newest_created_at
+                %s
+                %s
+                """.formatted(summaryFrom, baseConditions), parameters,
+                (resultSet, rowNumber) -> new AdminScreenshotSummary(
+                        resultSet.getLong("total_count"),
+                        instant(resultSet, "oldest_created_at"),
+                        instant(resultSet, "newest_created_at")
+                ));
     }
 
     public Optional<AdminScreenshotDetails> findById(String imageId, Instant cloudCutoff) {
@@ -98,7 +114,9 @@ public class AdminScreenshotRepository {
                 .addValue("imageId", imageId)
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
         List<AdminScreenshotDetails> details = jdbc.query("""
-                SELECT ia.id, ia.file_name, ia.file_created_at, ia.processed_at,
+                SELECT ia.id, ia.file_name,
+                       COALESCE(rt.file_created_at, ia.file_created_at) AS file_created_at,
+                       ia.processed_at,
                        ia.game_code, ia.token_id, ia.session_id,
                        ia.dealer_cards, ia.active_user_cards, ia.inactive_user_cards,
                        ia.payload_raw, ia.buttons_raw, ia.is_notification,
@@ -117,7 +135,7 @@ public class AdminScreenshotRepository {
                        END AS storage_state
                 %s
                 AND ia.id = :imageId
-                """.formatted(VALID_CLOUD, VALID_CLOUD, FROM),
+                """.formatted(VALID_CLOUD, VALID_CLOUD, DETAILS_FROM),
                 parameters,
                 AdminScreenshotRepository::mapDetails
         );
@@ -130,20 +148,20 @@ public class AdminScreenshotRepository {
     ) {
         StringBuilder sql = new StringBuilder();
         if (filters.createdFrom() != null) {
-            sql.append(" AND ia.file_created_at >= :createdFrom");
+            sql.append(" AND rt.file_created_at >= :createdFrom");
             parameters.addValue("createdFrom", Timestamp.from(filters.createdFrom()));
         }
         if (filters.createdTo() != null) {
-            sql.append(" AND ia.file_created_at < :createdTo");
+            sql.append(" AND rt.file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
         if (filters.reviewState() == AdminReviewState.CHECKED) {
             sql.append(" AND rt.status = 'COMPLETED'");
         } else if (filters.reviewState() == AdminReviewState.UNCHECKED) {
-            sql.append(" AND (rt.status IS NULL OR rt.status <> 'COMPLETED')");
+            sql.append(" AND rt.status <> 'COMPLETED'");
         }
         if (hasText(filters.gameCode())) {
-            sql.append(" AND ia.game_code = :gameCode");
+            sql.append(" AND rt.game_code = :gameCode");
             parameters.addValue("gameCode", filters.gameCode().trim());
         }
         if (filters.tokenId() != null) {
@@ -155,7 +173,7 @@ public class AdminScreenshotRepository {
             parameters.addValue("sessionId", filters.sessionId().trim());
         }
         if (hasText(filters.imageId())) {
-            sql.append(" AND ia.id = :imageId");
+            sql.append(" AND rt.image_id = :imageId");
             parameters.addValue("imageId", filters.imageId().trim());
         }
         if (hasText(filters.fileName())) {
@@ -176,25 +194,22 @@ public class AdminScreenshotRepository {
             parameters.addValue("parseStatus", filters.parseStatus().name());
         }
         if (filters.notification() != null) {
-            sql.append(" AND ia.is_notification = :notification");
+            sql.append(" AND rt.is_notification = :notification");
             parameters.addValue("notification", filters.notification());
         }
         if (filters.hasUserHand() != null) {
-            if (filters.hasUserHand()) {
-                sql.append("""
-                         AND (
-                             NULLIF(BTRIM(ia.active_user_cards), '') IS NOT NULL
-                             OR NULLIF(BTRIM(ia.inactive_user_cards), '') IS NOT NULL
-                         )
-                        """);
-            } else {
-                sql.append("""
-                         AND NULLIF(BTRIM(ia.active_user_cards), '') IS NULL
-                         AND NULLIF(BTRIM(ia.inactive_user_cards), '') IS NULL
-                        """);
-            }
+            sql.append(" AND rt.has_user_hand = :hasUserHand");
+            parameters.addValue("hasUserHand", filters.hasUserHand());
         }
         return sql.toString();
+    }
+
+    private static boolean requiresImageAsset(AdminScreenshotFilters filters) {
+        return filters.tokenId() != null
+                || hasText(filters.sessionId())
+                || hasText(filters.fileName())
+                || filters.storageState() != null
+                || filters.parseStatus() != null;
     }
 
     private static String cursorCondition(
@@ -207,10 +222,7 @@ public class AdminScreenshotRepository {
         parameters.addValue("cursorCreatedAt", Timestamp.from(filters.cursorCreatedAt()));
         parameters.addValue("cursorId", filters.cursorId().trim());
         return """
-                 AND (
-                     ia.file_created_at < :cursorCreatedAt
-                     OR (ia.file_created_at = :cursorCreatedAt AND ia.id < :cursorId)
-                 )
+                 AND (rt.file_created_at, rt.image_id) < (:cursorCreatedAt, :cursorId)
                 """;
     }
 
@@ -283,8 +295,5 @@ public class AdminScreenshotRepository {
     private static Instant instant(ResultSet resultSet, String column) throws SQLException {
         Timestamp timestamp = resultSet.getTimestamp(column);
         return timestamp == null ? null : timestamp.toInstant();
-    }
-
-    private record Summary(long totalCount, Instant oldestCreatedAt, Instant newestCreatedAt) {
     }
 }

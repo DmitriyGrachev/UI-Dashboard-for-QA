@@ -121,7 +121,9 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(content().string(containsString("id=\"screenshot-results\"")))
                 .andExpect(content().string(containsString("id=\"explorer-image\"")))
                 .andExpect(content().string(containsString("id=\"download-screenshot\"")))
+                .andExpect(content().string(containsString("id=\"copy-screenshot-link\"")))
                 .andExpect(content().string(containsString("id=\"copy-technical-report\"")))
+                .andExpect(content().string(containsString("id=\"loaded-result-count\"")))
                 .andExpect(content().string(containsString("id=\"storage-dashboard\"")))
                 .andExpect(content().string(containsString("/js/admin-screenshots.js")))
                 .andExpect(content().string(containsString("data-utc-date-range")));

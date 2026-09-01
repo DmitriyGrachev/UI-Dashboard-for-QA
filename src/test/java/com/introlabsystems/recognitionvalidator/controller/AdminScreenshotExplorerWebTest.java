@@ -6,6 +6,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -14,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
 
     @Test
-    void adminCanFilterCheckedScreenshotsByUtcCreationRange() throws Exception {
+    void adminCanFilterCheckedScreenshotsWithoutWaitingForSummary() throws Exception {
         UUID operatorId = insertOperator("reviewer", "password");
         String checkedInside = insertReviewImage(
                 701, "checked-inside.png", true, "bj_americas_ags", "session-checked",
@@ -43,6 +44,32 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].imageId").value(checkedInside))
                 .andExpect(jsonPath("$.items[0].reviewState").value("CHECKED"))
+                .andExpect(jsonPath("$.totalCount").doesNotExist())
+                .andExpect(jsonPath("$.oldestCreatedAt").doesNotExist())
+                .andExpect(jsonPath("$.newestCreatedAt").doesNotExist());
+    }
+
+    @Test
+    void summaryReturnsCountAndUtcRangeForTheSameFilters() throws Exception {
+        UUID operatorId = insertOperator("summary-reviewer", "password");
+        String checkedInside = insertReviewImage(
+                713, "summary-checked.png", true, "bj_americas_ags", "summary-checked",
+                "Eight", "Three_Three", null
+        );
+        String uncheckedInside = insertReviewImage(
+                714, "summary-unchecked.png", true, "bj_americas_ags", "summary-unchecked",
+                "Nine", "Five_Six", null
+        );
+        setCreatedAt(checkedInside, "2026-08-28T10:00:00Z");
+        setCreatedAt(uncheckedInside, "2026-08-28T11:00:00Z");
+        complete(checkedInside, operatorId, "ACCEPTED", "2026-08-28T12:00:00Z");
+
+        mockMvc.perform(get("/admin/api/screenshots/summary")
+                        .param("reviewState", "CHECKED")
+                        .param("createdFrom", "2026-08-28T00:00:00Z")
+                        .param("createdTo", "2026-08-29T00:00:00Z")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalCount").value(1))
                 .andExpect(jsonPath("$.oldestCreatedAt").value("2026-08-28T10:00:00Z"))
                 .andExpect(jsonPath("$.newestCreatedAt").value("2026-08-28T10:00:00Z"));
@@ -77,8 +104,7 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.items[0].imageId").value(assigned))
                 .andExpect(jsonPath("$.items[0].reviewState").value("UNCHECKED"))
                 .andExpect(jsonPath("$.items[1].imageId").value(pending))
-                .andExpect(jsonPath("$.items[1].reviewState").value("UNCHECKED"))
-                .andExpect(jsonPath("$.totalCount").value(2));
+                .andExpect(jsonPath("$.items[1].reviewState").value("UNCHECKED"));
     }
 
     @Test
@@ -105,6 +131,10 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                     cloud_uploaded_at = now()
                 WHERE id = ?
                 """, target);
+        jdbc.update(
+                "UPDATE review_task SET is_notification = TRUE WHERE image_id = ?",
+                target
+        );
 
         mockMvc.perform(get("/admin/api/screenshots")
                         .param("reviewState", "CHECKED")
@@ -123,8 +153,7 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].imageId").value(target))
-                .andExpect(jsonPath("$.items[0].storageState").value("BOTH"))
-                .andExpect(jsonPath("$.totalCount").value(1));
+                .andExpect(jsonPath("$.items[0].storageState").value("BOTH"));
     }
 
     @Test
@@ -144,6 +173,27 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
         setCreatedAt(first, "2026-08-28T15:00:00Z");
         setCreatedAt(second, "2026-08-28T15:00:00Z");
         setCreatedAt(newest, "2026-08-28T16:00:00Z");
+        jdbc.update(
+                "UPDATE image_asset SET file_created_at = ? WHERE id = ?",
+                Timestamp.from(Instant.parse("2026-08-27T14:00:00Z")),
+                second
+        );
+
+        mockMvc.perform(get("/admin/api/screenshots")
+                        .param("sessionId", "cursor-session")
+                        .param("limit", "2")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[1].imageId").value(second))
+                .andExpect(jsonPath("$.items[1].fileCreatedAt")
+                        .value("2026-08-28T15:00:00Z"))
+                .andExpect(jsonPath("$.nextCreatedAt").value("2026-08-28T15:00:00Z"))
+                .andExpect(jsonPath("$.nextId").value(second));
+
+        mockMvc.perform(get("/admin/api/screenshots/{imageId}", second)
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.fileCreatedAt").value("2026-08-28T15:00:00Z"));
 
         mockMvc.perform(get("/admin/api/screenshots")
                         .param("sessionId", "cursor-session")
@@ -154,9 +204,30 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].imageId").value(first))
-                .andExpect(jsonPath("$.totalCount").value(3))
                 .andExpect(jsonPath("$.nextCreatedAt").doesNotExist())
                 .andExpect(jsonPath("$.nextId").doesNotExist());
+    }
+
+    @Test
+    void freshSchemaContainsIndexesForAdminOrderingAndExactFileLookup() {
+        var indexNames = jdbc.queryForList("""
+                SELECT indexname
+                FROM pg_indexes
+                WHERE schemaname = 'public'
+                  AND indexname IN (
+                      'ix_admin_review_order',
+                      'ix_admin_review_state_order',
+                      'ix_admin_review_game_order',
+                      'ix_admin_image_file_name'
+                  )
+                """, String.class);
+
+        assertThat(indexNames).containsExactlyInAnyOrder(
+                "ix_admin_review_order",
+                "ix_admin_review_state_order",
+                "ix_admin_review_game_order",
+                "ix_admin_image_file_name"
+        );
     }
 
     @Test
@@ -235,10 +306,16 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
     }
 
     private void setCreatedAt(String imageId, String instant) {
+        Timestamp timestamp = Timestamp.from(Instant.parse(instant));
         jdbc.update(
                 "UPDATE image_asset SET file_created_at = ?, file_modified_at = ? WHERE id = ?",
-                Timestamp.from(Instant.parse(instant)),
-                Timestamp.from(Instant.parse(instant)),
+                timestamp,
+                timestamp,
+                imageId
+        );
+        jdbc.update(
+                "UPDATE review_task SET file_created_at = ? WHERE image_id = ?",
+                timestamp,
                 imageId
         );
     }
