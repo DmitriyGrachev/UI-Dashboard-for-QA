@@ -31,6 +31,9 @@ public class AdminScreenshotSearchRequest {
     private Instant cursorCreatedAt;
     private String cursorId;
     private int limit = 50;
+    private com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult;
+    private Integer certaintyFrom;
+    private Integer certaintyTo;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -50,7 +53,10 @@ public class AdminScreenshotSearchRequest {
                 hasUserHand,
                 cursorCreatedAt,
                 cursorId,
-                Math.clamp(limit, 1, 100)
+                Math.clamp(limit, 1, 100),
+                aiResult,
+                certaintyFrom,
+                certaintyTo
         );
     }
 }

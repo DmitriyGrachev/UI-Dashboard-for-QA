@@ -26,6 +26,11 @@ public class ReviewApiController {
 
     private final ReviewQueueService queueService;
     private final ReviewWorkflowService workflowService;
+    private final com.introlabsystems.recognitionvalidator.ai.service.AiQueueService aiQueue;
+
+    private ReviewQueueResponse response(com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult result) {
+        return ReviewQueueResponse.from(result, result.item().map(item -> aiQueue.details(item.imageId())).orElse(null));
+    }
 
     @PostMapping("/claim")
     ResponseEntity<ReviewQueueResponse> claim(
@@ -35,7 +40,7 @@ public class ReviewApiController {
         ReviewFilters filters = request == null ? ReviewFilters.none() : request.toFilters();
         boolean replaceCurrent = request != null && request.replaceCurrent();
         boolean includeRemaining = request != null && request.includeRemaining();
-        return ResponseEntity.ok(ReviewQueueResponse.from(queueService.claim(
+        return ResponseEntity.ok(response(queueService.claim(
                 principal.id(),
                 filters,
                 replaceCurrent,
@@ -60,7 +65,7 @@ public class ReviewApiController {
             @AuthenticationPrincipal OperatorPrincipal principal,
             @Valid @RequestBody DecisionRequest request
     ) {
-        return ResponseEntity.ok(ReviewQueueResponse.from(
+        return ResponseEntity.ok(response(
                 workflowService.decideAndClaimNext(
                         imageId,
                         principal.id(),

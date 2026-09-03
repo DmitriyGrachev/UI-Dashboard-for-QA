@@ -38,10 +38,16 @@ public record AdminScreenshotDetailsResponse(
         String imageUrl,
         String downloadUrl,
         String availabilityUrl,
-        String temporaryLinkUrl
+        String temporaryLinkUrl,
+        com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai
 ) {
 
     public static AdminScreenshotDetailsResponse from(AdminScreenshotDetails details) {
+        return from(details, null);
+    }
+
+    public static AdminScreenshotDetailsResponse from(AdminScreenshotDetails details,
+            com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai) {
         String baseUrl = "/admin/api/screenshots/" + details.imageId();
         return new AdminScreenshotDetailsResponse(
                 details.imageId(),
@@ -73,7 +79,8 @@ public record AdminScreenshotDetailsResponse(
                 baseUrl + "/content",
                 baseUrl + "/download",
                 baseUrl + "/availability",
-                baseUrl + "/temporary-link"
+                baseUrl + "/temporary-link",
+                ai
         );
     }
 }

@@ -64,7 +64,9 @@ public class AiTaskRepository {
                 condition(sql, parameters, "ai.file_created_at < :createdTo", "createdTo", timestamp(rule.createdTo()));
                 condition(sql, parameters, "ai.token_id = :tokenId", "tokenId", rule.tokenId());
                 condition(sql, parameters, "ai.session_id = :sessionId", "sessionId", rule.sessionId());
-                condition(sql, parameters, "ai.is_notification = :notification", "notification", rule.notification());
+                if (rule.notification() != null) {
+                    sql.append(rule.notification() ? " AND ai.is_notification = TRUE" : " AND ai.is_notification = FALSE");
+                }
                 condition(sql, parameters, "ai.has_user_hand = :hasUserHand", "hasUserHand", rule.hasUserHand());
                 sql.append(" ORDER BY ai.file_created_at, ai.image_id LIMIT :limit FOR UPDATE OF ai SKIP LOCKED");
                 List<AiClaim> candidates = jdbc.query(sql.toString(), parameters, (rs, row) ->

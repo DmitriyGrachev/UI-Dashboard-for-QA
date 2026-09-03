@@ -12,8 +12,13 @@ public record ReviewQueueResponse(
 ) {
 
     public static ReviewQueueResponse from(ReviewQueueResult result) {
+        return from(result, null);
+    }
+
+    public static ReviewQueueResponse from(ReviewQueueResult result,
+            com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai) {
         ReviewItemResponse item = result.item()
-                .map(ReviewItemResponse::from)
+                .map(value -> ReviewItemResponse.from(value, ai))
                 .orElse(null);
         Long remaining = result.remaining();
         if (item == null && remaining == null) {

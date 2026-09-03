@@ -24,6 +24,18 @@ public record AdminScreenshotFilters(
         Boolean hasUserHand,
         Instant cursorCreatedAt,
         String cursorId,
-        int limit
+        int limit,
+        com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult,
+        Integer certaintyFrom,
+        Integer certaintyTo
 ) {
+    public AdminScreenshotFilters(Instant createdFrom, Instant createdTo, AdminReviewState reviewState,
+                                  String gameCode, Long tokenId, String sessionId, String imageId,
+                                  String fileName, Decision decision, String reviewedBy,
+                                  ImageStorageState storageState, ParseStatus parseStatus, Boolean notification,
+                                  Boolean hasUserHand, Instant cursorCreatedAt, String cursorId, int limit) {
+        this(createdFrom, createdTo, reviewState, gameCode, tokenId, sessionId, imageId, fileName,
+                decision, reviewedBy, storageState, parseStatus, notification, hasUserHand,
+                cursorCreatedAt, cursorId, limit, null, null, null);
+    }
 }

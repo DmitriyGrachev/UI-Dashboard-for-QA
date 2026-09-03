@@ -31,6 +31,7 @@ public class AdminScreenshotApiController {
 
     private final AdminScreenshotService screenshots;
     private final ImageStorageService storage;
+    private final com.introlabsystems.recognitionvalidator.ai.service.AiQueueService aiQueue;
 
     @GetMapping
     AdminScreenshotPage search(@ModelAttribute AdminScreenshotSearchRequest request) {
@@ -78,7 +79,7 @@ public class AdminScreenshotApiController {
 
     @GetMapping("/{imageId}")
     AdminScreenshotDetailsResponse details(@PathVariable String imageId) {
-        return AdminScreenshotDetailsResponse.from(screenshots.details(imageId));
+        return AdminScreenshotDetailsResponse.from(screenshots.details(imageId), aiQueue.details(imageId));
     }
 
     @GetMapping("/{imageId}/content")

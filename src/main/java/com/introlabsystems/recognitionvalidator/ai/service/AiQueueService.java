@@ -16,6 +16,9 @@ import java.util.List;
 
 @Service @RequiredArgsConstructor @Slf4j
 public class AiQueueService {
+    public com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails details(String imageId) {
+        return tasks.details(imageId);
+    }
     private final AiSettingsRepository settings;
     private final AiTaskRepository tasks;
     private final AiCardPayloadMapper mapper;

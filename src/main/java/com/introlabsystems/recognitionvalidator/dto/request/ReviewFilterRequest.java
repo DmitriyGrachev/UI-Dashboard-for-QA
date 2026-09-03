@@ -12,7 +12,10 @@ public record ReviewFilterRequest(
         String sessionId,
         String gameCode,
         Boolean notification,
-        Boolean hasUserHand
+        Boolean hasUserHand,
+        com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult,
+        Integer certaintyFrom,
+        Integer certaintyTo
 ) {
 
     @AssertTrue(message = "createdFrom must be earlier than createdTo")
@@ -28,7 +31,10 @@ public record ReviewFilterRequest(
                 sessionId,
                 gameCode,
                 notification,
-                hasUserHand
+                hasUserHand,
+                aiResult,
+                certaintyFrom,
+                certaintyTo
         );
     }
 }

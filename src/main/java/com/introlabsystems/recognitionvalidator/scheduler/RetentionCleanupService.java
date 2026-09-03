@@ -74,22 +74,34 @@ public class RetentionCleanupService {
     private int deleteBatch(Instant localCutoff, Instant cloudCutoff) {
         return jdbc.update("""
                 WITH expired AS (
-                    SELECT id
-                    FROM image_asset
-                    WHERE (
+                    SELECT ia.id
+                    FROM image_asset ia
+                    WHERE ((
                               cloud_uploaded_at IS NULL
                               AND file_created_at < :localCutoff
                           )
                        OR (
                               cloud_uploaded_at IS NOT NULL
                               AND cloud_uploaded_at < :cloudCutoff
-                          )
-                    ORDER BY file_created_at, id
+                          ))
+                      AND NOT EXISTS (
+                          SELECT 1 FROM ai_review_task ai WHERE ai.image_id = ia.id
+                            AND ai.status = 'PROCESSING' AND ai.lease_expires_at > clock_timestamp()
+                      )
+                    ORDER BY ia.file_created_at, ia.id
                     LIMIT :batchSize
+                    FOR UPDATE OF ia SKIP LOCKED
+                ), ai_deletable AS (
+                    SELECT ai.image_id FROM ai_review_task ai JOIN expired e ON e.id = ai.image_id
+                    WHERE ai.status <> 'PROCESSING' OR ai.lease_expires_at IS NULL
+                       OR ai.lease_expires_at <= clock_timestamp()
+                    FOR UPDATE OF ai SKIP LOCKED
                 )
                 DELETE FROM image_asset image
                 USING expired
                 WHERE image.id = expired.id
+                  AND (NOT EXISTS (SELECT 1 FROM ai_review_task ai WHERE ai.image_id = expired.id)
+                       OR EXISTS (SELECT 1 FROM ai_deletable d WHERE d.image_id = expired.id))
                 """, new MapSqlParameterSource()
                 .addValue("localCutoff", Timestamp.from(localCutoff))
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff))

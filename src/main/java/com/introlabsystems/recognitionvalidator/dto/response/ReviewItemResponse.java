@@ -25,10 +25,16 @@ public record ReviewItemResponse(
         Instant processedAt,
         Long recognitionDurationMs,
         ParseStatus parseStatus,
-        String imageUrl
+        String imageUrl,
+        com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai
 ) {
 
     public static ReviewItemResponse from(ReviewItem item) {
+        return from(item, null);
+    }
+
+    public static ReviewItemResponse from(ReviewItem item,
+            com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai) {
         var recognition = item.recognition();
         return new ReviewItemResponse(
                 item.imageId(),
@@ -50,7 +56,8 @@ public record ReviewItemResponse(
                 recognition.processedAt(),
                 recognition.recognitionDurationMs(),
                 recognition.parseStatus(),
-                "/api/images/" + item.imageId() + "/content"
+                "/api/images/" + item.imageId() + "/content",
+                ai
         );
     }
 }

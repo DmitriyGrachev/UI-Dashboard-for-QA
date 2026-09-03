@@ -291,6 +291,8 @@ public class ReviewClaimRepository {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
             parameters.addValue("hasUserHand", filters.hasUserHand());
         }
+        com.introlabsystems.recognitionvalidator.ai.repository.AiResultFilterSql.append(
+                sql, parameters, filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo());
     }
 
     private static boolean hasText(String value) {
