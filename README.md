@@ -1,5 +1,8 @@
 # Recognition Validator
 
+AI integration now uses an independent pull queue. See [AI-PULL-INTEGRATION.md](AI-PULL-INTEGRATION.md)
+for Igor's API contract, admin rules, keys, migration and testing. Validator no longer calls an AI service scheduler.
+
 MVP QA-застосунку для ручної перевірки повного результату розпізнавання. Оператор бачить скриншот і
 розпізнані з імені файлу дані, після чого приймає остаточне рішення:
 `ACCEPTED` або `REJECTED`.
