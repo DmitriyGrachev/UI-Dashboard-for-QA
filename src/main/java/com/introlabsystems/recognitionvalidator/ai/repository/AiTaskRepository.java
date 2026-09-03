@@ -53,13 +53,15 @@ public class AiTaskRepository {
                         SELECT ai.image_id, ia.payload_raw
                         FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
                         WHERE ai.status='PENDING' AND ai.game_code='bj_single_deck_ags'
+                          AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
                           AND (ai.retry_after IS NULL OR ai.retry_after <= CURRENT_TIMESTAMP)
                         """);
                 if (b2.enabled()) sql.append("""
+                        AND (ai.file_available OR ai.cloud_available_at > CURRENT_TIMESTAMP - (:retentionSeconds * INTERVAL '1 second'))
                         AND (ia.file_available OR (NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL
                           AND ia.cloud_uploaded_at > CURRENT_TIMESTAMP - (:retentionSeconds * INTERVAL '1 second')))
                         """);
-                else sql.append(" AND ia.file_available=TRUE ");
+                else sql.append(" AND ai.file_available=TRUE AND ia.file_available=TRUE ");
                 condition(sql, parameters, "ai.file_created_at >= :createdFrom", "createdFrom", timestamp(rule.createdFrom()));
                 condition(sql, parameters, "ai.file_created_at < :createdTo", "createdTo", timestamp(rule.createdTo()));
                 condition(sql, parameters, "ai.token_id = :tokenId", "tokenId", rule.tokenId());

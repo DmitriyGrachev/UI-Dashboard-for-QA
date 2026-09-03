@@ -148,23 +148,27 @@ public class ImageAssetBatchWriter {
         jdbc.batchUpdate("""
                 INSERT INTO ai_review_task (
                     image_id, status, file_created_at, game_code, token_id,
-                    session_id, is_notification, has_user_hand, attempt_count
+                    session_id, is_notification, has_user_hand, attempt_count, file_available, cloud_available_at
                 )
                 SELECT id, 'PENDING', file_created_at, game_code, token_id, session_id,
                        COALESCE(is_notification, FALSE),
                        (COALESCE(BTRIM(active_user_cards), '') <> '' OR
-                        COALESCE(BTRIM(inactive_user_cards), '') <> ''), 0
+                        COALESCE(BTRIM(inactive_user_cards), '') <> ''), 0, file_available,
+                       CASE WHEN NULLIF(BTRIM(cloud_object_key),'') IS NOT NULL THEN cloud_uploaded_at END
                 FROM image_asset WHERE id = :id AND game_code = 'bj_single_deck_ags'
                 ON CONFLICT (image_id) DO UPDATE SET
                     file_created_at = EXCLUDED.file_created_at, game_code = EXCLUDED.game_code,
                     token_id = EXCLUDED.token_id, session_id = EXCLUDED.session_id,
-                    is_notification = EXCLUDED.is_notification, has_user_hand = EXCLUDED.has_user_hand
+                    is_notification = EXCLUDED.is_notification, has_user_hand = EXCLUDED.has_user_hand,
+                    file_available=EXCLUDED.file_available, cloud_available_at=EXCLUDED.cloud_available_at
                 WHERE (ai_review_task.file_created_at, ai_review_task.game_code,
                        ai_review_task.token_id, ai_review_task.session_id,
-                       ai_review_task.is_notification, ai_review_task.has_user_hand)
+                       ai_review_task.is_notification, ai_review_task.has_user_hand,
+                       ai_review_task.file_available, ai_review_task.cloud_available_at)
                     IS DISTINCT FROM
                       (EXCLUDED.file_created_at, EXCLUDED.game_code, EXCLUDED.token_id,
-                       EXCLUDED.session_id, EXCLUDED.is_notification, EXCLUDED.has_user_hand)
+                       EXCLUDED.session_id, EXCLUDED.is_notification, EXCLUDED.has_user_hand,
+                       EXCLUDED.file_available, EXCLUDED.cloud_available_at)
                 """, parameters);
     }
 

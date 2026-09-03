@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dao.jdbc;
 
+import com.introlabsystems.recognitionvalidator.ai.repository.AiResultFilterSql;
+
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.model.enums.ParseStatus;
 import com.introlabsystems.recognitionvalidator.model.value.RecognitionResult;
@@ -235,13 +237,20 @@ public class ReviewClaimRepository {
             ReviewFilters filters,
             MapSqlParameterSource parameters
     ) {
-        StringBuilder sql = pendingSql("rt.image_id");
-        appendFilters(sql, filters, parameters);
+        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo());
+        StringBuilder sql = aiOrdered ? new StringBuilder("""
+                SELECT rt.image_id FROM ai_review_task ai
+                JOIN review_task rt ON rt.image_id=ai.image_id
+                JOIN image_asset ia ON ia.id=rt.image_id
+                WHERE rt.status='PENDING' AND %s
+                """.formatted(availableImagePredicate)) : pendingSql("rt.image_id");
+        appendFilters(sql, filters, parameters, aiOrdered);
+        String order = aiOrdered ? "ai" : "rt";
         sql.append("""
-                 ORDER BY rt.file_created_at ASC, rt.image_id ASC
+                 ORDER BY %s.file_created_at ASC, %s.image_id ASC
                  FOR UPDATE OF rt SKIP LOCKED
                  LIMIT 1
-                """);
+                """.formatted(order, order));
         return sql.toString();
     }
 
@@ -260,12 +269,18 @@ public class ReviewClaimRepository {
             ReviewFilters filters,
             MapSqlParameterSource parameters
     ) {
+        appendFilters(sql, filters, parameters, false);
+    }
+
+    private void appendFilters(StringBuilder sql, ReviewFilters filters,
+                               MapSqlParameterSource parameters, boolean aiOrdered) {
+        String queue = aiOrdered ? "ai" : "rt";
         if (filters.createdFrom() != null) {
-            sql.append(" AND rt.file_created_at >= :createdFrom");
+            sql.append(" AND ").append(queue).append(".file_created_at >= :createdFrom");
             parameters.addValue("createdFrom", Timestamp.from(filters.createdFrom()));
         }
         if (filters.createdTo() != null) {
-            sql.append(" AND rt.file_created_at < :createdTo");
+            sql.append(" AND ").append(queue).append(".file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
         if (filters.tokenId() != null) {
@@ -283,16 +298,15 @@ public class ReviewClaimRepository {
         if (filters.notification() != null) {
             // A literal lets PostgreSQL prove the partial notification-index predicate
             // even after the JDBC statement switches to a generic prepared plan.
-            sql.append(filters.notification()
-                    ? " AND rt.is_notification = TRUE"
-                    : " AND rt.is_notification = FALSE");
+            sql.append(" AND rt").append(filters.notification()
+                    ? ".is_notification = TRUE" : ".is_notification = FALSE");
         }
         if (filters.hasUserHand() != null) {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
             parameters.addValue("hasUserHand", filters.hasUserHand());
         }
-        com.introlabsystems.recognitionvalidator.ai.repository.AiResultFilterSql.append(
-                sql, parameters, filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo());
+        AiResultFilterSql.append(
+                sql, parameters, filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo(), aiOrdered);
     }
 
     private static boolean hasText(String value) {

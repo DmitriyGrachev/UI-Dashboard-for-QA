@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dao.jdbc;
 
+import com.introlabsystems.recognitionvalidator.ai.repository.AiResultFilterSql;
+
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.model.enums.ImageStorageState;
@@ -36,6 +38,13 @@ public class AdminScreenshotRepository {
             LEFT JOIN app_user reviewer ON reviewer.id = rt.assigned_to
             WHERE TRUE
             """;
+    private static final String AI_SEARCH_FROM = """
+            FROM ai_review_task ai
+            JOIN review_task rt ON rt.image_id=ai.image_id
+            JOIN image_asset ia ON ia.id=rt.image_id
+            LEFT JOIN app_user reviewer ON reviewer.id=rt.assigned_to
+            WHERE TRUE
+            """;
     private static final String DETAILS_FROM = """
             FROM image_asset ia
             LEFT JOIN review_task rt ON rt.image_id = ia.id
@@ -55,8 +64,10 @@ public class AdminScreenshotRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("fetchLimit", filters.limit() + 1)
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
-        String baseConditions = conditions(filters, parameters);
-        String listConditions = baseConditions + cursorCondition(filters, parameters);
+        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo());
+        String order = aiOrdered ? "ai" : "rt";
+        String baseConditions = conditions(filters, parameters, aiOrdered);
+        String listConditions = baseConditions + cursorCondition(filters, parameters, order);
         List<AdminScreenshotListItem> items = jdbc.query("""
                 SELECT ia.id, ia.file_name, rt.file_created_at, ia.game_code, ia.session_id,
                        CASE WHEN rt.status = 'COMPLETED' THEN 'CHECKED' ELSE 'UNCHECKED' END
@@ -69,9 +80,9 @@ public class AdminScreenshotRepository {
                        END AS storage_state
                 %s
                 %s
-                ORDER BY rt.file_created_at DESC, rt.image_id DESC
+                ORDER BY %s.file_created_at DESC, %s.image_id DESC
                 LIMIT :fetchLimit
-                """.formatted(VALID_CLOUD, VALID_CLOUD, SEARCH_FROM, listConditions),
+                """.formatted(VALID_CLOUD, VALID_CLOUD, aiOrdered ? AI_SEARCH_FROM : SEARCH_FROM, listConditions, order, order),
                 parameters,
                 AdminScreenshotRepository::mapItem
         );
@@ -146,13 +157,18 @@ public class AdminScreenshotRepository {
             AdminScreenshotFilters filters,
             MapSqlParameterSource parameters
     ) {
+        return conditions(filters, parameters, false);
+    }
+
+    private static String conditions(AdminScreenshotFilters filters, MapSqlParameterSource parameters, boolean aiOrdered) {
+        String queue = aiOrdered ? "ai" : "rt";
         StringBuilder sql = new StringBuilder();
         if (filters.createdFrom() != null) {
-            sql.append(" AND rt.file_created_at >= :createdFrom");
+            sql.append(" AND ").append(queue).append(".file_created_at >= :createdFrom");
             parameters.addValue("createdFrom", Timestamp.from(filters.createdFrom()));
         }
         if (filters.createdTo() != null) {
-            sql.append(" AND rt.file_created_at < :createdTo");
+            sql.append(" AND ").append(queue).append(".file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
         if (filters.reviewState() == AdminReviewState.CHECKED) {
@@ -173,7 +189,7 @@ public class AdminScreenshotRepository {
             parameters.addValue("sessionId", filters.sessionId().trim());
         }
         if (hasText(filters.imageId())) {
-            sql.append(" AND rt.image_id = :imageId");
+            sql.append(" AND ").append(queue).append(".image_id = :imageId");
             parameters.addValue("imageId", filters.imageId().trim());
         }
         if (hasText(filters.fileName())) {
@@ -201,8 +217,8 @@ public class AdminScreenshotRepository {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
             parameters.addValue("hasUserHand", filters.hasUserHand());
         }
-        com.introlabsystems.recognitionvalidator.ai.repository.AiResultFilterSql.append(
-                sql, parameters, filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo());
+        AiResultFilterSql.append(
+                sql, parameters, filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo(), aiOrdered);
         return sql.toString();
     }
 
@@ -216,7 +232,7 @@ public class AdminScreenshotRepository {
 
     private static String cursorCondition(
             AdminScreenshotFilters filters,
-            MapSqlParameterSource parameters
+            MapSqlParameterSource parameters, String queue
     ) {
         if (filters.cursorCreatedAt() == null || !hasText(filters.cursorId())) {
             return "";
@@ -224,8 +240,8 @@ public class AdminScreenshotRepository {
         parameters.addValue("cursorCreatedAt", Timestamp.from(filters.cursorCreatedAt()));
         parameters.addValue("cursorId", filters.cursorId().trim());
         return """
-                 AND (rt.file_created_at, rt.image_id) < (:cursorCreatedAt, :cursorId)
-                """;
+                 AND (%s.file_created_at, %s.image_id) < (:cursorCreatedAt, :cursorId)
+                """.formatted(queue, queue);
     }
 
     private static void appendStorageFilter(StringBuilder sql, ImageStorageState storageState) {

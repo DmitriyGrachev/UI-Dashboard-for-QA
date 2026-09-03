@@ -29,6 +29,8 @@ public class AiReviewTask {
     @Column(name = "session_id", length = 128) private String sessionId;
     @Column(name = "is_notification", nullable = false) private boolean notification;
     @Column(name = "has_user_hand", nullable = false) private boolean hasUserHand;
+    @Column(name = "file_available", nullable = false) @ColumnDefault("false") private boolean fileAvailable;
+    @Column(name = "cloud_available_at") private Instant cloudAvailableAt;
     @Column(name = "claim_id") private UUID claimId;
     @Column(name = "lease_expires_at") private Instant leaseExpiresAt;
     @Column(name = "retry_after") private Instant retryAfter;

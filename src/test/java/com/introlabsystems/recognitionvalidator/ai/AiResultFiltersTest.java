@@ -2,6 +2,7 @@ package com.introlabsystems.recognitionvalidator.ai;
 
 import com.introlabsystems.recognitionvalidator.scheduler.RetentionCleanupService;
 import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -21,6 +22,33 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AiResultFiltersTest extends AiTestSupport {
     @Autowired MockMvc mvc;
     @Autowired RetentionCleanupService cleanup;
+    @Autowired ObjectMapper json;
+
+    @Test
+    void completedAiPagesKeepTieBreakCursorAndOperatorClaimsOldestIndependently() throws Exception {
+        String oldest = image(1, 53);
+        String middle = image(2, 53);
+        String newest = image(3, 53);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=true,verdict='MATCH',certainty=97,checked_at=now()");
+        // Equal timestamps still have an unambiguous order by image ID.
+        jdbc.update("UPDATE ai_review_task SET file_created_at='2026-08-30T00:00:00Z'");
+        jdbc.update("UPDATE review_task SET file_created_at='2026-08-30T00:00:00Z'");
+        var first = mvc.perform(get("/admin/api/screenshots").param("aiResult", "MATCHED")
+                        .param("limit", "1").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(newest)).andReturn();
+        var cursor = json.readTree(first.getResponse().getContentAsString());
+        mvc.perform(get("/admin/api/screenshots").param("aiResult", "MATCHED").param("limit", "1")
+                        .param("cursorCreatedAt", cursor.get("nextCreatedAt").asText())
+                        .param("cursorId", cursor.get("nextId").asText()).with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(middle));
+        UUID operator = UUID.randomUUID();
+        jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-page-op','hash',true,now())", operator);
+        mvc.perform(post("/api/review-tasks/claim").with(user(new OperatorPrincipal(operator, "ai-page-op", "hash", true)))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"filters\":{\"aiResult\":\"MATCHED\",\"certaintyFrom\":90,\"tokenId\":53,\"sessionId\":\"session-a\"}}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.item.imageId").value(oldest));
+        assertThat(jdbc.queryForObject("SELECT status FROM ai_review_task WHERE image_id=?", String.class, oldest)).isEqualTo("COMPLETED");
+    }
 
     @Test
     void adminAndOperatorSummariesUseSameIndependentAiFilters() throws Exception {

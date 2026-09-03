@@ -36,8 +36,8 @@ abstract class AiTestSupport {
                 VALUES (?,'PENDING',?,'bj_single_deck_ags',?,'session-a',false,true)
                 """, id, created, token);
         jdbc.update("""
-                INSERT INTO ai_review_task(image_id,status,file_created_at,game_code,token_id,session_id,is_notification,has_user_hand,attempt_count)
-                VALUES (?,'PENDING',?,'bj_single_deck_ags',?,'session-a',false,true,0)
+                INSERT INTO ai_review_task(image_id,status,file_created_at,game_code,token_id,session_id,is_notification,has_user_hand,attempt_count,file_available)
+                VALUES (?,'PENDING',?,'bj_single_deck_ags',?,'session-a',false,true,0,true)
                 """, id, created, token);
         return id;
     }
