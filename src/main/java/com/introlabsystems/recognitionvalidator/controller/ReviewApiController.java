@@ -1,5 +1,8 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
+import com.introlabsystems.recognitionvalidator.ai.service.AiQueueService;
+import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
+
 import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
@@ -26,9 +29,9 @@ public class ReviewApiController {
 
     private final ReviewQueueService queueService;
     private final ReviewWorkflowService workflowService;
-    private final com.introlabsystems.recognitionvalidator.ai.service.AiQueueService aiQueue;
+    private final AiQueueService aiQueue;
 
-    private ReviewQueueResponse response(com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult result) {
+    private ReviewQueueResponse response(ReviewQueueResult result) {
         return ReviewQueueResponse.from(result, result.item().map(item -> aiQueue.details(item.imageId())).orElse(null));
     }
 

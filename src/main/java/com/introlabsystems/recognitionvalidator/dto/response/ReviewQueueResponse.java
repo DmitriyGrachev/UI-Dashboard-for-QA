@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dto.response;
 
+import com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails;
+
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 
 import java.time.Instant;
@@ -16,7 +18,7 @@ public record ReviewQueueResponse(
     }
 
     public static ReviewQueueResponse from(ReviewQueueResult result,
-            com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai) {
+            AiResultDetails ai) {
         ReviewItemResponse item = result.item()
                 .map(value -> ReviewItemResponse.from(value, ai))
                 .orElse(null);

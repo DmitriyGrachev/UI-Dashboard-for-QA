@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.model.value;
 
+import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+
 import java.time.Instant;
 
 public record ReviewFilters(
@@ -10,7 +12,7 @@ public record ReviewFilters(
         String gameCode,
         Boolean notification,
         Boolean hasUserHand,
-        com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult,
+        AiResultState aiResult,
         Integer certaintyFrom,
         Integer certaintyTo
 ) {

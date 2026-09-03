@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
+import com.introlabsystems.recognitionvalidator.ai.service.AiQueueService;
+
 import com.introlabsystems.recognitionvalidator.dto.request.AdminScreenshotSearchRequest;
 import com.introlabsystems.recognitionvalidator.dto.response.AdminScreenshotDetailsResponse;
 import com.introlabsystems.recognitionvalidator.dto.response.TemporaryImageLinkResponse;
@@ -31,7 +33,7 @@ public class AdminScreenshotApiController {
 
     private final AdminScreenshotService screenshots;
     private final ImageStorageService storage;
-    private final com.introlabsystems.recognitionvalidator.ai.service.AiQueueService aiQueue;
+    private final AiQueueService aiQueue;
 
     @GetMapping
     AdminScreenshotPage search(@ModelAttribute AdminScreenshotSearchRequest request) {

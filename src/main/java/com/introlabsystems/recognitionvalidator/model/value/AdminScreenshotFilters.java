@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.model.value;
 
+import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.model.enums.ImageStorageState;
@@ -25,7 +27,7 @@ public record AdminScreenshotFilters(
         Instant cursorCreatedAt,
         String cursorId,
         int limit,
-        com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult,
+        AiResultState aiResult,
         Integer certaintyFrom,
         Integer certaintyTo
 ) {

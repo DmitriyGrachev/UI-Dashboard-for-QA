@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dto.response;
 
+import com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails;
+
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.model.enums.ImageStorageState;
@@ -39,7 +41,7 @@ public record AdminScreenshotDetailsResponse(
         String downloadUrl,
         String availabilityUrl,
         String temporaryLinkUrl,
-        com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai
+        AiResultDetails ai
 ) {
 
     public static AdminScreenshotDetailsResponse from(AdminScreenshotDetails details) {
@@ -47,7 +49,7 @@ public record AdminScreenshotDetailsResponse(
     }
 
     public static AdminScreenshotDetailsResponse from(AdminScreenshotDetails details,
-            com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai) {
+            AiResultDetails ai) {
         String baseUrl = "/admin/api/screenshots/" + details.imageId();
         return new AdminScreenshotDetailsResponse(
                 details.imageId(),

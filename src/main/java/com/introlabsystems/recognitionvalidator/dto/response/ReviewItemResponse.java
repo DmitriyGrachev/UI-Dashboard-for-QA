@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dto.response;
 
+import com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails;
+
 import com.introlabsystems.recognitionvalidator.model.enums.ParseStatus;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewItem;
 
@@ -26,7 +28,7 @@ public record ReviewItemResponse(
         Long recognitionDurationMs,
         ParseStatus parseStatus,
         String imageUrl,
-        com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai
+        AiResultDetails ai
 ) {
 
     public static ReviewItemResponse from(ReviewItem item) {
@@ -34,7 +36,7 @@ public record ReviewItemResponse(
     }
 
     public static ReviewItemResponse from(ReviewItem item,
-            com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails ai) {
+            AiResultDetails ai) {
         var recognition = item.recognition();
         return new ReviewItemResponse(
                 item.imageId(),

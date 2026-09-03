@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dto.request;
 
+import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import jakarta.validation.constraints.AssertTrue;
 
@@ -13,7 +15,7 @@ public record ReviewFilterRequest(
         String gameCode,
         Boolean notification,
         Boolean hasUserHand,
-        com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult,
+        AiResultState aiResult,
         Integer certaintyFrom,
         Integer certaintyTo
 ) {

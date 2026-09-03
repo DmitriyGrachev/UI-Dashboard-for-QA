@@ -1,5 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dto.request;
 
+import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.model.enums.ImageStorageState;
@@ -31,7 +33,7 @@ public class AdminScreenshotSearchRequest {
     private Instant cursorCreatedAt;
     private String cursorId;
     private int limit = 50;
-    private com.introlabsystems.recognitionvalidator.ai.model.AiResultState aiResult;
+    private AiResultState aiResult;
     private Integer certaintyFrom;
     private Integer certaintyTo;
 
