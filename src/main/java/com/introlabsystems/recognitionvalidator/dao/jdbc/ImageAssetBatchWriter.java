@@ -145,6 +145,27 @@ public class ImageAssetBatchWriter {
                 .toArray(MapSqlParameterSource[]::new);
         jdbc.batchUpdate(UPSERT_ASSET, parameters);
         jdbc.batchUpdate(INSERT_TASK, parameters);
+        jdbc.batchUpdate("""
+                INSERT INTO ai_review_task (
+                    image_id, status, file_created_at, game_code, token_id,
+                    session_id, is_notification, has_user_hand, attempt_count
+                )
+                SELECT id, 'PENDING', file_created_at, game_code, token_id, session_id,
+                       COALESCE(is_notification, FALSE),
+                       (COALESCE(BTRIM(active_user_cards), '') <> '' OR
+                        COALESCE(BTRIM(inactive_user_cards), '') <> ''), 0
+                FROM image_asset WHERE id = :id AND game_code = 'bj_single_deck_ags'
+                ON CONFLICT (image_id) DO UPDATE SET
+                    file_created_at = EXCLUDED.file_created_at, game_code = EXCLUDED.game_code,
+                    token_id = EXCLUDED.token_id, session_id = EXCLUDED.session_id,
+                    is_notification = EXCLUDED.is_notification, has_user_hand = EXCLUDED.has_user_hand
+                WHERE (ai_review_task.file_created_at, ai_review_task.game_code,
+                       ai_review_task.token_id, ai_review_task.session_id,
+                       ai_review_task.is_notification, ai_review_task.has_user_hand)
+                    IS DISTINCT FROM
+                      (EXCLUDED.file_created_at, EXCLUDED.game_code, EXCLUDED.token_id,
+                       EXCLUDED.session_id, EXCLUDED.is_notification, EXCLUDED.has_user_hand)
+                """, parameters);
     }
 
     private static MapSqlParameterSource parameters(ImageMetadata metadata) {
