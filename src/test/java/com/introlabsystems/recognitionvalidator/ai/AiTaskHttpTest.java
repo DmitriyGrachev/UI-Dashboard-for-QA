@@ -84,5 +84,8 @@ class AiTaskHttpTest extends AiTestSupport {
         }
         mvc.perform(post(path).header("X-API-Key", KEY).contentType("application/json").content(" ".repeat(17000)))
                 .andExpect(status().isPayloadTooLarge());
+        mvc.perform(post(path).header("X-API-Key", KEY).contentType("application/json")
+                .content(template.formatted("true", "97").replace("\"certainty\":97", "\"certainty\":97,\"message\":123")))
+                .andExpect(status().isBadRequest());
     }
 }

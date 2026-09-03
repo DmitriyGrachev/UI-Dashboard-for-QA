@@ -16,13 +16,14 @@ import java.util.List;
 
 @Service @RequiredArgsConstructor @Slf4j
 public class AiQueueService {
-    public com.introlabsystems.recognitionvalidator.ai.dto.AiResultDetails details(String imageId) {
-        return tasks.details(imageId);
-    }
     private final AiSettingsRepository settings;
     private final AiTaskRepository tasks;
     private final AiCardPayloadMapper mapper;
     private final AiImageLinkService links;
+
+    public AiResultDetails details(String imageId) {
+        return tasks.details(imageId);
+    }
 
     public List<AiTask> claim(int size) {
         AiQueueProperties.validateSize(size);
