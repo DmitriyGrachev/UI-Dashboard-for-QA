@@ -13,6 +13,7 @@
             th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
     <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
+    <script defer th:src="@{/js/ai-result.js}"></script>
     <script defer th:src="@{/js/admin-screenshots.js}"></script>
 </head>
 <body>
@@ -253,6 +254,13 @@
                     </label>
                 </details>
 
+                <label>AI result
+                    <select id="explorer-ai-result"><option value="">All</option><option value="MATCHED">Matched</option><option value="UNMATCHED">Unmatched</option><option value="UNCHECKED">Unchecked</option></select>
+                </label>
+                <div class="ai-certainty-range">
+                    <label>Certainty from (%)<input id="explorer-certainty-from" type="number" min="0" max="100" step="1"></label>
+                    <label>Certainty to (%)<input id="explorer-certainty-to" type="number" min="0" max="100" step="1"></label>
+                </div>
                 <button class="button primary" type="submit">Search</button>
             </form>
 
@@ -320,6 +328,7 @@
                 Select a screenshot to see parsed data and review information.
             </div>
             <div class="detail-content" id="detail-content" hidden>
+                <p id="explorer-ai-details" class="ai-result-details">AI: Unchecked</p>
                 <dl class="detail-primary">
                     <div><dt>Game</dt><dd id="detail-game">—</dd></div>
                     <div><dt>Decision</dt><dd id="detail-decision">—</dd></div>

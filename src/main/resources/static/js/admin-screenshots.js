@@ -27,6 +27,9 @@ function buildSearchParams(filters, cursor = null) {
     appendIfPresent(params, "parseStatus", filters.parseStatus);
     appendIfPresent(params, "notification", filters.notification);
     appendIfPresent(params, "hasUserHand", filters.hasUserHand);
+    appendIfPresent(params, "aiResult", filters.aiResult);
+    appendIfPresent(params, "certaintyFrom", filters.certaintyFrom);
+    appendIfPresent(params, "certaintyTo", filters.certaintyTo);
     params.set("limit", "50");
     if (cursor?.createdAt && cursor?.id) {
         params.set("cursorCreatedAt", cursor.createdAt);
@@ -169,6 +172,10 @@ if (typeof document !== "undefined") {
         parseStatus: byId("explorer-parse-status"),
         notification: byId("explorer-notification"),
         hasUserHand: byId("explorer-has-user-hand"),
+        aiResult: byId("explorer-ai-result"),
+        certaintyFrom: byId("explorer-certainty-from"),
+        certaintyTo: byId("explorer-certainty-to"),
+        aiDetails: byId("explorer-ai-details"),
         imageId: byId("explorer-image-id"),
         fileName: byId("explorer-file-name"),
         resetFilters: byId("reset-screenshot-filters"),
@@ -271,6 +278,9 @@ if (typeof document !== "undefined") {
             parseStatus: elements.parseStatus.value,
             notification: elements.notification.value,
             hasUserHand: elements.hasUserHand.value,
+            aiResult: elements.aiResult.value,
+            certaintyFrom: elements.certaintyFrom.value,
+            certaintyTo: elements.certaintyTo.value,
             imageId: elements.imageId.value,
             fileName: elements.fileName.value
         };
@@ -361,6 +371,9 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.parseStatus, params, "parseStatus");
         setInputFromQuery(elements.notification, params, "notification");
         setInputFromQuery(elements.hasUserHand, params, "hasUserHand");
+        setInputFromQuery(elements.aiResult, params, "aiResult");
+        setInputFromQuery(elements.certaintyFrom, params, "certaintyFrom");
+        setInputFromQuery(elements.certaintyTo, params, "certaintyTo");
         setInputFromQuery(elements.imageId, params, "imageId");
         setInputFromQuery(elements.fileName, params, "fileName");
         updateCheckedOnlyControls();
@@ -524,6 +537,7 @@ if (typeof document !== "undefined") {
     }
 
     function renderDetails(details) {
+        elements.aiDetails.textContent = aiResultText(details.ai);
         elements.detailPlaceholder.hidden = true;
         elements.detailContent.hidden = false;
         elements.detailReviewState.textContent = reviewLabel(details.reviewState);

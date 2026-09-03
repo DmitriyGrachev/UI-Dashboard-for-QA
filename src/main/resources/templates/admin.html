@@ -2,6 +2,8 @@
 <html lang="en" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
     <title>Operator management — Recognition Validator</title>
@@ -14,6 +16,7 @@
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
     <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
     <script defer th:src="@{/js/admin.js}"></script>
+    <script defer th:src="@{/js/ai-queue.js}"></script>
 </head>
 <body>
 <div class="app-shell admin-shell">
@@ -112,6 +115,41 @@
                 </form>
             </aside>
         </details>
+
+        <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
+            <header>
+                <div><span class="section-kicker">Independent AI review</span><h2 id="ai-queue-title">AI queue</h2></div>
+                <p id="ai-queue-state">Loading settings…</p>
+            </header>
+            <p>Igor’s service requests screenshots here. No outgoing scheduler. Only bj_single_deck_ags is supported.</p>
+            <form id="ai-queue-form">
+                <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI claims</label>
+                <p>Rules use AND within each rule. Smaller priority goes first, then the oldest file_created_at. No enabled rule means no issuance. Dates are UTC.</p>
+                <div id="ai-rules"></div>
+                <div class="ai-queue-actions">
+                    <button type="button" class="button secondary" id="ai-rule-add" disabled>Add rule</button>
+                    <button type="submit" class="button primary" id="ai-queue-save" disabled>Save AI settings</button>
+                    <button type="button" class="button secondary" id="ai-queue-stop" disabled>Stop issuing</button>
+                    <button type="button" class="button secondary" id="ai-queue-reload">Reload saved settings</button>
+                </div>
+                <p id="ai-queue-message" role="status" aria-live="polite"></p>
+            </form>
+            <template id="ai-rule-template">
+                <fieldset class="ai-rule">
+                    <legend>Selection rule</legend>
+                    <label>Name<input name="name" maxlength="100" required></label>
+                    <label>Priority<input name="priority" type="number" min="0" max="2147483647" step="1" required></label>
+                    <label class="ai-inline-check"><input name="enabled" type="checkbox"> Rule enabled</label>
+                    <label>Created from (UTC, inclusive)<input name="createdFrom" type="datetime-local" step="1"></label>
+                    <label>Created to (UTC, exclusive)<input name="createdTo" type="datetime-local" step="1"></label>
+                    <label>Token ID<input name="tokenId" type="number" min="0" step="1" max="9007199254740991" placeholder="Any token"></label>
+                    <label>Session<input name="sessionId" maxlength="128" placeholder="Any session"></label>
+                    <label>Notification<select name="notification"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <label>Has user hand<select name="hasUserHand"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    <button class="button secondary" type="button" data-remove-rule>Remove rule</button>
+                </fieldset>
+            </template>
+        </section>
 
         <section class="rejected-export-panel" aria-labelledby="rejected-export-title">
             <header>
