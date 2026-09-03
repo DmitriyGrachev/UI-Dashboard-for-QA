@@ -237,7 +237,7 @@ public class ReviewClaimRepository {
             ReviewFilters filters,
             MapSqlParameterSource parameters
     ) {
-        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo());
+        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult());
         StringBuilder sql = aiOrdered ? new StringBuilder("""
                 SELECT rt.image_id FROM ai_review_task ai
                 JOIN review_task rt ON rt.image_id=ai.image_id
@@ -305,8 +305,7 @@ public class ReviewClaimRepository {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
             parameters.addValue("hasUserHand", filters.hasUserHand());
         }
-        AiResultFilterSql.append(
-                sql, parameters, filters.aiResult(), filters.certaintyFrom(), filters.certaintyTo(), aiOrdered);
+        AiResultFilterSql.append(sql, filters.aiResult(), aiOrdered);
     }
 
     private static boolean hasText(String value) {

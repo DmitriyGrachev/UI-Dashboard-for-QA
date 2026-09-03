@@ -4,6 +4,8 @@ import com.introlabsystems.recognitionvalidator.scheduler.RetentionCleanupServic
 import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MockMvc;
@@ -24,8 +26,9 @@ class AiResultFiltersTest extends AiTestSupport {
     @Autowired RetentionCleanupService cleanup;
     @Autowired ObjectMapper json;
 
-    @Test
-    void completedAiPagesKeepTieBreakCursorAndOperatorClaimsOldestIndependently() throws Exception {
+    @ParameterizedTest
+    @CsvSource({"MATCHED", "CHECKED"})
+    void completedAiPagesKeepTieBreakCursorAndOperatorClaimsOldestIndependently(String state) throws Exception {
         String oldest = image(1, 53);
         String middle = image(2, 53);
         String newest = image(3, 53);
@@ -33,11 +36,11 @@ class AiResultFiltersTest extends AiTestSupport {
         // Equal timestamps still have an unambiguous order by image ID.
         jdbc.update("UPDATE ai_review_task SET file_created_at='2026-08-30T00:00:00Z'");
         jdbc.update("UPDATE review_task SET file_created_at='2026-08-30T00:00:00Z'");
-        var first = mvc.perform(get("/admin/api/screenshots").param("aiResult", "MATCHED")
+        var first = mvc.perform(get("/admin/api/screenshots").param("aiResult", state)
                         .param("limit", "1").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(newest)).andReturn();
         var cursor = json.readTree(first.getResponse().getContentAsString());
-        mvc.perform(get("/admin/api/screenshots").param("aiResult", "MATCHED").param("limit", "1")
+        mvc.perform(get("/admin/api/screenshots").param("aiResult", state).param("limit", "1")
                         .param("cursorCreatedAt", cursor.get("nextCreatedAt").asText())
                         .param("cursorId", cursor.get("nextId").asText()).with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(middle));
@@ -45,7 +48,7 @@ class AiResultFiltersTest extends AiTestSupport {
         jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-page-op','hash',true,now())", operator);
         mvc.perform(post("/api/review-tasks/claim").with(user(new OperatorPrincipal(operator, "ai-page-op", "hash", true)))
                         .with(csrf()).contentType("application/json")
-                        .content("{\"filters\":{\"aiResult\":\"MATCHED\",\"certaintyFrom\":90,\"tokenId\":53,\"sessionId\":\"session-a\"}}"))
+                        .content("{\"filters\":{\"aiResult\":\"" + state + "\",\"tokenId\":53,\"sessionId\":\"session-a\"}}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.item.imageId").value(oldest));
         assertThat(jdbc.queryForObject("SELECT status FROM ai_review_task WHERE image_id=?", String.class, oldest)).isEqualTo("COMPLETED");
     }
@@ -64,9 +67,9 @@ class AiResultFiltersTest extends AiTestSupport {
         mvc.perform(get("/admin/api/screenshots/summary").param("aiResult", "UNCHECKED").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(2));
         mvc.perform(get("/admin/api/screenshots/summary").param("certaintyFrom", "0").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(4));
         mvc.perform(get("/admin/api/screenshots/summary").param("aiResult", "UNCHECKED").param("certaintyFrom", "0").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(0));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(2));
         UUID operator = UUID.randomUUID();
         jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-filter-op','hash',true,now())", operator);
         mvc.perform(post("/api/review-tasks/summary").with(user(new OperatorPrincipal(operator, "ai-filter-op", "hash", true)))
@@ -74,6 +77,42 @@ class AiResultFiltersTest extends AiTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(1));
         mvc.perform(get("/admin/api/screenshots/" + matched).with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ai.certainty").value(97));
+    }
+
+    @ParameterizedTest
+    @CsvSource({"'',6,1", "ALL,6,1", "CHECKED,2,1", "MATCHED,1,1", "UNMATCHED,1,2", "UNCHECKED,4,3"})
+    void aiStateFiltersPagesSummariesAndOperatorClaims(String state, int count, int oldest) throws Exception {
+        String matched = image(1, 53);
+        String unmatched = image(2, 53);
+        image(3, 53);
+        String absent = image(4, 53);
+        String processing = image(5, 53);
+        String failed = image(6, 53);
+        jdbc.update("DELETE FROM ai_review_task WHERE image_id=?", absent);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=true,verdict='MATCH',certainty=97,checked_at=now() WHERE image_id=?", matched);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=false,verdict='MISMATCH',checked_at=now() WHERE image_id=?", unmatched);
+        jdbc.update("UPDATE ai_review_task SET status='PROCESSING',lease_expires_at=now()+interval '2 minutes' WHERE image_id=?", processing);
+        jdbc.update("UPDATE ai_review_task SET status='FAILED' WHERE image_id=?", failed);
+        var pageRequest = get("/admin/api/screenshots").with(user("admin").roles("ADMIN"));
+        var summaryRequest = get("/admin/api/screenshots/summary").with(user("admin").roles("ADMIN"));
+        if (!state.isEmpty()) {
+            pageRequest.param("aiResult", state);
+            summaryRequest.param("aiResult", state);
+        }
+        mvc.perform(pageRequest).andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(count));
+        mvc.perform(summaryRequest).andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(count));
+        UUID operator = UUID.randomUUID();
+        jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-state-op','hash',true,now())", operator);
+        var principal = new OperatorPrincipal(operator, "ai-state-op", "hash", true);
+        // Old saved filters must not silently narrow the new state-only selection.
+        String filter = "{\"certaintyFrom\":99,\"certaintyTo\":100"
+                + (state.isEmpty() ? "" : ",\"aiResult\":\"" + state + "\"") + "}";
+        mvc.perform(post("/api/review-tasks/summary").with(user(principal)).with(csrf())
+                        .contentType("application/json").content(filter))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(count));
+        mvc.perform(post("/api/review-tasks/claim").with(user(principal)).with(csrf())
+                        .contentType("application/json").content("{\"filters\":" + filter + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.item.imageId").value("%064x".formatted(oldest)));
     }
 
     @Test

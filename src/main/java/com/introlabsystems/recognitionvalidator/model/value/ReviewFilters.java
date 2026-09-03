@@ -12,14 +12,12 @@ public record ReviewFilters(
         String gameCode,
         Boolean notification,
         Boolean hasUserHand,
-        AiResultState aiResult,
-        Integer certaintyFrom,
-        Integer certaintyTo
+        AiResultState aiResult
 ) {
 
     public ReviewFilters(Instant createdFrom, Instant createdTo, Long tokenId, String sessionId,
                          String gameCode, Boolean notification, Boolean hasUserHand) {
-        this(createdFrom, createdTo, tokenId, sessionId, gameCode, notification, hasUserHand, null, null, null);
+        this(createdFrom, createdTo, tokenId, sessionId, gameCode, notification, hasUserHand, null);
     }
 
     public static ReviewFilters none() {

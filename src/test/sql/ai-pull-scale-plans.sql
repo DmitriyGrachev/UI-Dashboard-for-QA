@@ -27,20 +27,20 @@ ORDER BY ai.file_created_at,ai.image_id LIMIT 20;
 \echo 'AI + operator filters, rare completed result'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai
 JOIN review_task rt ON rt.image_id=ai.image_id JOIN image_asset ia ON ia.id=rt.image_id
-WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.valid=FALSE AND ai.certainty>=90
+WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.valid=FALSE
 ORDER BY ai.file_created_at,ai.image_id LIMIT 1;
 \echo 'Operator oldest with many AI matches clustered at the end'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai
 JOIN review_task rt ON rt.image_id=ai.image_id JOIN image_asset ia ON ia.id=rt.image_id
-WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.valid=TRUE AND ai.certainty>=90
+WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.valid=TRUE
 ORDER BY ai.file_created_at,ai.image_id LIMIT 1;
 \echo 'Admin newest page with AI result'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai JOIN review_task rt ON rt.image_id=ai.image_id
 WHERE ai.status='COMPLETED' AND ai.valid=TRUE
 ORDER BY ai.file_created_at DESC,ai.image_id DESC LIMIT 51;
-\echo 'Admin certainty-only cursor page'
+\echo 'Admin checked-by-AI cursor page'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai JOIN review_task rt ON rt.image_id=ai.image_id
-WHERE ai.status='COMPLETED' AND ai.certainty>=90 AND (ai.file_created_at,ai.image_id)<('2026-08-18'::timestamptz,repeat('f',64))
+WHERE ai.status='COMPLETED' AND (ai.file_created_at,ai.image_id)<('2026-08-18'::timestamptz,repeat('f',64))
 ORDER BY ai.file_created_at DESC,ai.image_id DESC LIMIT 51;
 \echo 'Admin cursor with AI unchecked'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM review_task rt
@@ -49,7 +49,7 @@ SELECT 1 FROM ai_review_task ai WHERE ai.image_id=rt.image_id AND ai.status='COM
 ORDER BY rt.file_created_at DESC,rt.image_id DESC LIMIT 51;
 PREPARE operator_ai(bigint,text) AS SELECT rt.image_id FROM ai_review_task ai
 JOIN review_task rt ON rt.image_id=ai.image_id JOIN image_asset ia ON ia.id=rt.image_id
-WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.valid=TRUE AND ai.certainty>=90
+WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.valid=TRUE
 AND rt.token_id=$1 AND rt.session_id=$2 ORDER BY ai.file_created_at,ai.image_id LIMIT 1 FOR UPDATE OF rt SKIP LOCKED;
 \echo 'Operator AI + token + session, generic plan'
 EXPLAIN (ANALYZE,BUFFERS) EXECUTE operator_ai(53,'session-53');

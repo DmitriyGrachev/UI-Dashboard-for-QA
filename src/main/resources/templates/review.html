@@ -182,12 +182,14 @@
                     </select>
                 </label>
                 <label>AI result
-                    <select id="ai-result"><option value="">All</option><option value="MATCHED">Matched</option><option value="UNMATCHED">Unmatched</option><option value="UNCHECKED">Unchecked</option></select>
+                    <select id="ai-result">
+                        <option value="">All</option>
+                        <option value="CHECKED">Checked by AI</option>
+                        <option value="UNCHECKED">Unchecked by AI</option>
+                        <option value="MATCHED">Matched</option>
+                        <option value="UNMATCHED">Unmatched</option>
+                    </select>
                 </label>
-                <div class="ai-certainty-range">
-                    <label>Certainty from (%)<input id="ai-certainty-from" type="number" min="0" max="100" step="1"></label>
-                    <label>Certainty to (%)<input id="ai-certainty-to" type="number" min="0" max="100" step="1"></label>
-                </div>
                 <div class="filter-actions">
                     <button class="button secondary" type="button" id="clear-filters">Reset</button>
                 </div>

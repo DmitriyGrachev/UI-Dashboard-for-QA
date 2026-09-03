@@ -34,8 +34,6 @@ public class AdminScreenshotSearchRequest {
     private String cursorId;
     private int limit = 50;
     private AiResultState aiResult;
-    private Integer certaintyFrom;
-    private Integer certaintyTo;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -56,9 +54,7 @@ public class AdminScreenshotSearchRequest {
                 cursorCreatedAt,
                 cursorId,
                 Math.clamp(limit, 1, 100),
-                aiResult,
-                certaintyFrom,
-                certaintyTo
+                aiResult
         );
     }
 }

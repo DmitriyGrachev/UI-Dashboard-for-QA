@@ -1,3 +1,3 @@
 package com.introlabsystems.recognitionvalidator.ai.model;
 
-public enum AiResultState { ALL, MATCHED, UNMATCHED, UNCHECKED }
+public enum AiResultState { ALL, CHECKED, MATCHED, UNMATCHED, UNCHECKED }

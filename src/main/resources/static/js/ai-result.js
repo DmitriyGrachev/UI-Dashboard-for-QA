@@ -1,6 +1,5 @@
-function aiFilterValues(state, from, to) {
-    return {aiResult: state || null, certaintyFrom: from === '' ? null : Number(from),
-        certaintyTo: to === '' ? null : Number(to)};
+function aiFilterValues(state) {
+    return {aiResult: state || null};
 }
 
 function aiResultText(ai) {

@@ -179,8 +179,6 @@ if (typeof document !== "undefined") {
         notification: document.getElementById("notification"),
         hasUserHand: document.getElementById("has-user-hand"),
         aiResult: document.getElementById("ai-result"),
-        certaintyFrom: document.getElementById("ai-certainty-from"),
-        certaintyTo: document.getElementById("ai-certainty-to"),
         aiDetails: document.getElementById("ai-result-details"),
         remainingCount: document.getElementById("remaining-count"),
         queueOldestDate: document.getElementById("queue-oldest-date"),
@@ -257,7 +255,7 @@ if (typeof document !== "undefined") {
             gameCode: emptyToNull(elements.gameCode.value),
             notification: toOptionalBoolean(elements.notification.value),
             hasUserHand: toOptionalBoolean(elements.hasUserHand.value),
-            ...aiFilterValues(elements.aiResult.value, elements.certaintyFrom.value, elements.certaintyTo.value)
+            ...aiFilterValues(elements.aiResult.value)
         };
     }
 
@@ -270,9 +268,7 @@ if (typeof document !== "undefined") {
             gameCode: elements.gameCode.value,
             notification: elements.notification.value,
             hasUserHand: elements.hasUserHand.value,
-            aiResult: elements.aiResult.value,
-            certaintyFrom: elements.certaintyFrom.value,
-            certaintyTo: elements.certaintyTo.value
+            aiResult: elements.aiResult.value
         };
     }
 
@@ -291,8 +287,6 @@ if (typeof document !== "undefined") {
         elements.notification.value = stored.notification || "";
         elements.hasUserHand.value = stored.hasUserHand || "";
         elements.aiResult.value = stored.aiResult || "";
-        elements.certaintyFrom.value = stored.certaintyFrom ?? "";
-        elements.certaintyTo.value = stored.certaintyTo ?? "";
     }
 
     function activeFilterTotal() {
@@ -699,7 +693,7 @@ if (typeof document !== "undefined") {
     ]
         .forEach(element => element.addEventListener("change", scheduleFilterApplication));
 
-    [elements.tokenId, elements.sessionId, elements.certaintyFrom, elements.certaintyTo].forEach(element => {
+    [elements.tokenId, elements.sessionId].forEach(element => {
         element.addEventListener("input", scheduleFilterApplication);
         element.addEventListener("keydown", event => {
             if (event.key === "Enter") {

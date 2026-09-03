@@ -15,9 +15,7 @@ public record ReviewFilterRequest(
         String gameCode,
         Boolean notification,
         Boolean hasUserHand,
-        AiResultState aiResult,
-        Integer certaintyFrom,
-        Integer certaintyTo
+        AiResultState aiResult
 ) {
 
     @AssertTrue(message = "createdFrom must be earlier than createdTo")
@@ -34,9 +32,7 @@ public record ReviewFilterRequest(
                 gameCode,
                 notification,
                 hasUserHand,
-                aiResult,
-                certaintyFrom,
-                certaintyTo
+                aiResult
         );
     }
 }

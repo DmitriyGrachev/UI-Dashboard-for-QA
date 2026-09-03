@@ -3279,8 +3279,6 @@ span.flatpickr-weekday {
 .ai-rule label { color: var(--muted); font-size: 12px; }
 .ai-rule .ai-inline-check, .ai-inline-check { display: flex; flex-direction: row; align-items: center; gap: 9px; }
 .ai-inline-check input { width: auto; }
-.ai-certainty-range { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.ai-certainty-range input { width: 100%; min-width: 0; }
 .ai-result-details { white-space: pre-wrap; overflow-wrap: anywhere; padding: 12px; border-left: 2px solid var(--line); }
 
 @media (prefers-reduced-motion: reduce) {
