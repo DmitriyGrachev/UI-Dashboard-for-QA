@@ -1,5 +1,7 @@
 # AI pull integration (V1)
 
+Client-facing handoff for Igor: [API client guide](IGOR-AI-CLIENT-GUIDE.md).
+
 Igor owns the scheduler and parallel workers. Validator does **not** call Igor's API.
 Each worker claims work, downloads the returned URL, validates locally, and posts the result.
 Only `bj_single_deck_ags` is issued in V1; the outgoing game is `SINGLE_DECK`.
@@ -107,10 +109,13 @@ In `/admin` → **AI queue**:
 5. **Reload saved settings** discards unsaved edits. A concurrent admin save returns a conflict;
    reload, review and save again. Configurations are read as a coherent snapshot per claim.
 
-Operator `/review` and admin `/admin/screenshots` support AI All / Matched / Unmatched /
-Unchecked and certainty range. Operator checked/unchecked and Match/Not match remain independent.
-`Unchecked` includes absent, pending, processing and technically failed AI tasks. A certainty
-range excludes unknown values; Unchecked plus a range is empty. Default All does not hide work.
+Operator `/review` and admin `/admin/screenshots` default to AI **All** (no AI restriction).
+**Checked by AI** (`aiResult=CHECKED`) includes every completed AI result, whether matched
+or unmatched and whether percentages are known. **Unchecked by AI** (`UNCHECKED`) includes
+absent, pending, processing and technically failed AI tasks. **Matched** and **Unmatched**
+remain available separately. Operator checked/unchecked and Match/Not match are independent.
+There is no certainty filter; old `certaintyFrom` / `certaintyTo` query/body fields are ignored.
+The result API still stores `certainty` and `confidence` unchanged.
 Details display verdict, percentages, time, message and technical failure code as plain text.
 The screenshot explorer keeps cursor pagination (50 per page, API maximum 100), asynchronous
 counts and individual download via button / D shortcut.
@@ -175,6 +180,11 @@ and the JavaScript suite passed 45 tests. Browser checks covered settings save/s
 AI filters, plain-text messages, image loading and form overflow at wide/narrow viewports.
 The application also started with `ddl-auto=validate` against the migration-created AI schema.
 
+After removing certainty filtering and adding `CHECKED`, `mvn clean verify` passed
+275 tests and the JavaScript suite passed 45 tests. State-filter regression tests cover
+All (including omitted filter), Checked, Matched, Unmatched, Unchecked, legacy certainty
+parameters, summaries, operator claims and cursor pagination.
+
 For repeatable scale checks, use a disk-backed disposable PostgreSQL with sufficient space
 (not the small RAM-only unit-test DB): schema → `ai-pull-scale-fixture.sql` → migration →
 `ai-pull-scale-plans.sql` → `ai-pull-scale-stress.sql` → plans again. The fixture contains
@@ -182,7 +192,8 @@ For repeatable scale checks, use a disk-backed disposable PostgreSQL with suffic
 clusters 100,001 positive AI results near the newest end. These measurements are SQL execution
 times on synthetic local data, not production HTTP latency guarantees.
 
-Observed stress-query execution times (first measured / subsequent warm run where available):
+Historical stress-query execution times, measured before certainty filtering was removed
+(first measured / subsequent warm run where available; not a benchmark of the updated filters):
 
 | Query | SQL execution |
 | --- | --- |
