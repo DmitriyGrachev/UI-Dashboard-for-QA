@@ -127,7 +127,8 @@ public class SecurityFailureHandler implements
     }
 
     private boolean isApi(HttpServletRequest request) {
-        return applicationPath(request).startsWith("/api/");
+        String path = applicationPath(request);
+        return path.startsWith("/api/") || path.startsWith("/admin/api/ai-queue/");
     }
 
     private boolean hasInvalidSessionId(HttpServletRequest request) {

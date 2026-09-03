@@ -1,5 +1,8 @@
 package com.introlabsystems.recognitionvalidator.security;
 
+import com.introlabsystems.recognitionvalidator.ai.security.AiLocalImageUrlSigner;
+import org.springframework.beans.factory.ObjectProvider;
+import java.time.Clock;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.ServletListenerRegistrationBean;
 import org.springframework.context.annotation.Bean;
@@ -21,6 +24,14 @@ import org.springframework.security.web.session.HttpSessionEventPublisher;
 
 @Configuration
 public class SecurityConfig {
+
+    @Bean
+    AiLocalImageUrlSigner aiLocalImageUrlSigner(
+            @Value("${validator.ai-delivery.signing-key:}") String key,
+            ObjectProvider<Clock> clock
+    ) {
+        return new AiLocalImageUrlSigner(key, clock.getIfAvailable(Clock::systemUTC));
+    }
 
     @Bean
     PasswordEncoder passwordEncoder() {
@@ -51,6 +62,7 @@ public class SecurityConfig {
     SecurityFilterChain integrationImageSecurityFilterChain(
             HttpSecurity http,
             SecurityFailureHandler securityFailureHandler,
+            AiLocalImageUrlSigner signer,
             @Value("${validator.integration.image-api-key:}") String imageApiKey
     ) throws Exception {
         return http
@@ -61,13 +73,15 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/integration/images/*/content")
                         .hasAuthority(IntegrationImageApiKeyFilter.AUTHORITY)
+                        .requestMatchers(HttpMethod.POST, "/api/integration/ai/tasks/claim", "/api/integration/ai/tasks/*/result")
+                        .hasAuthority(IntegrationImageApiKeyFilter.AUTHORITY)
                         .anyRequest().denyAll()
                 )
                 .exceptionHandling(exceptions -> exceptions
                         .authenticationEntryPoint(securityFailureHandler)
                         .accessDeniedHandler(securityFailureHandler)
                 )
-                .addFilterBefore(new IntegrationImageApiKeyFilter(imageApiKey), AnonymousAuthenticationFilter.class)
+                .addFilterBefore(new IntegrationImageApiKeyFilter(imageApiKey, signer), AnonymousAuthenticationFilter.class)
                 .build();
     }
 
