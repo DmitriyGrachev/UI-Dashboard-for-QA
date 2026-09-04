@@ -175,14 +175,14 @@
                 <fieldset class="explorer-filter-group">
                     <legend>Review results</legend>
                     <div class="explorer-filter-fields">
-                <label class="primary-state-filter">
-                    Operator review
-                    <select id="review-state">
-                        <option value="ALL">All</option>
-                        <option value="CHECKED">Checked</option>
-                        <option value="UNCHECKED">Unchecked</option>
-                    </select>
-                </label>
+                <fieldset id="review-state" class="admin-segmented-field wide-filter">
+                    <legend>Operator review</legend>
+                    <div class="admin-segmented">
+                        <label><input type="radio" name="reviewState" value="ALL" checked><span>All</span></label>
+                        <label><input type="radio" name="reviewState" value="CHECKED"><span>Checked</span></label>
+                        <label><input type="radio" name="reviewState" value="UNCHECKED"><span>Unchecked</span></label>
+                    </div>
+                </fieldset>
                 <label>AI result
                     <select id="explorer-ai-result">
                         <option value="">All</option>
@@ -192,7 +192,7 @@
                         <option value="UNMATCHED">Unmatched</option>
                     </select>
                 </label>
-                <label class="wide-filter">
+                <label>
                         Notification
                         <select id="explorer-notification">
                             <option value="">Any</option>

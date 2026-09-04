@@ -29,6 +29,37 @@ test("viewer shortcuts do not hijack a focused disclosure", () => {
     assert.equal(keyboardAction({key: "ArrowRight", tagName: "SUMMARY"}), null);
 });
 
+test("segmented operator review sends its selected value and clears checked-only filters", () => {
+    const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
+    const bindings = source.slice(source.indexOf('const elements ='), source.indexOf('const detailElements ='));
+    const filters = source.slice(source.indexOf('function currentFilters()'), source.indexOf('function updateSearchControls()'));
+    const fields = new Map();
+    const reviewInputs = {value: 'ALL'};
+    fields.set('review-state', {tagName: 'FIELDSET'});
+    fields.set('screenshot-filter-form', {elements: {namedItem: name => name === 'reviewState' ? reviewInputs : null}});
+    const byId = id => {
+        if (!fields.has(id)) fields.set(id, {value: '', disabled: false});
+        return fields.get(id);
+    };
+    const controller = require('node:vm').runInNewContext(`(() => {
+        ${bindings}
+        ${filters}
+        return {currentFilters, updateCheckedOnlyControls};
+    })()`, {byId});
+    for (const value of ['ALL', 'CHECKED', 'UNCHECKED']) {
+        reviewInputs.value = value;
+        fields.get('explorer-decision').value = 'ACCEPTED';
+        fields.get('explorer-reviewed-by').value = 'reviewer';
+        controller.updateCheckedOnlyControls();
+        const params = buildSearchParams(controller.currentFilters());
+        assert.equal(params.get('reviewState'), value);
+        assert.equal(fields.get('explorer-decision').disabled, value === 'UNCHECKED');
+        assert.equal(fields.get('explorer-reviewed-by').disabled, value === 'UNCHECKED');
+        assert.equal(params.get('decision'), value === 'UNCHECKED' ? null : 'ACCEPTED');
+        assert.equal(params.get('reviewedBy'), value === 'UNCHECKED' ? null : 'reviewer');
+    }
+});
+
 test("finishing pagination cannot override a newer screenshot selection", async () => {
     const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
     const functionSource = source.slice(source.indexOf('async function nextResult()'), source.indexOf('function previousResult()'));

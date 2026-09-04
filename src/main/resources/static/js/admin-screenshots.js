@@ -168,7 +168,7 @@ if (typeof document !== "undefined") {
         createdFrom: byId("explorer-created-from"),
         createdTo: byId("explorer-created-to"),
         dateError: byId("explorer-date-range-error"),
-        reviewState: byId("review-state"),
+        reviewState: byId("screenshot-filter-form")?.elements.namedItem("reviewState"),
         gameCode: byId("explorer-game-code"),
         tokenId: byId("explorer-token-id"),
         sessionId: byId("explorer-session-id"),
@@ -786,7 +786,7 @@ if (typeof document !== "undefined") {
         updateCheckedOnlyControls();
         search();
     });
-    elements.reviewState.addEventListener("change", updateCheckedOnlyControls);
+    byId("review-state").addEventListener("change", updateCheckedOnlyControls);
     elements.form.addEventListener("input", updateSearchControls);
     elements.form.addEventListener("change", updateSearchControls);
     elements.resetFilters.addEventListener("click", () => {
