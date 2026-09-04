@@ -6,19 +6,13 @@
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="icon" href="data:,">
-    <title>Operator management — Recognition Validator</title>
+    <title>Operators — Recognition Validator</title>
     <script th:src="@{/js/theme.js}"></script>
-    <link rel="stylesheet"
-          th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
-    <script defer
-            th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
-    <script defer th:src="@{/js/time-segment-combobox.js}"></script>
-    <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
     <script defer th:src="@{/js/admin.js}"></script>
-    <script defer th:src="@{/js/ai-queue.js}"></script>
 </head>
-<body>
+<body class="admin-page">
 <div class="app-shell admin-shell">
     <header class="topbar">
         <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
@@ -28,8 +22,7 @@
                 <small>Admin control desk</small>
             </span>
         </a>
-        <nav class="topbar-actions" aria-label="Navigation">
-            <a th:href="@{/admin/screenshots}">Screenshots</a>
+        <nav class="topbar-actions" aria-label="Account actions">
             <button class="theme-toggle" type="button" data-theme-toggle
                     aria-label="Switch to light theme" title="Switch to light theme">
                 <span aria-hidden="true" data-theme-icon>☀</span>
@@ -41,20 +34,14 @@
             </form>
         </nav>
     </header>
+    <nav th:replace="~{fragments/admin-navigation :: navigation('operators')}"></nav>
 
     <main class="admin-main">
         <header class="admin-heading">
             <div>
                 <span class="section-kicker">Access and output</span>
                 <h1>Operator management</h1>
-                <p>
-                    Manage operator access and compare completed reviews from the last 7 days.
-                    Time boundaries use UTC.
-                </p>
-            </div>
-            <div class="retention-badge">
-                <span>Statistics window</span>
-                <strong>7 days</strong>
+                <p>Manage operator access and review activity. Metrics use UTC.</p>
             </div>
         </header>
 
@@ -80,183 +67,6 @@
             The selected operator is no longer available.
         </p>
 
-        <details class="admin-create-disclosure">
-            <summary>
-                <span>
-                    <span class="section-kicker">New account</span>
-                    <strong id="create-operator-title">Create operator</strong>
-                </span>
-                <small>Open account form</small>
-            </summary>
-            <aside class="admin-create-panel" aria-labelledby="create-operator-title">
-                <p>
-                    New accounts can review screenshots immediately. Administrators are created
-                    only from the server.
-                </p>
-                <form class="admin-create-form" method="post" th:action="@{/admin/operators}">
-                    <label>
-                        Username
-                        <input type="text"
-                               name="username"
-                               maxlength="100"
-                               autocomplete="off"
-                               required>
-                    </label>
-                    <label>
-                        Temporary password
-                        <input type="password"
-                               name="password"
-                               minlength="8"
-                               maxlength="100"
-                               autocomplete="new-password"
-                               required>
-                    </label>
-                    <button class="button primary" type="submit">Create operator</button>
-                </form>
-            </aside>
-        </details>
-
-        <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
-            <header>
-                <div><span class="section-kicker">Independent AI review</span><h2 id="ai-queue-title">AI queue</h2></div>
-                <p id="ai-queue-state">Loading settings…</p>
-            </header>
-            <p>Igor’s service requests screenshots here. No outgoing scheduler. Only bj_single_deck_ags is supported.</p>
-            <form id="ai-queue-form">
-                <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI claims</label>
-                <p>Rules use AND within each rule. Smaller priority goes first, then the oldest file_created_at. No enabled rule means no issuance. Dates are UTC.</p>
-                <div id="ai-rules"></div>
-                <div class="ai-queue-actions">
-                    <button type="button" class="button secondary" id="ai-rule-add" disabled>Add rule</button>
-                    <button type="submit" class="button primary" id="ai-queue-save" disabled>Save AI settings</button>
-                    <button type="button" class="button secondary" id="ai-queue-stop" disabled>Stop issuing</button>
-                    <button type="button" class="button secondary" id="ai-queue-reload">Reload saved settings</button>
-                </div>
-                <p id="ai-queue-message" role="status" aria-live="polite"></p>
-            </form>
-            <template id="ai-rule-template">
-                <fieldset class="ai-rule">
-                    <legend>Selection rule</legend>
-                    <label>Name<input name="name" maxlength="100" required></label>
-                    <label>Priority<input name="priority" type="number" min="0" max="2147483647" step="1" required></label>
-                    <label class="ai-inline-check"><input name="enabled" type="checkbox"> Rule enabled</label>
-                    <label>Created from (UTC, inclusive)<input name="createdFrom" type="datetime-local" step="1"></label>
-                    <label>Created to (UTC, exclusive)<input name="createdTo" type="datetime-local" step="1"></label>
-                    <label>Token ID<input name="tokenId" type="number" min="0" step="1" max="9007199254740991" placeholder="Any token"></label>
-                    <label>Session<input name="sessionId" maxlength="128" placeholder="Any session"></label>
-                    <label>Notification<select name="notification"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
-                    <label>Has user hand<select name="hasUserHand"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
-                    <button class="button secondary" type="button" data-remove-rule>Remove rule</button>
-                </fieldset>
-            </template>
-        </section>
-
-        <section class="rejected-export-panel" aria-labelledby="rejected-export-title">
-            <header>
-                <div>
-                    <span class="section-kicker">Recognition output</span>
-                    <h2 id="rejected-export-title">Rejected screenshots export</h2>
-                </div>
-                <p>Filter by recognition completion time parsed from PNG file names. Empty dates include all available data.</p>
-            </header>
-            <form class="rejected-export-form" id="rejected-export-form"
-                  data-utc-date-range
-                  method="post"
-                  th:action="@{/admin/rejected-screenshots.zip}">
-                <label>
-                    <span>Recognition completed from (UTC)</span>
-                    <span class="utc-datetime-control" data-utc-boundary>
-                        <input id="processed-from" type="hidden" name="processedFrom">
-                        <span class="utc-date-control" data-date-wrap>
-                            <input id="processed-from-date" type="text"
-                                   data-input data-date-input autocomplete="off"
-                                   placeholder="DD.MM.YYYY"
-                                   aria-label="Recognition completed from date"
-                                   aria-describedby="rejected-export-date-error">
-                            <button class="utc-calendar-toggle" type="button" data-toggle
-                                    aria-label="Open Recognition completed from calendar"
-                                    title="Open calendar">
-                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
-                                </svg>
-                            </button>
-                        </span>
-                        <span class="utc-time-segment" data-hour-segment>
-                            <input id="processed-from-hour" type="text" value="00"
-                                   inputmode="numeric" maxlength="2" autocomplete="off"
-                                   data-segment-input aria-label="Recognition completed from hour"
-                                   aria-describedby="rejected-export-date-error">
-                            <button type="button" data-segment-toggle
-                                    aria-label="Choose Recognition completed from hour">▾</button>
-                            <span class="utc-time-listbox" id="processed-from-hour-options"
-                                  data-segment-listbox hidden></span>
-                        </span>
-                        <span class="utc-time-separator" aria-hidden="true">:</span>
-                        <span class="utc-time-segment" data-minute-segment>
-                            <input id="processed-from-minute" type="text" value="00"
-                                   inputmode="numeric" maxlength="2" autocomplete="off"
-                                   data-segment-input aria-label="Recognition completed from minute"
-                                   aria-describedby="rejected-export-date-error">
-                            <button type="button" data-segment-toggle
-                                    aria-label="Choose Recognition completed from minute">▾</button>
-                            <span class="utc-time-listbox" id="processed-from-minute-options"
-                                  data-segment-listbox hidden></span>
-                        </span>
-                    </span>
-                </label>
-                <label>
-                    <span>Recognition completed to (UTC)</span>
-                    <span class="utc-datetime-control" data-utc-boundary>
-                        <input id="processed-to" type="hidden" name="processedTo">
-                        <span class="utc-date-control" data-date-wrap>
-                            <input id="processed-to-date" type="text"
-                                   data-input data-date-input autocomplete="off"
-                                   placeholder="DD.MM.YYYY"
-                                   aria-label="Recognition completed to date"
-                                   aria-describedby="rejected-export-date-error">
-                            <button class="utc-calendar-toggle" type="button" data-toggle
-                                    aria-label="Open Recognition completed to calendar"
-                                    title="Open calendar">
-                                <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16">
-                                    <path d="M4 2v3M12 2v3M2.5 6h11M4 3h8.5a1 1 0 0 1 1 1v9H2.5V4a1 1 0 0 1 1-1Z"/>
-                                </svg>
-                            </button>
-                        </span>
-                        <span class="utc-time-segment" data-hour-segment>
-                            <input id="processed-to-hour" type="text" value="00"
-                                   inputmode="numeric" maxlength="2" autocomplete="off"
-                                   data-segment-input aria-label="Recognition completed to hour"
-                                   aria-describedby="rejected-export-date-error">
-                            <button type="button" data-segment-toggle
-                                    aria-label="Choose Recognition completed to hour">▾</button>
-                            <span class="utc-time-listbox" id="processed-to-hour-options"
-                                  data-segment-listbox hidden></span>
-                        </span>
-                        <span class="utc-time-separator" aria-hidden="true">:</span>
-                        <span class="utc-time-segment" data-minute-segment>
-                            <input id="processed-to-minute" type="text" value="00"
-                                   inputmode="numeric" maxlength="2" autocomplete="off"
-                                   data-segment-input aria-label="Recognition completed to minute"
-                                   aria-describedby="rejected-export-date-error">
-                            <button type="button" data-segment-toggle
-                                    aria-label="Choose Recognition completed to minute">▾</button>
-                            <span class="utc-time-listbox" id="processed-to-minute-options"
-                                  data-segment-listbox hidden></span>
-                        </span>
-                    </span>
-                </label>
-                <p class="utc-date-error" id="rejected-export-date-error"
-                   role="alert" hidden></p>
-                <label class="rejected-export-checkbox">
-                    <input type="checkbox"
-                           name="includePreviouslyDownloaded"
-                           value="true">
-                    Include previously downloaded
-                </label>
-                <button class="button primary" type="submit">Download ZIP</button>
-            </form>
-        </section>
-
         <div class="admin-layout roster-only">
             <section class="operator-roster" aria-labelledby="operator-roster-title">
                 <header class="roster-heading">
@@ -281,8 +91,7 @@
                             <th scope="col">All time</th>
                             <th scope="col">Matches</th>
                             <th scope="col">Does not match</th>
-                            <th scope="col">Daily trend</th>
-                            <th scope="col">Actions</th>
+                            <th scope="col">Details and actions</th>
                         </tr>
                         </thead>
                         <tbody>
@@ -300,7 +109,6 @@
                                           th:text="${#strings.substring(operator.username(), 0, 1).toUpperCase()}">O</span>
                                     <span class="operator-identity">
                                         <strong th:text="${operator.username()}">operator</strong>
-                                        <small th:text="${operator.operatorId()}">UUID</small>
                                     </span>
                                 </span>
                             </th>
@@ -317,30 +125,37 @@
                             <td class="number-cell accepted-cell" th:text="${operator.matched()}">0</td>
                             <td class="number-cell rejected-cell" th:text="${operator.notMatched()}">0</td>
                             <td>
-                                <div class="admin-daily-chart" aria-label="Reviews by day">
-                                    <article class="admin-daily-day"
-                                             th:each="day : ${operator.daily()}"
-                                             th:attr="aria-label=|${day.date()}: ${day.total()} checked; ${day.matched()} matches; ${day.notMatched()} does not match|">
-                                        <strong class="admin-daily-value" th:text="${day.total()}">0</strong>
-                                        <span class="admin-daily-plot" aria-hidden="true">
-                                            <i class="admin-daily-bar"
-                                               th:style="|--bar-height: ${day.relativePercent(operator.maxDaily())}%|">
-                                                <span class="admin-daily-matched"
-                                                      th:style="|--segment: ${day.matchedPercent()}%|"></span>
-                                                <span class="admin-daily-not-matched"
-                                                      th:style="|--segment: ${day.notMatchedPercent()}%|"></span>
-                                            </i>
-                                        </span>
-                                        <time class="admin-daily-date"
-                                              th:datetime="${day.date()}"
-                                              th:text="${day.shortDate()}">Sat 01</time>
-                                    </article>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="operator-actions">
-                                    <details class="password-reset">
-                                        <summary>Change password</summary>
+                                <div class="operator-controls">
+                                    <details class="operator-detail">
+                                        <summary>Details</summary>
+                                        <dl class="operator-technical">
+                                            <div>
+                                                <dt>Operator ID</dt>
+                                                <dd class="technical-value" th:text="${operator.operatorId()}">UUID</dd>
+                                            </div>
+                                        </dl>
+                                        <div class="admin-daily-chart" aria-label="Reviews by day">
+                                            <article class="admin-daily-day"
+                                                     th:each="day : ${operator.daily()}"
+                                                     th:attr="aria-label=|${day.date()}: ${day.total()} checked; ${day.matched()} matches; ${day.notMatched()} does not match|">
+                                                <strong class="admin-daily-value" th:text="${day.total()}">0</strong>
+                                                <span class="admin-daily-plot" aria-hidden="true">
+                                                    <i class="admin-daily-bar"
+                                                       th:style="|--bar-height: ${day.relativePercent(operator.maxDaily())}%|">
+                                                        <span class="admin-daily-matched"
+                                                              th:style="|--segment: ${day.matchedPercent()}%|"></span>
+                                                        <span class="admin-daily-not-matched"
+                                                              th:style="|--segment: ${day.notMatchedPercent()}%|"></span>
+                                                    </i>
+                                                </span>
+                                                <time class="admin-daily-date"
+                                                      th:datetime="${day.date()}"
+                                                      th:text="${day.shortDate()}">Sat 01</time>
+                                            </article>
+                                        </div>
+                                    </details>
+                                    <details class="operator-manage">
+                                        <summary>Manage</summary>
                                         <form method="post"
                                               th:action="@{/admin/operators/{id}/password(id=${operator.operatorId()})}">
                                             <label>
@@ -352,21 +167,19 @@
                                                        autocomplete="new-password"
                                                        required>
                                             </label>
-                                            <button class="button secondary" type="submit">
-                                                Save password
-                                            </button>
+                                            <button class="button secondary" type="submit">Save password</button>
+                                        </form>
+                                        <form th:if="${operator.enabled()}"
+                                              method="post"
+                                              th:action="@{/admin/operators/{id}/deactivate(id=${operator.operatorId()})}">
+                                            <button class="action-button danger" type="submit">Deactivate</button>
+                                        </form>
+                                        <form th:unless="${operator.enabled()}"
+                                              method="post"
+                                              th:action="@{/admin/operators/{id}/restore(id=${operator.operatorId()})}">
+                                            <button class="action-button restore" type="submit">Restore</button>
                                         </form>
                                     </details>
-                                    <form th:if="${operator.enabled()}"
-                                          method="post"
-                                          th:action="@{/admin/operators/{id}/deactivate(id=${operator.operatorId()})}">
-                                        <button class="action-button danger" type="submit">Deactivate</button>
-                                    </form>
-                                    <form th:unless="${operator.enabled()}"
-                                          method="post"
-                                          th:action="@{/admin/operators/{id}/restore(id=${operator.operatorId()})}">
-                                        <button class="action-button restore" type="submit">Restore</button>
-                                    </form>
                                 </div>
                             </td>
                         </tr>
@@ -376,7 +189,7 @@
 
                 <div class="admin-empty" th:if="${#lists.isEmpty(operators)}">
                     <strong>No operator accounts yet</strong>
-                    <p>Create the first operator using the form on the left.</p>
+                    <p>Create the first operator using the form below.</p>
                 </div>
 
                 <nav class="admin-pagination" th:if="${totalPages > 1}" aria-label="Operator pages">
@@ -391,14 +204,39 @@
             </section>
         </div>
 
-        <section class="workload-panel" aria-labelledby="workload-title">
-            <header>
-                <div>
+        <details class="admin-create-disclosure">
+            <summary>
+                <span>
+                    <span class="section-kicker">New account</span>
+                    <strong id="create-operator-title">Create operator</strong>
+                </span>
+                <small>Username and temporary password</small>
+            </summary>
+            <aside class="admin-create-panel" aria-labelledby="create-operator-title">
+                <p>Operators can review screenshots immediately. Admin access stays server-managed.</p>
+                <form class="admin-create-form" method="post" th:action="@{/admin/operators}">
+                    <label>
+                        Username
+                        <input type="text" name="username" maxlength="100" autocomplete="off" required>
+                    </label>
+                    <label>
+                        Temporary password
+                        <input type="password" name="password" minlength="8" maxlength="100"
+                               autocomplete="new-password" required>
+                    </label>
+                    <button class="button primary" type="submit">Create operator</button>
+                </form>
+            </aside>
+        </details>
+
+        <details class="workload-panel">
+            <summary>
+                <span>
                     <span class="section-kicker">Workload comparison</span>
-                    <h2 id="workload-title">Reviews in the last 7 days</h2>
-                </div>
-                <p>Relative to the most active operator</p>
-            </header>
+                    <strong id="workload-title">Reviews in the last 7 days</strong>
+                </span>
+                <small>Relative to the most active operator</small>
+            </summary>
             <div class="workload-list" th:if="${not #lists.isEmpty(operators)}">
                 <div class="workload-row" th:each="operator : ${operators}">
                     <span th:text="${operator.username()}">operator</span>
@@ -411,7 +249,7 @@
             <p class="admin-empty compact" th:if="${#lists.isEmpty(operators)}">
                 Workload data will appear after operators complete reviews.
             </p>
-        </section>
+        </details>
     </main>
 </div>
 </body>

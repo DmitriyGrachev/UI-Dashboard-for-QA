@@ -149,7 +149,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
 
     @Test
     void adminPageProvidesRejectedScreenshotExportForm() throws Exception {
-        mockMvc.perform(get("/admin")
+        mockMvc.perform(get("/admin/rejects")
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Rejected screenshots export")))
@@ -196,7 +196,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(content().string(containsString("id=\"created-to-minute\"")))
                 .andExpect(content().string(containsString("id=\"review-date-range-error\"")));
 
-        mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
+        mockMvc.perform(get("/admin/rejects").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString(
                         "/webjars/flatpickr/4.6.13/dist/flatpickr.min.css"

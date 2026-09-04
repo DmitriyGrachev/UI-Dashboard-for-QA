@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="_csrf" th:content="${_csrf.token}">
+    <meta name="_csrf_header" th:content="${_csrf.headerName}">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>AI queue — Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <script defer th:src="@{/js/ai-queue.js}"></script>
+</head>
+<body class="admin-page">
+<div class="app-shell admin-shell">
+    <header class="topbar">
+        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
+            <span class="brand-mark" aria-hidden="true">RV</span>
+            <span>
+                <strong>Recognition Validator</strong>
+                <small>Admin control desk</small>
+            </span>
+        </a>
+        <nav class="topbar-actions" aria-label="Account actions">
+            <button class="theme-toggle" type="button" data-theme-toggle
+                    aria-label="Switch to light theme" title="Switch to light theme">
+                <span aria-hidden="true" data-theme-icon>☀</span>
+                <span data-theme-label>Light</span>
+            </button>
+            <span class="signed-in-user" th:text="${adminName}">admin</span>
+            <form method="post" th:action="@{/logout}">
+                <button class="link-button" type="submit">Sign out</button>
+            </form>
+        </nav>
+    </header>
+    <nav th:replace="~{fragments/admin-navigation :: navigation('ai-queue')}"></nav>
+
+    <main class="admin-main">
+        <header class="admin-heading">
+            <div>
+                <span class="section-kicker">Independent AI review</span>
+                <h1>AI queue</h1>
+                <p>Manage claim settings for Igor’s service. Dates are UTC.</p>
+            </div>
+        </header>
+
+        <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
+            <header>
+                <div><span class="section-kicker">Independent AI review</span><h2 id="ai-queue-title">Issuance settings</h2></div>
+                <p id="ai-queue-state">Loading settings…</p>
+            </header>
+            <p>Igor’s service requests screenshots here. No outgoing scheduler. Only bj_single_deck_ags is supported.</p>
+            <form id="ai-queue-form">
+                <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI claims</label>
+                <p>Each rule must match all its conditions. Lower priority numbers go first; equal priorities use the saved rule ID. Screenshots are issued oldest first. No enabled rules means no new claims.</p>
+                <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
+                <div id="ai-rules"></div>
+                <div class="ai-queue-actions">
+                    <button type="button" class="button secondary" id="ai-rule-add" disabled>Add rule</button>
+                    <button type="submit" class="button primary" id="ai-queue-save" disabled>Save AI settings</button>
+                    <button type="button" class="button secondary" id="ai-queue-stop" disabled>Stop issuing</button>
+                    <button type="button" class="button secondary" id="ai-queue-reload">Reload saved settings</button>
+                </div>
+                <p id="ai-queue-message" role="status" aria-live="polite"></p>
+            </form>
+            <template id="ai-rule-template">
+                <details class="ai-rule">
+                    <summary><span data-rule-summary>Selection rule</span></summary>
+                    <div class="ai-rule-fields">
+                        <label>Name<input name="name" maxlength="100" required></label>
+                        <label>Priority<input name="priority" type="number" min="0" max="2147483647" step="1" required></label>
+                        <label class="ai-inline-check"><input name="enabled" type="checkbox"> Rule enabled</label>
+                        <label>Created from (UTC, inclusive)<input name="createdFrom" type="datetime-local" step="1"></label>
+                        <label>Created to (UTC, exclusive)<input name="createdTo" type="datetime-local" step="1"></label>
+                        <label>Token ID<input name="tokenId" type="number" min="0" step="1" max="9007199254740991" placeholder="Any token"></label>
+                        <label>Session<input name="sessionId" maxlength="128" placeholder="Any session"></label>
+                        <label>Notification<select name="notification"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                        <label>Has user hand<select name="hasUserHand"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                        <button class="button secondary" type="button" data-remove-rule>Remove rule</button>
+                    </div>
+                </details>
+            </template>
+        </section>
+    </main>
+</div>
+</body>
+</html>

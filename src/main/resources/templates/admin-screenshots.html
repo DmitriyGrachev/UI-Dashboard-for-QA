@@ -9,6 +9,7 @@
     <link rel="stylesheet"
           th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
     <script defer
             th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
@@ -16,7 +17,7 @@
     <script defer th:src="@{/js/ai-result.js}"></script>
     <script defer th:src="@{/js/admin-screenshots.js}"></script>
 </head>
-<body>
+<body class="admin-page">
 <div class="app-shell admin-explorer-shell">
     <header class="topbar explorer-topbar">
         <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
@@ -26,11 +27,7 @@
                 <small>Screenshot explorer</small>
             </span>
         </a>
-        <nav class="topbar-actions" aria-label="Admin navigation">
-            <a th:href="@{/admin}">Operators</a>
-            <a class="is-current" th:href="@{/admin/screenshots}" aria-current="page">
-                Screenshots
-            </a>
+        <nav class="topbar-actions" aria-label="Account actions">
             <button class="theme-toggle" type="button" data-theme-toggle
                     aria-label="Switch to light theme" title="Switch to light theme">
                 <span aria-hidden="true" data-theme-icon>☀</span>
@@ -43,6 +40,10 @@
         </nav>
     </header>
 
+    <nav th:replace="~{fragments/admin-navigation :: navigation('screenshots')}"></nav>
+
+    <details class="admin-storage-disclosure">
+        <summary>Storage health</summary>
     <section class="storage-dashboard" id="storage-dashboard"
              aria-labelledby="storage-dashboard-title">
         <header>
@@ -62,28 +63,18 @@
         </dl>
         <p class="storage-status-message" id="storage-status-message" role="status"></p>
     </section>
+    </details>
 
-    <main class="screenshot-explorer">
-        <aside class="explorer-sidebar" aria-labelledby="explorer-filter-title">
-            <header class="explorer-panel-heading">
-                <div>
-                    <span class="section-kicker">Find screenshots</span>
-                    <h1 id="explorer-filter-title">Screenshot explorer</h1>
-                </div>
-                <button type="button" class="compact-button" id="reset-screenshot-filters">
-                    Reset
-                </button>
-            </header>
-
-            <form id="screenshot-filter-form" class="explorer-filters" data-utc-date-range>
-                <div class="quick-date-presets" aria-label="Quick date ranges">
-                    <button type="button" data-range-hours="24">Last 24h</button>
-                    <button type="button" data-range-days="4">Last 4 days</button>
-                    <button type="button" data-range-days="21">Last 21 days</button>
-                </div>
-
-                <label>
-                    <span>Created from (UTC)</span>
+    <header class="explorer-heading"><h1>Screenshot explorer</h1></header>
+    <details class="explorer-search">
+        <summary>Filters <span id="explorer-filter-status" role="status" aria-live="polite">Select Search to load screenshots.</span></summary>
+        <form id="screenshot-filter-form" class="explorer-filters" data-utc-date-range>
+            <div class="explorer-primary-filters">
+                <fieldset class="explorer-filter-group">
+                    <legend>Period · UTC</legend>
+                    <div class="explorer-filter-fields">
+                <label class="wide-filter">
+                    <span>From (inclusive)</span>
                     <span class="utc-datetime-control" data-utc-boundary>
                         <input id="explorer-created-from" type="hidden">
                         <span class="utc-date-control" data-date-wrap>
@@ -119,9 +110,8 @@
                         </span>
                     </span>
                 </label>
-
-                <label>
-                    <span>Created to (UTC)</span>
+                <label class="wide-filter">
+                    <span>To (exclusive)</span>
                     <span class="utc-datetime-control" data-utc-boundary>
                         <input id="explorer-created-to" type="hidden">
                         <span class="utc-date-control" data-date-wrap>
@@ -157,21 +147,12 @@
                         </span>
                     </span>
                 </label>
-                <p class="utc-date-error" id="explorer-date-range-error" role="alert" hidden></p>
-
-                <label class="primary-state-filter">
-                    Checked state
-                    <select id="review-state">
-                        <option value="ALL">All</option>
-                        <option value="CHECKED">Checked</option>
-                        <option value="UNCHECKED">Unchecked</option>
-                    </select>
-                </label>
-
-                <details class="explorer-more-filters">
-                    <summary>More filters</summary>
-                    <div class="filter-field-grid">
-                    <label>
+                    </div>
+                </fieldset>
+                <fieldset class="explorer-filter-group">
+                    <legend>Game / Token / Session</legend>
+                    <div class="explorer-filter-fields">
+                <label>
                         Game
                         <select id="explorer-game-code">
                             <option value="">All games</option>
@@ -179,81 +160,29 @@
                                     th:value="${game}" th:text="${game}"></option>
                         </select>
                     </label>
-                    <label>
+                <label>
                         Token ID
                         <input id="explorer-token-id" type="number" min="0" step="1"
                                placeholder="token_id" autocomplete="off">
                     </label>
-                    <label>
+                <label class="wide-filter">
                         Session
                         <input id="explorer-session-id" type="search"
                                placeholder="session_id" autocomplete="off">
                     </label>
-                    <label>
-                        Decision
-                        <select id="explorer-decision">
-                            <option value="">Any</option>
-                            <option value="ACCEPTED">Matches</option>
-                            <option value="REJECTED">Does not match</option>
-                        </select>
-                    </label>
-                    <label>
-                        Reviewed by
-                        <input id="explorer-reviewed-by" type="search"
-                               placeholder="operator" autocomplete="off">
-                    </label>
-                    <label>
-                        Storage
-                        <select id="explorer-storage-state">
-                            <option value="">Any</option>
-                            <option value="LOCAL_ONLY">Local only</option>
-                            <option value="B2_ONLY">B2 only</option>
-                            <option value="BOTH">Local + B2</option>
-                            <option value="MISSING">Missing</option>
-                        </select>
-                    </label>
-                    <label>
-                        Parse status
-                        <select id="explorer-parse-status">
-                            <option value="">Any</option>
-                            <option value="SUCCESS">Success</option>
-                            <option value="PARTIAL">Partial</option>
-                            <option value="ERROR">Error</option>
-                        </select>
-                    </label>
-                    <label>
-                        Notification
-                        <select id="explorer-notification">
-                            <option value="">Any</option>
-                            <option value="true">Yes</option>
-                            <option value="false">No</option>
-                        </select>
-                    </label>
-                    <label>
-                        Has user hand
-                        <select id="explorer-has-user-hand">
-                            <option value="">Any</option>
-                            <option value="true">Yes</option>
-                            <option value="false">No</option>
-                        </select>
-                    </label>
                     </div>
-                </details>
-
-                <details class="exact-filter-disclosure">
-                    <summary>Exact lookup</summary>
-                    <label>
-                        Image ID
-                        <input id="explorer-image-id" type="search"
-                               placeholder="SHA-256 ID" autocomplete="off">
-                    </label>
-                    <label>
-                        File name
-                        <input id="explorer-file-name" type="search"
-                               placeholder="image.png" autocomplete="off">
-                    </label>
-                </details>
-
+                </fieldset>
+                <fieldset class="explorer-filter-group">
+                    <legend>Review results</legend>
+                    <div class="explorer-filter-fields">
+                <label class="primary-state-filter">
+                    Operator review
+                    <select id="review-state">
+                        <option value="ALL">All</option>
+                        <option value="CHECKED">Checked</option>
+                        <option value="UNCHECKED">Unchecked</option>
+                    </select>
+                </label>
                 <label>AI result
                     <select id="explorer-ai-result">
                         <option value="">All</option>
@@ -263,13 +192,92 @@
                         <option value="UNMATCHED">Unmatched</option>
                     </select>
                 </label>
-                <button class="button primary" type="submit">Search</button>
-            </form>
+                <label class="wide-filter">
+                        Notification
+                        <select id="explorer-notification">
+                            <option value="">Any</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </label>
+                    </div>
+                </fieldset>
+            </div>
+            <p class="utc-date-error" id="explorer-date-range-error" role="alert" hidden></p>
+            <details class="explorer-more-filters">
+                <summary>More filters and exact lookup</summary>
+                <div class="filter-field-grid">
+                    <label>
+                        Decision
+                        <select id="explorer-decision">
+                            <option value="">Any</option>
+                            <option value="ACCEPTED">Matches</option>
+                            <option value="REJECTED">Does not match</option>
+                        </select>
+                    </label>
+<label>
+                        Reviewed by
+                        <input id="explorer-reviewed-by" type="search"
+                               placeholder="operator" autocomplete="off">
+                    </label>
+<label>
+                        Storage
+                        <select id="explorer-storage-state">
+                            <option value="">Any</option>
+                            <option value="LOCAL_ONLY">Local only</option>
+                            <option value="B2_ONLY">B2 only</option>
+                            <option value="BOTH">Local + B2</option>
+                            <option value="MISSING">Missing</option>
+                        </select>
+                    </label>
+<label>
+                        Parse status
+                        <select id="explorer-parse-status">
+                            <option value="">Any</option>
+                            <option value="SUCCESS">Success</option>
+                            <option value="PARTIAL">Partial</option>
+                            <option value="ERROR">Error</option>
+                        </select>
+                    </label>
+<label>
+                        Has user hand
+                        <select id="explorer-has-user-hand">
+                            <option value="">Any</option>
+                            <option value="true">Yes</option>
+                            <option value="false">No</option>
+                        </select>
+                    </label>
+<label>
+                        Image ID
+                        <input id="explorer-image-id" type="search"
+                               placeholder="SHA-256 ID" autocomplete="off">
+                    </label>
+<label>
+                        File name
+                        <input id="explorer-file-name" type="search"
+                               placeholder="image.png" autocomplete="off">
+                    </label>
+                </div>
+            </details>
+            <div class="explorer-search-actions">
+                <div class="quick-date-presets" aria-label="Quick date ranges">
+                    <button type="button" data-range-hours="24">Last 24h</button>
+                    <button type="button" data-range-days="4">Last 4 days</button>
+                    <button type="button" data-range-days="21">Last 21 days</button>
+                </div>
+                <div class="filter-actions">
+                    <button type="button" class="button secondary" id="reset-screenshot-filters">Reset</button>
+                    <button class="button primary" id="search-screenshots" type="submit">Search</button>
+                </div>
+            </div>
+        </form>
+    </details>
 
+    <main class="screenshot-explorer">
+        <aside class="explorer-sidebar" aria-labelledby="results-title">
             <section class="explorer-results-panel" aria-labelledby="results-title">
                 <header>
                     <span>
-                        <span class="section-kicker">Results</span>
                         <strong id="results-title"><output id="result-count">0</output> found</strong>
                         <small id="loaded-result-count">0 loaded</small>
                     </span>
@@ -286,7 +294,6 @@
         <section class="explorer-viewer" aria-label="Selected screenshot">
             <header class="viewer-bar">
                 <div>
-                    <span class="section-kicker">Selected screenshot</span>
                     <strong id="explorer-file-summary">Choose a result</strong>
                 </div>
                 <div class="viewer-tools" aria-label="Image controls">
@@ -321,7 +328,6 @@
         <aside class="explorer-details" aria-labelledby="explorer-details-title">
             <header class="explorer-panel-heading">
                 <div>
-                    <span class="section-kicker">Inspection</span>
                     <h2 id="explorer-details-title">Screenshot details</h2>
                 </div>
                 <span class="detail-status" id="detail-review-state">—</span>
@@ -333,13 +339,15 @@
                 <p id="explorer-ai-details" class="ai-result-details">AI: Unchecked</p>
                 <dl class="detail-primary">
                     <div><dt>Game</dt><dd id="detail-game">—</dd></div>
-                    <div><dt>Decision</dt><dd id="detail-decision">—</dd></div>
+                    <div><dt>Operator decision</dt><dd id="detail-decision">—</dd></div>
                     <div><dt>Dealer</dt><dd id="detail-dealer">—</dd></div>
                     <div><dt>Active hand</dt><dd id="detail-active-hand">—</dd></div>
                     <div><dt>Other hands</dt><dd id="detail-other-hands">—</dd></div>
                     <div><dt>Buttons</dt><dd id="detail-buttons">—</dd></div>
                     <div><dt>Available actions</dt><dd id="detail-actions">—</dd></div>
                 </dl>
+                <details class="explorer-technical-disclosure">
+                    <summary>Technical details</summary>
                 <dl class="detail-technical">
                     <div><dt>Image ID</dt><dd id="detail-image-id">—</dd></div>
                     <div><dt>File name</dt><dd id="detail-file-name">—</dd></div>
@@ -356,6 +364,7 @@
                     <div><dt>Cloud uploaded</dt><dd id="detail-cloud-uploaded-at">—</dd></div>
                     <div><dt>Raw payload</dt><dd id="detail-payload">—</dd></div>
                 </dl>
+                </details>
             </div>
         </aside>
     </main>

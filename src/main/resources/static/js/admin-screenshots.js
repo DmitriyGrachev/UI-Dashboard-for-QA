@@ -61,7 +61,7 @@ function presetRange(now, {hours = 0, days = 0}) {
 }
 
 function keyboardAction({key, tagName = "", isContentEditable = false}) {
-    const interactive = ["INPUT", "SELECT", "TEXTAREA", "BUTTON", "A"]
+    const interactive = ["INPUT", "SELECT", "TEXTAREA", "BUTTON", "A", "SUMMARY"]
         .includes(String(tagName).toUpperCase());
     if (interactive || isContentEditable) return null;
     if (key === "ArrowLeft") return "previous";
@@ -134,6 +134,13 @@ function resolveSearchFilters(liveFilters, appliedFilters, append) {
     return append && appliedFilters ? appliedFilters : liveFilters;
 }
 
+function filterStatus(liveFilters, appliedFilters, busy) {
+    if (busy) return "Searching…";
+    if (!appliedFilters) return "Select Search to load screenshots.";
+    return buildSearchParams(liveFilters).toString() === buildSearchParams(appliedFilters).toString()
+        ? "Filters applied." : "Changes not applied. Select Search.";
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
@@ -141,6 +148,7 @@ if (typeof module !== "undefined" && module.exports) {
         createTechnicalReport,
         formatUtcDate,
         formatLoadedCount,
+        filterStatus,
         keyboardAction,
         loadPageThenSummary,
         nextSearchSequence,
@@ -175,6 +183,8 @@ if (typeof document !== "undefined") {
         imageId: byId("explorer-image-id"),
         fileName: byId("explorer-file-name"),
         resetFilters: byId("reset-screenshot-filters"),
+        searchButton: byId("search-screenshots"),
+        filterStatus: byId("explorer-filter-status"),
         results: byId("screenshot-results"),
         resultCount: byId("result-count"),
         loadedResultCount: byId("loaded-result-count"),
@@ -237,6 +247,7 @@ if (typeof document !== "undefined") {
     const state = {
         items: [],
         selectedIndex: -1,
+        selectionSequence: 0,
         selectedDetails: null,
         nextCursor: null,
         totalCount: null,
@@ -288,6 +299,17 @@ if (typeof document !== "undefined") {
             elements.decision.value = "";
             elements.reviewedBy.value = "";
         }
+    }
+
+    function updateSearchControls() {
+        const busy = state.searching || state.loadingMore;
+        elements.searchButton.disabled = busy;
+        elements.resetFilters.disabled = busy;
+        elements.form.setAttribute("aria-busy", String(busy));
+        document.querySelectorAll("[data-range-hours], [data-range-days]").forEach(button => {
+            button.disabled = busy;
+        });
+        elements.filterStatus.textContent = filterStatus(currentFilters(), state.appliedFilters, busy);
     }
 
     function showResultsMessage(message) {
@@ -468,7 +490,7 @@ if (typeof document !== "undefined") {
 
     async function search({append = false, selectedId = null} = {}) {
         if (state.searching || state.loadingMore) return;
-        if (!dateRange.validate()) return;
+        if (!append && !dateRange.validate()) return;
         const sequence = nextSearchSequence(state.searchSequence, append);
         state.searchSequence = sequence;
         const filters = resolveSearchFilters(
@@ -478,6 +500,7 @@ if (typeof document !== "undefined") {
         );
         if (!append) state.appliedFilters = filters;
         append ? state.loadingMore = true : state.searching = true;
+        updateSearchControls();
         if (!append) {
             showResultsMessage("Searching…");
             state.items = [];
@@ -488,6 +511,7 @@ if (typeof document !== "undefined") {
             elements.resultCount.textContent = "…";
             elements.resultRange.textContent = "Calculating…";
             updateLoadedCount();
+            clearSelection();
         }
         elements.loadMore.disabled = true;
         const params = buildSearchParams(filters, append ? state.nextCursor : null);
@@ -517,10 +541,13 @@ if (typeof document !== "undefined") {
             writeSearchUrl(state.items[state.selectedIndex]?.imageId || null);
         } catch (error) {
             showResultsMessage(error.message || "Could not load screenshots.");
+            if (!append) state.appliedFilters = null;
         } finally {
             state.searching = false;
             state.loadingMore = false;
             elements.loadMore.disabled = false;
+            updateNavigation();
+            updateSearchControls();
         }
     }
 
@@ -566,6 +593,7 @@ if (typeof document !== "undefined") {
     }
 
     function clearSelection() {
+        state.selectionSequence++;
         state.selectedIndex = -1;
         state.selectedDetails = null;
         elements.image.hidden = true;
@@ -586,15 +614,21 @@ if (typeof document !== "undefined") {
 
     async function selectResult(index) {
         if (index < 0 || index >= state.items.length) return;
+        state.selectionSequence++;
         state.selectedIndex = index;
+        state.selectedDetails = null;
         const item = state.items[index];
         renderResults();
         updateNavigation();
-        resetZoom();
+        stopDragging();
         elements.fileSummary.textContent = item.fileName;
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = "Loading screenshot…";
         elements.image.hidden = true;
+        elements.image.removeAttribute("src");
+        elements.detailContent.hidden = true;
+        elements.detailPlaceholder.hidden = false;
+        elements.detailReviewState.textContent = "—";
         elements.download.setAttribute("aria-disabled", "true");
         elements.temporaryLink.disabled = true;
         elements.copyLink.disabled = false;
@@ -612,6 +646,7 @@ if (typeof document !== "undefined") {
             elements.copyReport.disabled = false;
             elements.image.src = `${details.imageUrl}?view=${Date.now()}`;
         } catch (error) {
+            if (state.items[state.selectedIndex]?.imageId !== item.imageId) return;
             elements.viewerMessage.textContent = error.message || "Could not load screenshot details.";
         }
     }
@@ -623,8 +658,11 @@ if (typeof document !== "undefined") {
         }
         if (!state.nextCursor) return;
         const previousLength = state.items.length;
+        const selectionSequence = state.selectionSequence;
         await search({append: true});
-        if (state.items.length > previousLength) await selectResult(previousLength);
+        if (state.selectionSequence === selectionSequence && state.items.length > previousLength) {
+            await selectResult(previousLength);
+        }
     }
 
     function previousResult() {
@@ -719,21 +757,26 @@ if (typeof document !== "undefined") {
     }
 
     elements.image.addEventListener("load", () => {
+        if (!state.selectedDetails) return;
         elements.image.hidden = false;
         elements.viewerMessage.hidden = true;
     });
     elements.image.addEventListener("error", async () => {
+        const details = state.selectedDetails;
+        if (!details) return;
         elements.image.hidden = true;
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = "Checking image availability…";
         try {
-            const response = await fetch(state.selectedDetails.availabilityUrl, {
+            const response = await fetch(details.availabilityUrl, {
                 credentials: "same-origin"
             });
+            if (state.selectedDetails !== details) return;
             elements.viewerMessage.textContent = response.status === 404
                 ? "The image is no longer available in local storage or B2."
                 : "The image could not be displayed. Try again.";
         } catch {
+            if (state.selectedDetails !== details) return;
             elements.viewerMessage.textContent = "Image storage is temporarily unavailable.";
         }
     });
@@ -744,6 +787,8 @@ if (typeof document !== "undefined") {
         search();
     });
     elements.reviewState.addEventListener("change", updateCheckedOnlyControls);
+    elements.form.addEventListener("input", updateSearchControls);
+    elements.form.addEventListener("change", updateSearchControls);
     elements.resetFilters.addEventListener("click", () => {
         elements.form.reset();
         dateRange.clear();

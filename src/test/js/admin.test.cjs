@@ -27,7 +27,8 @@ test("admin export submits only a valid UTC date range", {
         },
         "processed-from": {id: "processed-from"},
         "processed-to": {id: "processed-to"},
-        "rejected-export-date-error": {id: "rejected-export-date-error"}
+        "rejected-export-date-error": {id: "rejected-export-date-error"},
+        "rejected-export-status": {textContent: ""}
     };
     const document = {
         getElementById(id) {
@@ -54,9 +55,19 @@ test("admin export submits only a valid UTC date range", {
     let prevented = false;
     listeners.get("submit")({preventDefault: () => prevented = true});
     assert.equal(prevented, true);
+    assert.equal(elements["rejected-export-status"].textContent, "");
 
     valid = true;
     prevented = false;
     listeners.get("submit")({preventDefault: () => prevented = true});
     assert.equal(prevented, false);
+    assert.match(elements["rejected-export-status"].textContent, /Download requested/);
+    assert.doesNotMatch(elements["rejected-export-status"].textContent, /completed|saved/i);
+});
+
+test("legacy admin anchors keep working after splitting pages", () => {
+    assert.equal(adminApi.legacyAdminDestination('/admin', '#rejected-export-title'), '/admin/rejects');
+    assert.equal(adminApi.legacyAdminDestination('/admin', '#ai-queue-title'), '/admin/ai-queue');
+    assert.equal(adminApi.legacyAdminDestination('/admin/screenshots', '#rejected-export-title'), null);
+    assert.equal(adminApi.legacyAdminDestination('/admin', ''), null);
 });

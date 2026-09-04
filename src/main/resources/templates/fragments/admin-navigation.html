@@ -1,0 +1,14 @@
+<nav class="admin-navigation" aria-label="Admin navigation" th:fragment="navigation(active)">
+    <a th:href="@{/admin}"
+       th:classappend="${active == 'operators'} ? ' is-current' : ''"
+       th:attr="aria-current=${active == 'operators'} ? 'page' : null">Operators</a>
+    <a th:href="@{/admin/screenshots}"
+       th:classappend="${active == 'screenshots'} ? ' is-current' : ''"
+       th:attr="aria-current=${active == 'screenshots'} ? 'page' : null">Screenshots</a>
+    <a th:href="@{/admin/ai-queue}"
+       th:classappend="${active == 'ai-queue'} ? ' is-current' : ''"
+       th:attr="aria-current=${active == 'ai-queue'} ? 'page' : null">AI queue</a>
+    <a th:href="@{/admin/rejects}"
+       th:classappend="${active == 'rejects'} ? ' is-current' : ''"
+       th:attr="aria-current=${active == 'rejects'} ? 'page' : null">Rejects</a>
+</nav>

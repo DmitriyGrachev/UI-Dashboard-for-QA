@@ -52,6 +52,18 @@ public class AdminController {
         return "admin";
     }
 
+    @GetMapping("/admin/ai-queue")
+    String aiQueue(Model model, Principal principal) {
+        model.addAttribute("adminName", principal.getName());
+        return "admin-ai-queue";
+    }
+
+    @GetMapping("/admin/rejects")
+    String rejects(Model model, Principal principal) {
+        model.addAttribute("adminName", principal.getName());
+        return "admin-rejects";
+    }
+
     @PostMapping("/admin/operators")
     String createOperator(
             @RequestParam String username,
