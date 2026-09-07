@@ -71,7 +71,7 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         when(data.snapshot(any())).thenAnswer(invocation -> new SlackOperationsRepository.Metrics(
                 new StorageStatus(b2Enabled, 0, 0, 0, 0, 0, 0, 0, 0, null),
                 aiEnabled, aiPending, aiProcessing, 0, null, b2Failures, null));
-        when(data.daily(any())).thenReturn(new SlackOperationsRepository.Daily(12, 3, 5, 4, 1));
+        when(data.daily(any())).thenReturn(new SlackOperationsRepository.Daily(12, 3, 5, 4, 1, 2, 1));
         when(data.pendingRejects()).thenReturn(0L);
     }
 
@@ -89,7 +89,10 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         verify(data).daily(LocalDate.of(2026, 9, 6));
         assertThat(payloadAt(0))
                 .contains("Operators: *12* checked; *3* rejected")
-                .contains("AI: *5* results; matched 4; unmatched 1; other 0");
+                .contains("AI: *5* results; matched 4; unmatched 1; other 0")
+                .contains("AI Matched / operator Rejected: *2*")
+                .contains("AI Unmatched / operator Accepted: *1*")
+                .contains("Counted when the second review completed");
 
         newMonitor(operationsProperties).check();
         assertThat(messageCount()).isOne();

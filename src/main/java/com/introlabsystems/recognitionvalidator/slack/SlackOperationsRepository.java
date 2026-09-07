@@ -83,7 +83,16 @@ public class SlackOperationsRepository {
                 """, dates, (rs, row) -> new long[]{
                 rs.getLong("checked"), rs.getLong("matched"), rs.getLong("rejected")
         });
-        return new Daily(operator[0], operator[1], ai[0], ai[1], ai[2]);
+        var disagreements = namedJdbc.queryForObject("""
+                SELECT COUNT(*) FILTER (WHERE ai_matched) AS ai_matched_operator_rejected,
+                       COUNT(*) FILTER (WHERE NOT ai_matched) AS ai_unmatched_operator_accepted
+                FROM review_disagreement
+                WHERE observed_at >= :from AND observed_at < :to
+                """, new MapSqlParameterSource()
+                .addValue("from", timestamp(utcDay.atStartOfDay(java.time.ZoneOffset.UTC).toInstant()))
+                .addValue("to", timestamp(utcDay.plusDays(1).atStartOfDay(java.time.ZoneOffset.UTC).toInstant())),
+                (rs, row) -> new long[]{rs.getLong("ai_matched_operator_rejected"), rs.getLong("ai_unmatched_operator_accepted")});
+        return new Daily(operator[0], operator[1], ai[0], ai[1], ai[2], disagreements[0], disagreements[1]);
     }
 
     @Transactional(readOnly = true, timeout = 5)
@@ -126,7 +135,9 @@ public class SlackOperationsRepository {
             long operatorRejected,
             long aiChecked,
             long aiMatch,
-            long aiRejected
+            long aiRejected,
+            long aiMatchedOperatorRejected,
+            long aiUnmatchedOperatorAccepted
     ) {
     }
 }

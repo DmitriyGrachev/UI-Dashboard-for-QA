@@ -39,7 +39,7 @@ class SlackOperationsDataTest {
     @BeforeEach
     void reset() {
         jdbc.execute("TRUNCATE TABLE operator_daily_statistics, review_task, image_asset, app_user, "
-                + "ai_selection_rule, ai_queue_settings, ai_daily_statistics CASCADE");
+                + "ai_selection_rule, ai_queue_settings, ai_daily_statistics, review_disagreement CASCADE");
         jdbc.update("INSERT INTO ai_queue_settings(id, revision, enabled) VALUES (1, 0, FALSE)");
     }
 
@@ -102,6 +102,26 @@ class SlackOperationsDataTest {
         assertThat(daily.aiChecked()).isEqualTo(2);
         assertThat(daily.aiMatch()).isOne();
         assertThat(daily.aiRejected()).isOne();
+    }
+
+    @Test
+    void dailyDisagreementsUseSecondReviewDayAndKeepDirectionsSeparate() {
+        LocalDate day = LocalDate.of(2026, 9, 6);
+        Instant start = day.atStartOfDay(ZoneOffset.UTC).toInstant();
+        for (int i = 0; i < 4; i++) {
+            Instant at = switch (i) {
+                case 0 -> start.minusNanos(1000);
+                case 1 -> start;
+                case 2 -> start.plusSeconds(86400).minusNanos(1000);
+                default -> start.plusSeconds(86400);
+            };
+            jdbc.update("INSERT INTO review_disagreement(image_id, observed_at, ai_matched) VALUES (?, ?, ?)",
+                    id(90 + i), Timestamp.from(at), i != 2);
+        }
+        var daily = operations.daily(day);
+        assertThat(daily.aiMatchedOperatorRejected()).isOne();
+        assertThat(daily.aiUnmatchedOperatorAccepted()).isOne();
+        assertThat(operations.daily(day.plusDays(2)).aiMatchedOperatorRejected()).isZero();
     }
 
     @Test

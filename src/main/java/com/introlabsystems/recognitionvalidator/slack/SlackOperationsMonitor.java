@@ -44,6 +44,10 @@ public class SlackOperationsMonitor {
                     + "Operators: *" + daily.operatorChecked() + "* checked; *" + daily.operatorRejected() + "* rejected\n"
                     + "AI: *" + daily.aiChecked() + "* results; matched " + daily.aiMatch() + "; unmatched " + daily.aiRejected()
                     + "; other " + (daily.aiChecked() - daily.aiMatch() - daily.aiRejected()) + "\n"
+                    + "*AI / operator disagreements* (both reviews completed)\n"
+                    + "AI Matched / operator Rejected: *" + daily.aiMatchedOperatorRejected() + "*\n"
+                    + "AI Unmatched / operator Accepted: *" + daily.aiUnmatchedOperatorAccepted() + "*\n"
+                    + "Counted when the second review completed; disagreement does not identify which reviewer was wrong.\n"
                     + "*Current status*\n" + dataStatus(metrics);
             outbox.enqueueMessage(dailyKey, UUID.nameUUIDFromBytes(dailyKey.getBytes(StandardCharsets.UTF_8)), text, now);
         }

@@ -5,6 +5,7 @@ import com.introlabsystems.recognitionvalidator.ai.dto.*;
 import com.introlabsystems.recognitionvalidator.ai.exception.AiQueueException;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -30,16 +31,19 @@ public class AiTaskRepository {
     private final AiQueueProperties properties;
     private final B2StorageProperties b2;
     private final DailyStatisticsRepository dailyStatistics;
+    private final ReviewDisagreementRepository disagreements;
 
     public AiTaskRepository(NamedParameterJdbcTemplate jdbc, PlatformTransactionManager transactionManager,
                             AiQueueProperties properties, B2StorageProperties b2,
-                            DailyStatisticsRepository dailyStatistics) {
+                            DailyStatisticsRepository dailyStatistics,
+                            ReviewDisagreementRepository disagreements) {
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactionManager);
         this.transactions.setTimeout(5);
         this.properties = properties;
         this.b2 = b2;
         this.dailyStatistics = dailyStatistics;
+        this.disagreements = disagreements;
     }
 
     public List<AiClaim> claim(AiSettings settings, int size) {
@@ -122,6 +126,7 @@ public class AiTaskRepository {
 
     public void complete(String imageId, AiResult result) {
         transactions.executeWithoutResult(tx -> {
+            disagreements.lockImage(imageId);
             var rows = jdbc.query("SELECT * FROM ai_review_task WHERE image_id=:id FOR UPDATE",
                     new MapSqlParameterSource("id", imageId), (rs, row) -> new StoredResult(
                             rs.getString("status"), rs.getObject("claim_id", UUID.class), instant(rs, "lease_expires_at"),
@@ -148,6 +153,7 @@ public class AiTaskRepository {
                     .addValue("verdict", result.verdict()).addValue("certainty", result.certainty())
                     .addValue("confidence", result.confidence()).addValue("message", result.message()).addValue("now", timestamp(now)));
             dailyStatistics.incrementAi(now, result.valid());
+            disagreements.capture(imageId);
         });
     }
 

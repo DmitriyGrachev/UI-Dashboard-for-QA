@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.service.impl;
 
 import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository;
 import com.introlabsystems.recognitionvalidator.exception.DecisionConflictException;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.slack.RejectedDecisionEvent;
@@ -24,10 +25,12 @@ public class DecisionService {
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
     private final DailyStatisticsRepository dailyStatistics;
+    private final ReviewDisagreementRepository disagreements;
     private final ApplicationEventPublisher events;
 
     @Transactional
     public void decide(String imageId, UUID operatorId, Decision decision) {
+        disagreements.lockImage(imageId);
         Instant reviewedAt = clock.instant();
         int updated = jdbc.update("""
                 UPDATE review_task
@@ -51,6 +54,7 @@ public class DecisionService {
                 reviewedAt.atZone(ZoneOffset.UTC).toLocalDate(),
                 decision == Decision.ACCEPTED
         );
+        disagreements.capture(imageId);
         if (decision == Decision.REJECTED) {
             events.publishEvent(new RejectedDecisionEvent(imageId));
         }

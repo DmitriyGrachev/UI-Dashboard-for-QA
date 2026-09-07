@@ -18,7 +18,7 @@ abstract class AiTestSupport {
 
     @BeforeEach
     void cleanAi() {
-        jdbc.execute("TRUNCATE operator_daily_statistics, review_task, image_asset, app_user, ai_selection_rule, ai_queue_settings, ai_daily_statistics CASCADE");
+        jdbc.execute("TRUNCATE review_disagreement, operator_daily_statistics, review_task, image_asset, app_user, ai_selection_rule, ai_queue_settings, ai_daily_statistics CASCADE");
     }
 
     protected String image(int number, long token) {
