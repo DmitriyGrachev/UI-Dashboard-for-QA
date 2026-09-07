@@ -77,6 +77,21 @@ class AiTaskRepositoryTest extends AiTestSupport {
     }
 
     @Test
+    void acceptedResultCountsOnceAndSurvivesImageDeletion() {
+        String id = image(1, 53);
+        AiClaim claim = tasks.claim(all(), 1).getFirst();
+        AiResult result = new AiResult(claim.claimId(), true, "MATCH", 97, null, "ok");
+
+        tasks.complete(id, result);
+        tasks.complete(id, result);
+        jdbc.update("DELETE FROM image_asset WHERE id = ?", id);
+
+        assertThat(jdbc.queryForMap("SELECT total_checked, matched_count, not_matched_count "
+                        + "FROM ai_daily_statistics").values())
+                .containsExactlyInAnyOrder(1L, 1L, 0L);
+    }
+
+    @Test
     void noFallbackAndNoCloudOnlyWhenB2Disabled() {
         String id = image(1, 53);
         assertThat(tasks.claim(new AiSettings(0, false, List.of()), 1)).isEmpty();

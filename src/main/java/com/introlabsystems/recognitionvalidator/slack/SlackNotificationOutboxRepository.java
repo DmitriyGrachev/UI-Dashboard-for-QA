@@ -62,6 +62,35 @@ public class SlackNotificationOutboxRepository {
         }
     }
 
+    @Transactional
+    public boolean enqueueMessage(String dedupKey, UUID seriesId, String text, Instant now) {
+        if (dedupKey == null || dedupKey.isBlank()) {
+            throw new IllegalArgumentException("dedupKey must not be blank");
+        }
+        if (seriesId == null) {
+            throw new IllegalArgumentException("seriesId must not be null");
+        }
+        if (text == null) {
+            throw new IllegalArgumentException("text must not be null");
+        }
+        lockSeries(seriesId);
+        String targetTs = latestMessageTarget(seriesId);
+        return jdbc.update("""
+                INSERT INTO slack_notification_outbox
+                    (cycle_id, operation_kind, archive_payload, dedup_key,
+                     target_message_ts, delivery_phase, attempts,
+                     next_attempt_at, created_at)
+                VALUES (:cycleId, 'MESSAGE', :text, :dedupKey,
+                        :targetTs, 'PENDING', 0, :now, :now)
+                ON CONFLICT (dedup_key) DO NOTHING
+                """, new MapSqlParameterSource()
+                .addValue("cycleId", seriesId)
+                .addValue("text", text)
+                .addValue("dedupKey", dedupKey)
+                .addValue("targetTs", targetTs)
+                .addValue("now", Timestamp.from(now))) == 1;
+    }
+
     /** Creates the archive boundary and rotates the active cycle atomically. */
     @Transactional
     public boolean enqueueArchive(
@@ -165,6 +194,7 @@ public class SlackNotificationOutboxRepository {
         if (messageTs == null || messageTs.isBlank()) {
             return;
         }
+        lockSeries(cycleId);
         jdbc.update("""
                 UPDATE slack_notification_state
                    SET active_message_ts = :messageTs
@@ -177,7 +207,7 @@ public class SlackNotificationOutboxRepository {
                    SET target_message_ts = :messageTs
                  WHERE cycle_id = :cycleId
                    AND delivery_phase <> 'DELIVERED'
-                   AND operation_kind IN ('ARCHIVE', 'REFRESH')
+                   AND operation_kind IN ('ARCHIVE', 'REFRESH', 'MESSAGE')
                 """, new MapSqlParameterSource()
                 .addValue("cycleId", cycleId)
                 .addValue("messageTs", messageTs));
@@ -258,6 +288,29 @@ public class SlackNotificationOutboxRepository {
                 ON CONFLICT (id) DO NOTHING
                 """, new MapSqlParameterSource("id", SlackNotificationState.SINGLETON_ID));
         return stateRepository.findLockedById(SlackNotificationState.SINGLETON_ID).orElseThrow();
+    }
+
+    private void lockSeries(UUID seriesId) {
+        jdbc.query("""
+                SELECT pg_advisory_xact_lock(
+                    hashtextextended(CAST(:seriesId AS text), 0)
+                )
+                """, new MapSqlParameterSource("seriesId", seriesId),
+                (rs, row) -> null);
+    }
+
+    private String latestMessageTarget(UUID seriesId) {
+        var values = jdbc.query("""
+                SELECT target_message_ts
+                  FROM slack_notification_outbox
+                 WHERE cycle_id = :seriesId
+                   AND operation_kind = 'MESSAGE'
+                   AND target_message_ts IS NOT NULL
+                 ORDER BY id DESC
+                 LIMIT 1
+                """, new MapSqlParameterSource("seriesId", seriesId),
+                (rs, row) -> rs.getString("target_message_ts"));
+        return values.isEmpty() ? null : values.get(0);
     }
 
     private static String blankToNull(String value) {

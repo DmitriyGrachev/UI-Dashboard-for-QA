@@ -31,6 +31,10 @@ slack:
   connect-timeout: ${SLACK_CONNECT_TIMEOUT:2s}
   read-timeout: ${SLACK_READ_TIMEOUT:3s}
   api-base-url: ${SLACK_API_BASE_URL:https://slack.com/api}
+  operations:
+    daily-summary-enabled: ${SLACK_DAILY_SUMMARY_ENABLED:true}
+    summary-time-utc: "${SLACK_SUMMARY_TIME_UTC:09:00}"
+    poll-interval: ${SLACK_MONITOR_INTERVAL:5m}
 
 validator:
   image-root: ${VALIDATOR_IMAGE_ROOT:./data/images}

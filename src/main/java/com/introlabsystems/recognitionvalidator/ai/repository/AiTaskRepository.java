@@ -4,6 +4,7 @@ import com.introlabsystems.recognitionvalidator.ai.config.AiQueueProperties;
 import com.introlabsystems.recognitionvalidator.ai.dto.*;
 import com.introlabsystems.recognitionvalidator.ai.exception.AiQueueException;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -17,6 +18,7 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository.instant;
@@ -27,14 +29,17 @@ public class AiTaskRepository {
     private final TransactionTemplate transactions;
     private final AiQueueProperties properties;
     private final B2StorageProperties b2;
+    private final DailyStatisticsRepository dailyStatistics;
 
     public AiTaskRepository(NamedParameterJdbcTemplate jdbc, PlatformTransactionManager transactionManager,
-                            AiQueueProperties properties, B2StorageProperties b2) {
+                            AiQueueProperties properties, B2StorageProperties b2,
+                            DailyStatisticsRepository dailyStatistics) {
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactionManager);
         this.transactions.setTimeout(5);
         this.properties = properties;
         this.b2 = b2;
+        this.dailyStatistics = dailyStatistics;
     }
 
     public List<AiClaim> claim(AiSettings settings, int size) {
@@ -43,33 +48,15 @@ public class AiTaskRepository {
         return transactions.execute(tx -> {
             jdbc.getJdbcTemplate().execute("SET LOCAL statement_timeout='5s'");
             recoverExpired();
-            Instant expires = databaseNow().plus(properties.leaseDuration());
+            Instant claimNow = databaseNow();
+            Instant expires = claimNow.plus(properties.leaseDuration());
             List<AiClaim> claimed = new ArrayList<>();
             for (AiRule rule : settings.rules()) {
                 if (!rule.enabled() || claimed.size() == size) continue;
                 MapSqlParameterSource parameters = new MapSqlParameterSource("limit", size - claimed.size())
-                        .addValue("retentionSeconds", b2.metadataRetention().toSeconds());
-                StringBuilder sql = new StringBuilder("""
-                        SELECT ai.image_id, ia.payload_raw
-                        FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
-                        WHERE ai.status='PENDING' AND ai.game_code='bj_single_deck_ags'
-                          AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
-                          AND (ai.retry_after IS NULL OR ai.retry_after <= CURRENT_TIMESTAMP)
-                        """);
-                if (b2.enabled()) sql.append("""
-                        AND (ai.file_available OR ai.cloud_available_at > CURRENT_TIMESTAMP - (:retentionSeconds * INTERVAL '1 second'))
-                        AND (ia.file_available OR (NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL
-                          AND ia.cloud_uploaded_at > CURRENT_TIMESTAMP - (:retentionSeconds * INTERVAL '1 second')))
-                        """);
-                else sql.append(" AND ai.file_available=TRUE AND ia.file_available=TRUE ");
-                condition(sql, parameters, "ai.file_created_at >= :createdFrom", "createdFrom", timestamp(rule.createdFrom()));
-                condition(sql, parameters, "ai.file_created_at < :createdTo", "createdTo", timestamp(rule.createdTo()));
-                condition(sql, parameters, "ai.token_id = :tokenId", "tokenId", rule.tokenId());
-                condition(sql, parameters, "ai.session_id = :sessionId", "sessionId", rule.sessionId());
-                if (rule.notification() != null) {
-                    sql.append(rule.notification() ? " AND ai.is_notification = TRUE" : " AND ai.is_notification = FALSE");
-                }
-                condition(sql, parameters, "ai.has_user_hand = :hasUserHand", "hasUserHand", rule.hasUserHand());
+                        .addValue("now", timestamp(claimNow));
+                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.payload_raw");
+                appendRuleConditions(sql, parameters, rule, "");
                 sql.append(" ORDER BY ai.file_created_at, ai.image_id LIMIT :limit FOR UPDATE OF ai SKIP LOCKED");
                 List<AiClaim> candidates = jdbc.query(sql.toString(), parameters, (rs, row) ->
                         new AiClaim(rs.getString("image_id"), UUID.randomUUID(), expires, rs.getString("payload_raw")));
@@ -86,6 +73,38 @@ public class AiTaskRepository {
             }
             return List.copyOf(claimed);
         });
+    }
+
+    public long countEligiblePending(AiSettings settings, Instant now) {
+        Objects.requireNonNull(settings, "settings must not be null");
+        Objects.requireNonNull(now, "now must not be null");
+        if (!settings.enabled()) {
+            return 0;
+        }
+
+        MapSqlParameterSource parameters = new MapSqlParameterSource("now", timestamp(now));
+        StringBuilder sql = eligiblePendingSql(parameters, "COUNT(*)");
+        boolean hasRule = false;
+        sql.append(" AND (");
+        int ruleIndex = 0;
+        for (AiRule rule : settings.rules()) {
+            if (!rule.enabled()) {
+                continue;
+            }
+            if (hasRule) {
+                sql.append(" OR ");
+            }
+            sql.append("(TRUE");
+            appendRuleConditions(sql, parameters, rule, "_" + ruleIndex++);
+            sql.append(')');
+            hasRule = true;
+        }
+        if (!hasRule) {
+            return 0;
+        }
+        sql.append(')');
+        Long count = jdbc.queryForObject(sql.toString(), parameters, Long.class);
+        return count == null ? 0 : count;
     }
 
     private void recoverExpired() {
@@ -128,6 +147,7 @@ public class AiTaskRepository {
                     """, new MapSqlParameterSource("id", imageId).addValue("valid", result.valid())
                     .addValue("verdict", result.verdict()).addValue("certainty", result.certainty())
                     .addValue("confidence", result.confidence()).addValue("message", result.message()).addValue("now", timestamp(now)));
+            dailyStatistics.incrementAi(now, result.valid());
         });
     }
 
@@ -163,6 +183,52 @@ public class AiTaskRepository {
     public Instant databaseNow() {
         return jdbc.getJdbcTemplate().queryForObject("SELECT clock_timestamp()", Timestamp.class).toInstant();
     }
+
+    private StringBuilder eligiblePendingSql(
+            MapSqlParameterSource parameters,
+            String projection
+    ) {
+        parameters.addValue("retentionSeconds", b2.metadataRetention().toSeconds());
+        StringBuilder sql = new StringBuilder("""
+                SELECT %s
+                FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
+                WHERE ai.status='PENDING' AND ai.game_code='bj_single_deck_ags'
+                  AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
+                  AND (ai.retry_after IS NULL OR ai.retry_after <= :now)
+                """.formatted(projection));
+        if (b2.enabled()) {
+            sql.append("""
+                    AND (ai.file_available OR ai.cloud_available_at > :now - (:retentionSeconds * INTERVAL '1 second'))
+                    AND (ia.file_available OR (NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL
+                      AND ia.cloud_uploaded_at > :now - (:retentionSeconds * INTERVAL '1 second')))
+                    """);
+        } else {
+            sql.append(" AND ai.file_available=TRUE AND ia.file_available=TRUE ");
+        }
+        return sql;
+    }
+
+    private static void appendRuleConditions(
+            StringBuilder sql,
+            MapSqlParameterSource parameters,
+            AiRule rule,
+            String suffix
+    ) {
+        condition(sql, parameters, "ai.file_created_at >= :createdFrom" + suffix,
+                "createdFrom" + suffix, timestamp(rule.createdFrom()));
+        condition(sql, parameters, "ai.file_created_at < :createdTo" + suffix,
+                "createdTo" + suffix, timestamp(rule.createdTo()));
+        condition(sql, parameters, "ai.token_id = :tokenId" + suffix,
+                "tokenId" + suffix, rule.tokenId());
+        condition(sql, parameters, "ai.session_id = :sessionId" + suffix,
+                "sessionId" + suffix, rule.sessionId());
+        if (rule.notification() != null) {
+            sql.append(rule.notification() ? " AND ai.is_notification = TRUE" : " AND ai.is_notification = FALSE");
+        }
+        condition(sql, parameters, "ai.has_user_hand = :hasUserHand" + suffix,
+                "hasUserHand" + suffix, rule.hasUserHand());
+    }
+
     private static MapSqlParameterSource key(AiClaim claim) {
         return new MapSqlParameterSource("id", claim.imageId()).addValue("claim", claim.claimId());
     }

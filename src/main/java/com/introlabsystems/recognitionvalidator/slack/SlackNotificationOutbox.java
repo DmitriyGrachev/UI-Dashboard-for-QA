@@ -33,7 +33,7 @@ import java.util.UUID;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class SlackNotificationOutbox {
 
-    public enum OperationKind { REFRESH, ARCHIVE }
+    public enum OperationKind { REFRESH, ARCHIVE, MESSAGE }
 
     public enum DeliveryPhase { PENDING, IN_FLIGHT, DELIVERED, BLOCKED }
 
@@ -53,6 +53,9 @@ public class SlackNotificationOutbox {
 
     @Column(name = "archive_payload", columnDefinition = "TEXT")
     private String archivePayload;
+
+    @Column(name = "dedup_key", unique = true, length = 255)
+    private String dedupKey;
 
     @Column(name = "target_message_ts", length = 64)
     private String targetMessageTs;

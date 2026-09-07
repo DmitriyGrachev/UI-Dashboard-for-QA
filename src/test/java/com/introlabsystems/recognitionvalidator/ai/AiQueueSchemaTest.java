@@ -29,7 +29,7 @@ class AiQueueSchemaTest {
 
     @BeforeEach
     void clean() {
-        jdbc.execute("TRUNCATE operator_daily_statistics, review_task, image_asset, app_user CASCADE");
+        jdbc.execute("TRUNCATE operator_daily_statistics, review_task, image_asset, app_user, ai_daily_statistics CASCADE");
     }
 
     @Test

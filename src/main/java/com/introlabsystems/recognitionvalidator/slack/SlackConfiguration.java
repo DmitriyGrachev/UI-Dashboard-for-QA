@@ -21,6 +21,11 @@ public class SlackConfiguration {
     }
 
     @Bean
+    ThreadPoolTaskScheduler slackMonitorScheduler(ThreadPoolTaskSchedulerBuilder builder) {
+        return builder.poolSize(1).threadNamePrefix("slack-monitor-").build();
+    }
+
+    @Bean
     RestClient slackRestClient(SlackProperties properties) {
         SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(Math.toIntExact(properties.connectTimeout().toMillis()));

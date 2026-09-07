@@ -6,6 +6,8 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 @Repository
@@ -53,6 +55,49 @@ public class DailyStatisticsRepository {
                   AND rt.reviewed_at IS NOT NULL
                 GROUP BY rt.assigned_to, (rt.reviewed_at AT TIME ZONE 'UTC')::date
                 ON CONFLICT (operator_id, statistics_date) DO NOTHING
+                """, new MapSqlParameterSource());
+    }
+
+    public void incrementAi(Instant checkedAt, boolean matchedDecision) {
+        long matched = matchedDecision ? 1 : 0;
+        long notMatched = matchedDecision ? 0 : 1;
+        jdbc.update("""
+                INSERT INTO ai_daily_statistics (
+                    statistics_date, total_checked, matched_count, not_matched_count, last_checked_at
+                ) VALUES (:statisticsDate, 1, :matched, :notMatched, :checkedAt)
+                ON CONFLICT (statistics_date) DO UPDATE
+                SET total_checked = ai_daily_statistics.total_checked + 1,
+                    matched_count = ai_daily_statistics.matched_count + EXCLUDED.matched_count,
+                    not_matched_count = ai_daily_statistics.not_matched_count + EXCLUDED.not_matched_count,
+                    last_checked_at = CASE
+                        WHEN ai_daily_statistics.last_checked_at IS NULL
+                             OR ai_daily_statistics.last_checked_at < EXCLUDED.last_checked_at
+                        THEN EXCLUDED.last_checked_at
+                        ELSE ai_daily_statistics.last_checked_at
+                    END
+                """, new MapSqlParameterSource()
+                .addValue("statisticsDate", checkedAt.atZone(ZoneOffset.UTC).toLocalDate())
+                .addValue("matched", matched)
+                .addValue("notMatched", notMatched)
+                .addValue("checkedAt", java.sql.Timestamp.from(checkedAt)));
+    }
+
+    public void rebuildAiFromCompletedTasks() {
+        jdbc.update("""
+                INSERT INTO ai_daily_statistics (
+                    statistics_date, total_checked, matched_count, not_matched_count, last_checked_at
+                )
+                SELECT
+                    (checked_at AT TIME ZONE 'UTC')::date,
+                    COUNT(*),
+                    COUNT(*) FILTER (WHERE valid = TRUE),
+                    COUNT(*) FILTER (WHERE valid = FALSE),
+                    MAX(checked_at)
+                FROM ai_review_task
+                WHERE status = 'COMPLETED'
+                  AND checked_at IS NOT NULL
+                GROUP BY (checked_at AT TIME ZONE 'UTC')::date
+                ON CONFLICT (statistics_date) DO NOTHING
                 """, new MapSqlParameterSource());
     }
 }

@@ -17,6 +17,10 @@ public class StorageStatusRepository {
     private final NamedParameterJdbcTemplate jdbc;
 
     public StorageStatus find(boolean enabled, Instant now, Duration metadataRetention) {
+        return observation(enabled, now, metadataRetention).status();
+    }
+
+    public Observation observation(boolean enabled, Instant now, Duration metadataRetention) {
         Instant cloudCutoff = now.minus(metadataRetention);
         return jdbc.queryForObject("""
                 WITH base AS (
@@ -34,6 +38,8 @@ public class StorageStatusRepository {
                                     AND cloud_upload_attempt_count > 0
                                 )
                             ) AS backlog,
+                        cloud_upload_attempt_count,
+                        cloud_uploaded_at,
                         cloud_upload_next_attempt_at,
                         file_created_at
                     FROM image_asset
@@ -58,7 +64,9 @@ public class StorageStatusRepository {
                     COUNT(*) FILTER (WHERE NOT local_available AND valid_cloud) AS cloud_only,
                     COUNT(*) FILTER (WHERE local_available AND valid_cloud) AS both_stores,
                     COUNT(*) FILTER (WHERE NOT local_available AND NOT valid_cloud AND NOT backlog) AS unavailable,
-                    MIN(file_created_at) FILTER (WHERE backlog) AS oldest_pending_at
+                    MIN(file_created_at) FILTER (WHERE backlog) AS oldest_pending_at,
+                    COUNT(*) FILTER (WHERE backlog AND cloud_upload_attempt_count >= 2) AS repeated_attempts,
+                    MAX(cloud_uploaded_at) AS last_upload
                 FROM classified
                 """,
                 new MapSqlParameterSource()
@@ -66,7 +74,7 @@ public class StorageStatusRepository {
                         .addValue("cloudCutoff", Timestamp.from(cloudCutoff)),
                 (resultSet, rowNumber) -> {
                     Timestamp oldestPendingAt = resultSet.getTimestamp("oldest_pending_at");
-                    return new StorageStatus(
+                    StorageStatus status = new StorageStatus(
                             enabled,
                             resultSet.getLong("uploaded"),
                             resultSet.getLong("backlog"),
@@ -78,7 +86,16 @@ public class StorageStatusRepository {
                             resultSet.getLong("unavailable"),
                             oldestPendingAt == null ? null : oldestPendingAt.toInstant()
                     );
+                    Timestamp lastUpload = resultSet.getTimestamp("last_upload");
+                    return new Observation(
+                            status,
+                            resultSet.getLong("repeated_attempts"),
+                            lastUpload == null ? null : lastUpload.toInstant()
+                    );
                 }
         );
+    }
+
+    public record Observation(StorageStatus status, long repeatedAttempts, Instant lastUpload) {
     }
 }

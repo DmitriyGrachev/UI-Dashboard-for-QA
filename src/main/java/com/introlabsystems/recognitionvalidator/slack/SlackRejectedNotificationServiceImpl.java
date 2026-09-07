@@ -51,6 +51,7 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
         switch (operation.operationKind()) {
             case REFRESH -> deliverRefresh(operation);
             case ARCHIVE -> deliverArchive(operation);
+            case MESSAGE -> deliverMessage(operation);
         }
     }
 
@@ -102,6 +103,22 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
             }
             // A replacement is a closed historical record, never the next active pointer.
             slack.postMessage(operation.archivePayload());
+        }
+    }
+
+    private void deliverMessage(SlackNotificationOutboxRepository.OutboxItem operation) {
+        String target = outbox.targetMessageTs(operation.id());
+        if (target == null || target.isBlank()) {
+            outbox.attachMessageToCycle(operation.cycleId(), slack.postMessage(operation.archivePayload()));
+            return;
+        }
+        try {
+            slack.updateMessage(target, operation.archivePayload());
+        } catch (SlackApiException exception) {
+            if (!"message_not_found".equals(exception.errorCode())) {
+                throw exception;
+            }
+            outbox.attachMessageToCycle(operation.cycleId(), slack.postMessage(operation.archivePayload()));
         }
     }
 
