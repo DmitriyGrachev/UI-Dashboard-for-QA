@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
+import com.introlabsystems.recognitionvalidator.slack.SlackIncidentRepository;
 import com.introlabsystems.recognitionvalidator.slack.SlackNotificationOutboxRepository;
 import com.introlabsystems.recognitionvalidator.slack.SlackOperationsMonitor;
 import com.introlabsystems.recognitionvalidator.slack.SlackOperationsProperties;
@@ -19,6 +20,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -38,6 +40,9 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
     private SlackNotificationOutboxRepository outbox;
 
     @Autowired
+    private SlackIncidentRepository incidents;
+
+    @Autowired
     private SlackOperationsProperties operationsProperties;
 
     private MutableClock clock;
@@ -50,7 +55,7 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
 
     @BeforeEach
     void resetOperationsState() {
-        jdbcTemplate.execute("TRUNCATE TABLE slack_notification_outbox RESTART IDENTITY CASCADE");
+        jdbcTemplate.execute("TRUNCATE TABLE slack_incident_state, slack_notification_outbox RESTART IDENTITY CASCADE");
         jdbcTemplate.update("""
                 INSERT INTO slack_notification_state (id, legacy_pointer_retired)
                 VALUES (1, TRUE)
@@ -91,8 +96,97 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         assertThat(messageRows().getFirst().get("dedup_key")).isEqualTo("daily:2026-09-06");
     }
 
+    @Test
+    void persistentIncidentIsQuietThenUpdatesAndRecursWithANewSeries() {
+        var monitor = monitor();
+
+        b2Enabled = true;
+        b2Failures = 10;
+        checkEveryMinute(monitor, "2026-09-07T10:00:00Z", 11);
+        assertThat(messageCount()).isOne();
+        UUID firstSeries = seriesAt(0);
+
+        checkAt(monitor, "2026-09-07T10:11:01Z");
+        assertThat(messageCount()).isOne();
+
+        b2Failures = 11;
+        checkAt(monitor, "2026-09-07T10:24:59Z");
+        assertThat(messageCount()).isOne();
+        checkAt(monitor, "2026-09-07T10:25:01Z");
+        assertThat(messageCount()).isEqualTo(2);
+        assertThat(seriesAt(1)).isEqualTo(firstSeries);
+
+        b2Failures = 0;
+        checkAt(monitor, "2026-09-07T10:26:01Z");
+        assertThat(messageCount()).isEqualTo(3);
+        assertThat(seriesAt(2)).isEqualTo(firstSeries);
+        assertThat(payloadAt(2)).contains("Recovered");
+
+        b2Failures = 10;
+        checkEveryMinute(monitor, "2026-09-07T10:27:01Z", 11);
+        assertThat(messageCount()).isEqualTo(4);
+        assertThat(seriesAt(3)).isNotEqualTo(firstSeries);
+    }
+
+    @Test
+    void disabledB2AndPausedAiDoNotAlarmAndCloseExistingIncidents() {
+        var monitor = monitor();
+
+        checkAt(monitor, "2026-09-07T10:00:00Z");
+        assertThat(messageCount()).isZero();
+
+        b2Enabled = true;
+        b2Failures = 10;
+        checkEveryMinute(monitor, "2026-09-07T10:00:01Z", 11);
+        assertThat(messageCount()).isOne();
+        b2Enabled = false;
+        checkAt(monitor, "2026-09-07T10:11:00Z");
+        assertThat(messageCount()).isEqualTo(2);
+        assertThat(payloadAt(1)).contains("Closed: uploads disabled");
+
+        aiEnabled = true;
+        aiPending = 1;
+        checkEveryMinute(monitor, "2026-09-07T10:11:01Z", 16);
+        assertThat(messageCount()).isEqualTo(3);
+        aiEnabled = false;
+        checkAt(monitor, "2026-09-07T10:27:01Z");
+        assertThat(messageCount()).isEqualTo(4);
+        assertThat(payloadAt(3)).contains("Closed: AI paused");
+    }
+
+    @Test
+    void monitoringGapResetsPreAlertGrace() {
+        var monitor = monitor();
+        b2Enabled = true;
+        b2Failures = 10;
+
+        checkAt(monitor, "2026-09-07T10:00:00Z");
+        checkAt(monitor, "2026-09-07T10:05:00Z");
+        checkEveryMinute(monitor, "2026-09-07T10:06:00Z", 9);
+        assertThat(messageCount()).isZero();
+
+        checkAt(monitor, "2026-09-07T10:15:00Z");
+        assertThat(messageCount()).isOne();
+    }
+
+    private SlackOperationsMonitor monitor() {
+        return newMonitor(incidentOnlyProperties());
+    }
+
     private SlackOperationsMonitor newMonitor(SlackOperationsProperties properties) {
-        return new SlackOperationsMonitor(slackProperties(), properties, data, outbox, jdbcTemplate, clock);
+        return new SlackOperationsMonitor(slackProperties(), properties, data, incidents, outbox, jdbcTemplate, clock);
+    }
+
+    private SlackOperationsProperties incidentOnlyProperties() {
+        return new SlackOperationsProperties(false, true, operationsProperties.summaryTimeUtc(),
+                operationsProperties.pollInterval(), operationsProperties.incidentDelay(),
+                operationsProperties.stallDuration(), operationsProperties.updateInterval(),
+                operationsProperties.failedUploadThreshold(), operationsProperties.expiredLeaseThreshold());
+    }
+
+    private void checkAt(SlackOperationsMonitor monitor, String instant) {
+        clock.set(Instant.parse(instant));
+        monitor.check();
     }
 
     private static SlackProperties slackProperties() {
@@ -114,8 +208,19 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
                 """);
     }
 
+    private UUID seriesAt(int index) {
+        return (UUID) messageRows().get(index).get("cycle_id");
+    }
+
     private String payloadAt(int index) {
         return (String) messageRows().get(index).get("archive_payload");
+    }
+
+    private void checkEveryMinute(SlackOperationsMonitor monitor, String start, int checks) {
+        Instant instant = Instant.parse(start);
+        for (int i = 0; i < checks; i++) {
+            checkAt(monitor, instant.plus(Duration.ofMinutes(i)).toString());
+        }
     }
 
     private static final class MutableClock extends Clock {

@@ -17,6 +17,7 @@ public class SlackOperationsMonitor {
     private final SlackProperties slack;
     private final SlackOperationsProperties properties;
     private final SlackOperationsRepository data;
+    private final SlackIncidentRepository incidents;
     private final SlackNotificationOutboxRepository outbox;
     private final JdbcTemplate jdbc;
     private final Clock clock;
@@ -26,7 +27,7 @@ public class SlackOperationsMonitor {
     public void check() {
         if (!slack.enabled() || slack.botToken() == null || slack.botToken().isBlank()
                 || slack.channelId() == null || slack.channelId().isBlank()
-                || !properties.dailySummaryEnabled()) return;
+                || (!properties.dailySummaryEnabled() && !properties.alertsEnabled())) return;
         Instant now = clock.instant();
         var dateTime = now.atOffset(ZoneOffset.UTC);
         var day = dateTime.toLocalDate().minusDays(1);
@@ -35,7 +36,7 @@ public class SlackOperationsMonitor {
                 && !dateTime.toLocalTime().isBefore(properties.summaryTimeUtc())
                 && !Boolean.TRUE.equals(jdbc.queryForObject(
                     "SELECT EXISTS (SELECT 1 FROM slack_notification_outbox WHERE dedup_key=?)", Boolean.class, dailyKey));
-        if (!dailyDue) return;
+        if (!properties.alertsEnabled() && !dailyDue) return;
         var metrics = data.snapshot(now);
         if (dailyDue) {
             var daily = data.daily(day);
@@ -46,6 +47,34 @@ public class SlackOperationsMonitor {
                     + "*Current status*\n" + dataStatus(metrics);
             outbox.enqueueMessage(dailyKey, UUID.nameUUIDFromBytes(dailyKey.getBytes(StandardCharsets.UTF_8)), text, now);
         }
+        if (!properties.alertsEnabled()) return;
+        var b2 = metrics.b2();
+        String b2Details = b2.enabled()
+                ? "Pending uploads: " + b2.backlog() + "; repeated attempts: " + metrics.b2RepeatedFailures()
+                : "B2 uploads are disabled.";
+        String b2Closure = b2.enabled() ? "Recovered" : "Closed: uploads disabled";
+        incidents.observe("b2-errors", "B2 upload retries",
+                b2.enabled() && metrics.b2RepeatedFailures() >= properties.failedUploadThreshold(),
+                b2Details, b2Closure, properties.incidentDelay(), now);
+        incidents.observe("b2-stalled", "B2 uploads stalled",
+                b2.enabled() && b2.backlog() > 0 && stale(metrics.b2LastUpload(), now),
+                b2Details, b2Closure, properties.stallDuration(), now);
+        String aiDetails = metrics.aiEnabled()
+                ? "Eligible pending: " + metrics.aiEligiblePending() + "; processing: " + metrics.aiProcessing()
+                    + "; expired leases: " + metrics.aiExpired()
+                : "AI task delivery is paused.";
+        String aiClosure = metrics.aiEnabled() ? "Recovered" : "Closed: AI paused";
+        incidents.observe("ai-stalled", "AI results stalled",
+                metrics.aiEnabled() && metrics.aiEligiblePending() + metrics.aiProcessing() > 0
+                        && stale(metrics.aiLastResult(), now),
+                aiDetails, aiClosure, properties.stallDuration(), now);
+        incidents.observe("ai-leases", "AI expired leases",
+                metrics.aiEnabled() && metrics.aiExpired() >= properties.expiredLeaseThreshold(),
+                aiDetails, aiClosure, properties.incidentDelay(), now);
+    }
+
+    private boolean stale(Instant lastSuccess, Instant now) {
+        return lastSuccess == null || !lastSuccess.isAfter(now.minus(properties.stallDuration()));
     }
 
     private String dataStatus(SlackOperationsRepository.Metrics metrics) {

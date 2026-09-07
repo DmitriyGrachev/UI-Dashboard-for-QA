@@ -74,6 +74,28 @@ class SlackOperationsDeliveryTest {
     }
 
     @Test
+    void incidentOpenUpdateRecoveryReuseTheSameSlackMessage() {
+        RecordingSlackClient slack = new RecordingSlackClient();
+        SlackRejectedNotificationServiceImpl service = service(slack, outbox);
+        UUID series = UUID.randomUUID();
+
+        assertThat(outbox.enqueueMessage("incident:open", series, "opened", NOW)).isTrue();
+        deliverNext(service, "incident-open", NOW);
+        assertThat(outbox.enqueueMessage("incident:update", series, "updated", NOW.plusSeconds(1)))
+                .isTrue();
+        deliverNext(service, "incident-update", NOW.plusSeconds(1));
+        assertThat(outbox.enqueueMessage("incident:recovered", series, "recovered", NOW.plusSeconds(2)))
+                .isTrue();
+        deliverNext(service, "incident-recovered", NOW.plusSeconds(2));
+
+        assertThat(slack.posts).containsExactly("opened");
+        assertThat(slack.updates).containsExactly(
+                new SlackUpdate("123.456", "updated"),
+                new SlackUpdate("123.456", "recovered")
+        );
+    }
+
+    @Test
     void laterMessageInheritsTargetFromDeliveredMessage() {
         UUID series = UUID.randomUUID();
         outbox.enqueueMessage("incident:open", series, "incident text", NOW);

@@ -33,8 +33,14 @@ slack:
   api-base-url: ${SLACK_API_BASE_URL:https://slack.com/api}
   operations:
     daily-summary-enabled: ${SLACK_DAILY_SUMMARY_ENABLED:true}
+    alerts-enabled: ${SLACK_ALERTS_ENABLED:true}
     summary-time-utc: "${SLACK_SUMMARY_TIME_UTC:09:00}"
     poll-interval: ${SLACK_MONITOR_INTERVAL:5m}
+    incident-delay: ${SLACK_INCIDENT_DELAY:10m}
+    stall-duration: ${SLACK_STALL_DURATION:15m}
+    update-interval: ${SLACK_ALERT_UPDATE_INTERVAL:15m}
+    failed-upload-threshold: ${SLACK_FAILED_UPLOAD_THRESHOLD:10}
+    expired-lease-threshold: ${SLACK_EXPIRED_LEASE_THRESHOLD:10}
 
 validator:
   image-root: ${VALIDATOR_IMAGE_ROOT:./data/images}
