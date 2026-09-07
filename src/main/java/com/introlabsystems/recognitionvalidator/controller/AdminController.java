@@ -4,10 +4,8 @@ import com.introlabsystems.recognitionvalidator.exception.AdminUserException;
 import com.introlabsystems.recognitionvalidator.service.AdminStatisticsService;
 import com.introlabsystems.recognitionvalidator.service.AdminUserService;
 import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
-import com.introlabsystems.recognitionvalidator.slack.RejectedArchiveDownloadedEvent;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -33,7 +31,6 @@ public class AdminController {
     private final AdminUserService users;
     private final AdminStatisticsService statistics;
     private final RejectedScreenshotExportService rejectedExports;
-    private final ApplicationEventPublisher events;
 
     @GetMapping("/admin")
     String admin(
@@ -124,13 +121,13 @@ public class AdminController {
                         .toString()
         );
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
-        int exportedCount = rejectedExports.writeZip(
+        rejectedExports.writeZip(
                 processedFrom == null ? null : processedFrom.toInstant(ZoneOffset.UTC),
                 processedTo == null ? null : processedTo.toInstant(ZoneOffset.UTC),
                 includePreviouslyDownloaded,
-                response.getOutputStream()
+                response.getOutputStream(),
+                principal.getName()
         );
-        events.publishEvent(new RejectedArchiveDownloadedEvent(principal.getName(), exportedCount));
     }
 
     @ExceptionHandler(AdminUserException.class)

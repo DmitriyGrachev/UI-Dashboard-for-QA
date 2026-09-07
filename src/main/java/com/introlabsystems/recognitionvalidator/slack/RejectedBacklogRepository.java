@@ -1,10 +1,13 @@
 package com.introlabsystems.recognitionvalidator.slack;
 
+import com.introlabsystems.recognitionvalidator.dao.jdbc.RejectedScreenshotExportRepository;
 import com.introlabsystems.recognitionvalidator.model.enums.ParseStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -22,11 +25,12 @@ public class RejectedBacklogRepository {
             WHERE rt.status = 'COMPLETED'
               AND rt.decision = 'REJECTED'
               AND rt.rejected_downloaded_at IS NULL
-              AND ia.file_available = TRUE
-            """;
+              AND %s
+            """.formatted(RejectedScreenshotExportRepository.AVAILABLE_IMAGE_PREDICATE);
 
     private final NamedParameterJdbcTemplate jdbc;
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public RejectedBacklogSnapshot snapshot(int limit) {
         long count = jdbc.queryForObject(
                 "SELECT COUNT(*) " + PREDICATE,

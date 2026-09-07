@@ -1,14 +1,14 @@
 package com.introlabsystems.recognitionvalidator.slack;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
+import java.time.Instant;
 
 @Service
 @Slf4j
-@RequiredArgsConstructor
 public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotificationService {
 
     private final SlackProperties properties;
@@ -17,76 +17,91 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
     private final SlackWebApiClient slack;
     private final SlackNotificationStateRepository stateRepository;
     private final Clock clock;
+    private final SlackNotificationOutboxRepository outbox;
+
+    @Autowired
+    public SlackRejectedNotificationServiceImpl(
+            SlackProperties properties,
+            RejectedBacklogRepository backlog,
+            SlackMessageFormatter formatter,
+            SlackWebApiClient slack,
+            SlackNotificationStateRepository stateRepository,
+            Clock clock,
+            SlackNotificationOutboxRepository outbox
+    ) {
+        this.properties = properties;
+        this.backlog = backlog;
+        this.formatter = formatter;
+        this.slack = slack;
+        this.stateRepository = stateRepository;
+        this.clock = clock;
+        this.outbox = outbox;
+    }
 
     @Override
     public void refreshRejectedBacklog() {
         if (!available()) {
             return;
         }
-        try {
-            RejectedBacklogSnapshot snapshot = backlog.snapshot(properties.rejectedDetailsLimit());
-            if (snapshot.count() == 0) {
-                return;
-            }
-            String text = formatter.backlog(
-                    snapshot,
-                    properties.rejectedDetailsLimit(),
-                    properties.rejectedArchiveUrl()
-            );
-            SlackNotificationState state = stateRepository
-                    .findById(SlackNotificationState.SINGLETON_ID)
-                    .orElse(null);
-            String messageTs = state == null ? null : state.getActiveMessageTs();
-            if (messageTs == null || messageTs.isBlank()) {
-                stateRepository.save(SlackNotificationState.active(slack.postMessage(text)));
-                return;
-            }
-            try {
-                slack.updateMessage(messageTs, text);
-            } catch (SlackApiException exception) {
-                if (!"message_not_found".equals(exception.errorCode())) {
-                    throw exception;
-                }
-                state.setActiveMessageTs(slack.postMessage(text));
-                stateRepository.save(state);
-            }
-        } catch (RuntimeException exception) {
-            log.warn("Slack rejected backlog notification failed: {}", safeMessage(exception));
+        outbox.enqueueRefresh(clock.instant());
+    }
+
+    /** Called by the database scheduler after it has claimed an outbox row. */
+    public void deliver(SlackNotificationOutboxRepository.OutboxItem operation) {
+        switch (operation.operationKind()) {
+            case REFRESH -> deliverRefresh(operation);
+            case ARCHIVE -> deliverArchive(operation);
         }
     }
 
-    @Override
-    public void archiveDownloaded(String adminUsername, int exportedCount) {
-        if (!available()) {
+    public boolean canDeliver() {
+        return available();
+    }
+
+    private void deliverRefresh(SlackNotificationOutboxRepository.OutboxItem operation) {
+        SlackNotificationState state = stateRepository
+                .findById(SlackNotificationState.SINGLETON_ID).orElse(null);
+        if (state == null || !operation.cycleId().equals(state.getActiveCycleId())) {
+            return;
+        }
+        RejectedBacklogSnapshot snapshot = backlog.snapshot(properties.rejectedDetailsLimit());
+        if (snapshot.count() == 0) {
+            return;
+        }
+        String text = formatter.backlog(
+                snapshot,
+                properties.rejectedDetailsLimit(),
+                properties.rejectedArchiveUrl()
+        );
+        String messageTs = state.getActiveMessageTs();
+        if (messageTs == null || messageTs.isBlank()) {
+            outbox.attachMessageToCycle(operation.cycleId(), slack.postMessage(text));
             return;
         }
         try {
-            SlackNotificationState state = stateRepository
-                    .findById(SlackNotificationState.SINGLETON_ID)
-                    .orElse(null);
-            if (state == null || state.getActiveMessageTs() == null
-                    || state.getActiveMessageTs().isBlank()) {
-                return;
+            slack.updateMessage(messageTs, text);
+        } catch (SlackApiException exception) {
+            if (!"message_not_found".equals(exception.errorCode())) {
+                throw exception;
             }
-            RejectedBacklogSnapshot snapshot = backlog.snapshot(properties.rejectedDetailsLimit());
-            String text = formatter.archive(
-                    adminUsername,
-                    exportedCount,
-                    clock.instant(),
-                    snapshot.count(),
-                    properties.rejectedArchiveUrl()
-            );
-            try {
-                slack.updateMessage(state.getActiveMessageTs(), text);
-            } catch (SlackApiException exception) {
-                if (!"message_not_found".equals(exception.errorCode())) {
-                    throw exception;
-                }
-                state.setActiveMessageTs(slack.postMessage(text));
+            outbox.attachMessageToCycle(operation.cycleId(), slack.postMessage(text));
+        }
+    }
+
+    private void deliverArchive(SlackNotificationOutboxRepository.OutboxItem operation) {
+        String target = outbox.targetMessageTs(operation.id());
+        if (target == null || target.isBlank()) {
+            slack.postMessage(operation.archivePayload());
+            return;
+        }
+        try {
+            slack.updateMessage(target, operation.archivePayload());
+        } catch (SlackApiException exception) {
+            if (!"message_not_found".equals(exception.errorCode())) {
+                throw exception;
             }
-            stateRepository.save(state);
-        } catch (RuntimeException exception) {
-            log.warn("Slack rejected archive notification failed: {}", safeMessage(exception));
+            // A replacement is a closed historical record, never the next active pointer.
+            slack.postMessage(operation.archivePayload());
         }
     }
 
@@ -102,8 +117,4 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
         return true;
     }
 
-    private String safeMessage(RuntimeException exception) {
-        String message = exception.getMessage();
-        return message == null ? exception.getClass().getSimpleName() : message;
-    }
 }

@@ -8,49 +8,134 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class SlackRejectedNotificationServiceImplTest {
 
     @Test
-    void keepsActiveMessageAfterDownloadingTheLastRejectedScreenshot() {
+    void archiveDeliveryUsesItsStoredTargetAndFixedPayload() {
         RejectedBacklogRepository backlog = mock(RejectedBacklogRepository.class);
         SlackMessageFormatter formatter = mock(SlackMessageFormatter.class);
         SlackWebApiClient slack = mock(SlackWebApiClient.class);
         SlackNotificationStateRepository stateRepository = mock(SlackNotificationStateRepository.class);
-        SlackNotificationState state = SlackNotificationState.active("123.456");
+        SlackNotificationOutboxRepository outbox = mock(SlackNotificationOutboxRepository.class);
         SlackProperties properties = new SlackProperties(
-                true,
-                "token",
-                "channel",
-                10,
-                "https://validator.example/admin#rejected-export-title",
-                Duration.ofSeconds(2),
-                Duration.ofSeconds(3),
-                "https://slack.test"
+                true, "token", "channel", 10, "https://validator.example/archive",
+                Duration.ofSeconds(2), Duration.ofSeconds(3), "https://slack.test"
         );
-        Clock clock = Clock.fixed(Instant.parse("2026-08-20T12:00:00Z"), ZoneOffset.UTC);
         SlackRejectedNotificationServiceImpl service = new SlackRejectedNotificationServiceImpl(
-                properties,
-                backlog,
-                formatter,
-                slack,
-                stateRepository,
-                clock
+                properties, backlog, formatter, slack, stateRepository,
+                Clock.fixed(Instant.parse("2026-08-20T12:00:00Z"), ZoneOffset.UTC), outbox
         );
-        RejectedBacklogSnapshot emptyBacklog = new RejectedBacklogSnapshot(0, List.of());
+        UUID cycleId = UUID.randomUUID();
+        SlackNotificationOutboxRepository.OutboxItem operation =
+                new SlackNotificationOutboxRepository.OutboxItem(
+                        1L, cycleId, UUID.randomUUID(), SlackNotificationOutbox.OperationKind.ARCHIVE,
+                        "closed archive", "ignored snapshot target",
+                        SlackNotificationOutbox.DeliveryPhase.IN_FLIGHT,
+                        0, Instant.now(), Instant.now()
+                );
+        when(outbox.targetMessageTs(1L)).thenReturn("123.456");
+
+        service.deliver(operation);
+
+        verify(slack).updateMessage("123.456", "closed archive");
+    }
+
+    @Test
+    void archiveWithoutTargetPostsClosedRecordWithoutChangingActiveState() {
+        RejectedBacklogRepository backlog = mock(RejectedBacklogRepository.class);
+        SlackMessageFormatter formatter = mock(SlackMessageFormatter.class);
+        SlackWebApiClient slack = mock(SlackWebApiClient.class);
+        SlackNotificationStateRepository stateRepository = mock(SlackNotificationStateRepository.class);
+        SlackNotificationOutboxRepository outbox = mock(SlackNotificationOutboxRepository.class);
+        SlackProperties properties = new SlackProperties(
+                true, "token", "channel", 10, " ", Duration.ofSeconds(2),
+                Duration.ofSeconds(3), "https://slack.test"
+        );
+        SlackRejectedNotificationServiceImpl service = new SlackRejectedNotificationServiceImpl(
+                properties, backlog, formatter, slack, stateRepository, Clock.systemUTC(), outbox
+        );
+        SlackNotificationOutboxRepository.OutboxItem operation =
+                new SlackNotificationOutboxRepository.OutboxItem(
+                        2L, UUID.randomUUID(), UUID.randomUUID(), SlackNotificationOutbox.OperationKind.ARCHIVE,
+                        "closed archive", null, SlackNotificationOutbox.DeliveryPhase.IN_FLIGHT,
+                        0, Instant.now(), Instant.now()
+                );
+
+        service.deliver(operation);
+
+        verify(slack).postMessage("closed archive");
+    }
+
+    @Test
+    void refreshPostAttachesReturnedTimestampToItsCycle() {
+        RejectedBacklogRepository backlog = mock(RejectedBacklogRepository.class);
+        SlackMessageFormatter formatter = mock(SlackMessageFormatter.class);
+        SlackWebApiClient slack = mock(SlackWebApiClient.class);
+        SlackNotificationStateRepository stateRepository = mock(SlackNotificationStateRepository.class);
+        SlackNotificationOutboxRepository outbox = mock(SlackNotificationOutboxRepository.class);
+        SlackProperties properties = properties();
+        SlackRejectedNotificationServiceImpl service = new SlackRejectedNotificationServiceImpl(
+                properties, backlog, formatter, slack, stateRepository, Clock.systemUTC(), outbox
+        );
+        UUID cycleId = UUID.randomUUID();
+        SlackNotificationState state = SlackNotificationState.cycle(cycleId);
         when(stateRepository.findById(SlackNotificationState.SINGLETON_ID))
                 .thenReturn(Optional.of(state));
-        when(backlog.snapshot(10)).thenReturn(emptyBacklog);
-        when(formatter.archive("admin", 4, clock.instant(), 0,
-                "https://validator.example/admin#rejected-export-title"))
-                .thenReturn("archive downloaded");
+        when(backlog.snapshot(10)).thenReturn(new RejectedBacklogSnapshot(1, List.of()));
+        when(formatter.backlog(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(10),
+                org.mockito.ArgumentMatchers.anyString())).thenReturn("backlog");
+        when(slack.postMessage("backlog")).thenReturn("new.ts");
 
-        service.archiveDownloaded("admin", 4);
+        service.deliver(new SlackNotificationOutboxRepository.OutboxItem(
+                3L, cycleId, null, SlackNotificationOutbox.OperationKind.REFRESH,
+                null, null, SlackNotificationOutbox.DeliveryPhase.IN_FLIGHT,
+                0, Instant.now(), Instant.now()
+        ));
 
-        assertThat(state.getActiveMessageTs()).isEqualTo("123.456");
+        verify(outbox).attachMessageToCycle(cycleId, "new.ts");
+    }
+
+    @Test
+    void missingActiveMessagePostsReplacementAndAttachesItToArchiveTarget() {
+        RejectedBacklogRepository backlog = mock(RejectedBacklogRepository.class);
+        SlackMessageFormatter formatter = mock(SlackMessageFormatter.class);
+        SlackWebApiClient slack = mock(SlackWebApiClient.class);
+        SlackNotificationStateRepository stateRepository = mock(SlackNotificationStateRepository.class);
+        SlackNotificationOutboxRepository outbox = mock(SlackNotificationOutboxRepository.class);
+        SlackRejectedNotificationServiceImpl service = new SlackRejectedNotificationServiceImpl(
+                properties(), backlog, formatter, slack, stateRepository, Clock.systemUTC(), outbox
+        );
+        UUID cycleId = UUID.randomUUID();
+        SlackNotificationState state = SlackNotificationState.cycle(cycleId);
+        state.setActiveMessageTs("deleted.ts");
+        when(stateRepository.findById(SlackNotificationState.SINGLETON_ID))
+                .thenReturn(Optional.of(state));
+        when(backlog.snapshot(10)).thenReturn(new RejectedBacklogSnapshot(1, List.of()));
+        when(formatter.backlog(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.eq(10),
+                org.mockito.ArgumentMatchers.anyString())).thenReturn("backlog");
+        org.mockito.Mockito.doThrow(new SlackApiException("missing", "message_not_found"))
+                .when(slack).updateMessage("deleted.ts", "backlog");
+        when(slack.postMessage("backlog")).thenReturn("replacement.ts");
+
+        service.deliver(new SlackNotificationOutboxRepository.OutboxItem(
+                4L, cycleId, null, SlackNotificationOutbox.OperationKind.REFRESH,
+                null, "deleted.ts", SlackNotificationOutbox.DeliveryPhase.IN_FLIGHT,
+                0, Instant.now(), Instant.now()
+        ));
+
+        verify(outbox).attachMessageToCycle(cycleId, "replacement.ts");
+    }
+
+    private static SlackProperties properties() {
+        return new SlackProperties(
+                true, "token", "channel", 10, "https://validator.example/archive",
+                Duration.ofSeconds(2), Duration.ofSeconds(3), "https://slack.test"
+        );
     }
 }

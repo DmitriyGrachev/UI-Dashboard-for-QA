@@ -8,14 +8,14 @@ import static org.mockito.Mockito.verify;
 class SlackRejectedNotificationListenerTest {
 
     @Test
-    void archiveEventDelegatesToNotificationService() {
+    void rejectedDecisionEnqueuesARefresh() {
         SlackRejectedNotificationService notifications =
                 mock(SlackRejectedNotificationService.class);
         SlackRejectedNotificationListener listener =
                 new SlackRejectedNotificationListener(notifications);
 
-        listener.onArchiveDownloaded(new RejectedArchiveDownloadedEvent("alice", 4));
+        listener.onRejectedDecision(new RejectedDecisionEvent("image-1"));
 
-        verify(notifications).archiveDownloaded("alice", 4);
+        verify(notifications).refreshRejectedBacklog();
     }
 }

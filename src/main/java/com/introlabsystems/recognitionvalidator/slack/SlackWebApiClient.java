@@ -1,9 +1,16 @@
 package com.introlabsystems.recognitionvalidator.slack;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Map;
 
 public class SlackWebApiClient {
@@ -55,8 +62,42 @@ public class SlackWebApiClient {
             return response;
         } catch (SlackApiException exception) {
             throw exception;
+        } catch (RestClientResponseException exception) {
+            int statusCode = exception.getStatusCode().value();
+            HttpHeaders headers = exception.getResponseHeaders();
+            Duration retryAfter = parseRetryAfter(
+                    headers == null ? null : headers.getFirst(HttpHeaders.RETRY_AFTER));
+            boolean retryable = statusCode == 429 || (statusCode >= 500 && statusCode < 600);
+            throw new SlackApiException(
+                    method + " request failed with HTTP " + statusCode,
+                    null,
+                    statusCode,
+                    retryAfter,
+                    retryable,
+                    exception
+            );
         } catch (RuntimeException exception) {
             throw new SlackApiException(method + " request failed", exception);
+        }
+    }
+
+    private Duration parseRetryAfter(String header) {
+        if (header == null || header.isBlank()) {
+            return null;
+        }
+        String value = header.trim();
+        try {
+            int seconds = Integer.parseInt(value);
+            return seconds < 0 ? null : Duration.ofSeconds(seconds);
+        } catch (NumberFormatException ignored) {
+            try {
+                Instant deadline = ZonedDateTime.parse(value, DateTimeFormatter.RFC_1123_DATE_TIME)
+                        .toInstant();
+                Duration delay = Duration.between(Instant.now(), deadline);
+                return delay.isNegative() ? Duration.ZERO : delay;
+            } catch (DateTimeParseException ignoredDate) {
+                return null;
+            }
         }
     }
 
@@ -64,7 +105,21 @@ public class SlackWebApiClient {
         String error = response.error() == null || response.error().isBlank()
                 ? fallback
                 : response.error();
-        return new SlackApiException(fallback + ": " + error, response.error());
+        return new SlackApiException(
+                fallback + ": " + error,
+                response.error(),
+                null,
+                null,
+                isTransientApiError(response.error())
+        );
+    }
+
+    private boolean isTransientApiError(String errorCode) {
+        return "ratelimited".equals(errorCode)
+                || "internal_error".equals(errorCode)
+                || "service_unavailable".equals(errorCode)
+                || "fatal_error".equals(errorCode)
+                || "update_failed".equals(errorCode);
     }
 
     @JsonIgnoreProperties(ignoreUnknown = true)

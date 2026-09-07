@@ -236,7 +236,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                failingOutput
+                failingOutput, "test-admin"
         )).isInstanceOf(IOException.class);
         assertThat(jdbc.queryForObject(
                 "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
@@ -424,7 +424,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                failingOutput
+                failingOutput, "test-admin"
         )).isInstanceOf(IOException.class);
         assertThat(stream.closed).isTrue();
         assertThat(jdbc.queryForObject(
@@ -455,7 +455,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                new ByteArrayOutputStream()
+                new ByteArrayOutputStream(), "test-admin"
         )).isInstanceOf(ImageStorageUnavailableException.class);
 
         assertThat(jdbc.queryForObject(
@@ -489,7 +489,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                new ByteArrayOutputStream()
+                new ByteArrayOutputStream(), "test-admin"
         )).isInstanceOf(ImageStorageUnavailableException.class);
         assertThat(stream.closed).isTrue();
         assertThat(jdbc.queryForObject(
@@ -527,7 +527,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                archive
+                archive, "test-admin"
         )).isInstanceOf(ImageStorageUnavailableException.class);
 
         assertThat(archive.size()).isPositive();

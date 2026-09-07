@@ -10,6 +10,8 @@ public interface RejectedScreenshotExportService {
             Instant processedFrom,
             Instant processedTo,
             boolean includePreviouslyDownloaded,
-            OutputStream output
+            OutputStream output,
+            String administrator
     ) throws IOException;
+
 }

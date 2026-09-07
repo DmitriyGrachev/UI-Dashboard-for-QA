@@ -16,7 +16,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class RejectedScreenshotExportRepository {
 
-    private static final String AVAILABLE_IMAGE_PREDICATE = """
+    public static final String AVAILABLE_IMAGE_PREDICATE = """
             (
                 ia.file_available = TRUE
                 OR (
