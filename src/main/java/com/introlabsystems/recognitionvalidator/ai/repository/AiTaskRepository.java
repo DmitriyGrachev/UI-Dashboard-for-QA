@@ -59,7 +59,7 @@ public class AiTaskRepository {
                 if (!rule.enabled() || claimed.size() == size) continue;
                 MapSqlParameterSource parameters = new MapSqlParameterSource("limit", size - claimed.size())
                         .addValue("now", timestamp(claimNow));
-                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.payload_raw");
+                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.payload_raw", claimNow);
                 appendRuleConditions(sql, parameters, rule, "");
                 sql.append(" ORDER BY ai.file_created_at, ai.image_id LIMIT :limit FOR UPDATE OF ai SKIP LOCKED");
                 List<AiClaim> candidates = jdbc.query(sql.toString(), parameters, (rs, row) ->
@@ -87,7 +87,7 @@ public class AiTaskRepository {
         }
 
         MapSqlParameterSource parameters = new MapSqlParameterSource("now", timestamp(now));
-        StringBuilder sql = eligiblePendingSql(parameters, "COUNT(*)");
+        StringBuilder sql = eligiblePendingSql(parameters, "COUNT(*)", now);
         boolean hasRule = false;
         sql.append(" AND (");
         int ruleIndex = 0;
@@ -192,9 +192,9 @@ public class AiTaskRepository {
 
     private StringBuilder eligiblePendingSql(
             MapSqlParameterSource parameters,
-            String projection
+            String projection,
+            Instant now
     ) {
-        parameters.addValue("retentionSeconds", b2.metadataRetention().toSeconds());
         StringBuilder sql = new StringBuilder("""
                 SELECT %s
                 FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
@@ -203,10 +203,11 @@ public class AiTaskRepository {
                   AND (ai.retry_after IS NULL OR ai.retry_after <= :now)
                 """.formatted(projection));
         if (b2.enabled()) {
+            parameters.addValue("metadataCutoff", timestamp(now.minus(b2.metadataRetention())));
             sql.append("""
-                    AND (ai.file_available OR ai.cloud_available_at > :now - (:retentionSeconds * INTERVAL '1 second'))
+                    AND (ai.file_available OR ai.cloud_available_at > :metadataCutoff)
                     AND (ia.file_available OR (NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL
-                      AND ia.cloud_uploaded_at > :now - (:retentionSeconds * INTERVAL '1 second')))
+                      AND ia.cloud_uploaded_at > :metadataCutoff))
                     """);
         } else {
             sql.append(" AND ai.file_available=TRUE AND ia.file_available=TRUE ");

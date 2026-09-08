@@ -1,11 +1,18 @@
 package com.introlabsystems.recognitionvalidator.ai;
 
+import com.introlabsystems.recognitionvalidator.ai.config.AiQueueProperties;
 import com.introlabsystems.recognitionvalidator.ai.dto.*;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository;
+import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
+import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import java.net.URI;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -13,6 +20,7 @@ import java.util.concurrent.*;
 
 import static com.introlabsystems.recognitionvalidator.ai.AiSettingsRepositoryTest.rule;
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 class AiTaskRepositoryTest extends AiTestSupport {
     @Autowired AiTaskRepository tasks;
@@ -98,5 +106,33 @@ class AiTaskRepositoryTest extends AiTestSupport {
         assertThat(tasks.claim(new AiSettings(0, true, List.of(rule(10, 999L))), 1)).isEmpty();
         jdbc.update("UPDATE image_asset SET file_available=false, cloud_object_key='test.png', cloud_uploaded_at=now() WHERE id=?", id);
         assertThat(tasks.claim(all(), 1)).isEmpty();
+    }
+
+    @Test
+    void claimsWithB2RetentionEnabled() {
+        String id = image(1, 53);
+        AiTaskRepository b2Tasks = new AiTaskRepository(
+                new NamedParameterJdbcTemplate(jdbc),
+                transactionManager,
+                new AiQueueProperties(Duration.ofMinutes(2)),
+                b2Enabled(),
+                mock(DailyStatisticsRepository.class),
+                mock(ReviewDisagreementRepository.class)
+        );
+
+        assertThat(b2Tasks.countEligiblePending(all(), b2Tasks.databaseNow())).isEqualTo(1);
+        assertThat(b2Tasks.claim(all(), 1))
+                .extracting(AiClaim::imageId)
+                .containsExactly(id);
+    }
+
+    private static B2StorageProperties b2Enabled() {
+        return new B2StorageProperties(
+                true, URI.create("https://s3.eu-central-003.backblazeb2.com"),
+                "bucket", "access", "secret", "validator/", 10, 1,
+                Duration.ofSeconds(10), Duration.ofMinutes(5), Duration.ofDays(3),
+                Duration.ofMinutes(30), Duration.ofDays(21), Duration.ofSeconds(5),
+                Duration.ofSeconds(30), Duration.ofSeconds(45), Duration.ofMinutes(2), 4
+        );
     }
 }
