@@ -4,8 +4,6 @@ import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
-import com.introlabsystems.recognitionvalidator.dao.jdbc.StorageStatusRepository;
-import com.introlabsystems.recognitionvalidator.model.value.StorageStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -25,7 +23,6 @@ public class SlackOperationsRepository {
 
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
-    private final StorageStatusRepository storage;
     private final B2StorageProperties b2;
     private final AiSettingsRepository aiSettings;
     private final AiTaskRepository aiTasks;
@@ -35,9 +32,7 @@ public class SlackOperationsRepository {
     public Metrics snapshot(Instant now) {
         Objects.requireNonNull(now, "now must not be null");
         setStatementTimeout();
-        StorageStatusRepository.Observation b2Observation = storage.observation(
-                b2.enabled(), now, b2.metadataRetention());
-        StorageStatus b2Status = b2Observation.status();
+        B2Metrics b2Metrics = b2Metrics();
         AiSettings settings = aiSettings.read();
         long eligiblePending = aiTasks.countEligiblePending(settings, now);
         long processing = number("SELECT COUNT(*) FROM ai_review_task WHERE status='PROCESSING'");
@@ -51,15 +46,50 @@ public class SlackOperationsRepository {
                 new MapSqlParameterSource(), Timestamp.class
         ));
         return new Metrics(
-                b2Status,
+                b2Metrics,
                 settings.enabled(),
                 eligiblePending,
                 processing,
                 expired,
-                lastResult,
-                b2Observation.repeatedAttempts(),
-                b2Observation.lastUpload()
+                lastResult
         );
+    }
+
+    private B2Metrics b2Metrics() {
+        return namedJdbc.queryForObject("""
+                WITH pending AS (
+                    SELECT COUNT(*) AS backlog,
+                           COUNT(*) FILTER (WHERE cloud_upload_attempt_count >= 2) AS repeated_attempts
+                    FROM image_asset
+                    WHERE cloud_uploaded_at IS NULL
+                      AND (
+                          file_available = TRUE
+                          OR (cloud_object_key IS NOT NULL AND cloud_upload_attempt_count > 0)
+                      )
+                ), latest_upload AS (
+                    SELECT MAX(cloud_uploaded_at) AS last_upload
+                    FROM (
+                        (SELECT cloud_uploaded_at
+                         FROM image_asset
+                         WHERE file_available = TRUE AND cloud_uploaded_at IS NOT NULL
+                         ORDER BY cloud_uploaded_at DESC
+                         LIMIT 1)
+                        UNION ALL
+                        (SELECT cloud_uploaded_at
+                         FROM image_asset
+                         WHERE file_available = FALSE AND cloud_uploaded_at IS NOT NULL
+                         ORDER BY cloud_uploaded_at DESC
+                         LIMIT 1)
+                    ) uploads
+                )
+                SELECT pending.backlog, pending.repeated_attempts, latest_upload.last_upload
+                FROM pending CROSS JOIN latest_upload
+                """, new MapSqlParameterSource(), (resultSet, row) -> new B2Metrics(
+                b2.enabled(),
+                resultSet.getLong("backlog"),
+                resultSet.getLong("repeated_attempts"),
+                instant(resultSet.getTimestamp("last_upload"))
+        ));
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
@@ -119,14 +149,20 @@ public class SlackOperationsRepository {
     }
 
     public record Metrics(
-            StorageStatus b2,
+            B2Metrics b2,
             boolean aiEnabled,
             long aiEligiblePending,
             long aiProcessing,
             long aiExpired,
-            Instant aiLastResult,
-            long b2RepeatedFailures,
-            Instant b2LastUpload
+            Instant aiLastResult
+    ) {
+    }
+
+    public record B2Metrics(
+            boolean enabled,
+            long backlog,
+            long repeatedAttempts,
+            Instant lastUpload
     ) {
     }
 

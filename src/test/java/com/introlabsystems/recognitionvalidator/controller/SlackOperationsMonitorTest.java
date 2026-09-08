@@ -6,10 +6,10 @@ import com.introlabsystems.recognitionvalidator.slack.SlackOperationsMonitor;
 import com.introlabsystems.recognitionvalidator.slack.SlackOperationsProperties;
 import com.introlabsystems.recognitionvalidator.slack.SlackOperationsRepository;
 import com.introlabsystems.recognitionvalidator.slack.SlackProperties;
-import com.introlabsystems.recognitionvalidator.model.value.StorageStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.QueryTimeoutException;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Clock;
@@ -69,8 +69,8 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         aiProcessing = 0;
         data = mock(SlackOperationsRepository.class);
         when(data.snapshot(any())).thenAnswer(invocation -> new SlackOperationsRepository.Metrics(
-                new StorageStatus(b2Enabled, 0, 0, 0, 0, 0, 0, 0, 0, null),
-                aiEnabled, aiPending, aiProcessing, 0, null, b2Failures, null));
+                new SlackOperationsRepository.B2Metrics(b2Enabled, 0, b2Failures, null),
+                aiEnabled, aiPending, aiProcessing, 0, null));
         when(data.daily(any())).thenReturn(new SlackOperationsRepository.Daily(12, 3, 5, 4, 1, 2, 1));
         when(data.pendingRejects()).thenReturn(0L);
     }
@@ -97,6 +97,34 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         newMonitor(operationsProperties).check();
         assertThat(messageCount()).isOne();
         assertThat(messageRows().getFirst().get("dedup_key")).isEqualTo("daily:2026-09-06");
+    }
+
+    @Test
+    void dailySummarySurvivesOperationalSnapshotTimeout() {
+        var monitor = newMonitor(operationsProperties);
+        when(data.snapshot(any())).thenThrow(new QueryTimeoutException("statement timeout"));
+
+        clock.set(Instant.parse("2026-09-07T09:00:00Z"));
+        monitor.check();
+
+        assertThat(messageCount()).isOne();
+        assertThat(payloadAt(0))
+                .contains("Operators: *12* checked; *3* rejected")
+                .contains("Current status temporarily unavailable");
+    }
+
+    @Test
+    void dailySummarySurvivesPendingRejectCountTimeout() {
+        var monitor = newMonitor(operationsProperties);
+        when(data.pendingRejects()).thenThrow(new QueryTimeoutException("statement timeout"));
+
+        clock.set(Instant.parse("2026-09-07T09:00:00Z"));
+        monitor.check();
+
+        assertThat(messageCount()).isOne();
+        assertThat(payloadAt(0))
+                .contains("Operators: *12* checked; *3* rejected")
+                .contains("Current status temporarily unavailable");
     }
 
     @Test

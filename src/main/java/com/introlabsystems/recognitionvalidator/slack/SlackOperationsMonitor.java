@@ -1,6 +1,8 @@
 package com.introlabsystems.recognitionvalidator.slack;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -13,6 +15,7 @@ import java.util.UUID;
 
 @Component
 @RequiredArgsConstructor
+@Slf4j
 public class SlackOperationsMonitor {
     private final SlackProperties slack;
     private final SlackOperationsProperties properties;
@@ -37,7 +40,7 @@ public class SlackOperationsMonitor {
                 && !Boolean.TRUE.equals(jdbc.queryForObject(
                     "SELECT EXISTS (SELECT 1 FROM slack_notification_outbox WHERE dedup_key=?)", Boolean.class, dailyKey));
         if (!properties.alertsEnabled() && !dailyDue) return;
-        var metrics = data.snapshot(now);
+        SlackOperationsRepository.Metrics metrics = currentMetrics(now);
         if (dailyDue) {
             var daily = data.daily(day);
             String text = "*Daily summary — " + day + " (UTC)*\n"
@@ -48,20 +51,20 @@ public class SlackOperationsMonitor {
                     + "AI Matched / operator Rejected: *" + daily.aiMatchedOperatorRejected() + "*\n"
                     + "AI Unmatched / operator Accepted: *" + daily.aiUnmatchedOperatorAccepted() + "*\n"
                     + "Counted when the second review completed; disagreement does not identify which reviewer was wrong.\n"
-                    + "*Current status*\n" + dataStatus(metrics);
+                    + "*Current status*\n" + dataStatusOrUnavailable(metrics);
             outbox.enqueueMessage(dailyKey, UUID.nameUUIDFromBytes(dailyKey.getBytes(StandardCharsets.UTF_8)), text, now);
         }
-        if (!properties.alertsEnabled()) return;
+        if (!properties.alertsEnabled() || metrics == null) return;
         var b2 = metrics.b2();
         String b2Details = b2.enabled()
-                ? "Pending uploads: " + b2.backlog() + "; repeated attempts: " + metrics.b2RepeatedFailures()
+                ? "Pending uploads: " + b2.backlog() + "; repeated attempts: " + b2.repeatedAttempts()
                 : "B2 uploads are disabled.";
         String b2Closure = b2.enabled() ? "Recovered" : "Closed: uploads disabled";
         incidents.observe("b2-errors", "B2 upload retries",
-                b2.enabled() && metrics.b2RepeatedFailures() >= properties.failedUploadThreshold(),
+                b2.enabled() && b2.repeatedAttempts() >= properties.failedUploadThreshold(),
                 b2Details, b2Closure, properties.incidentDelay(), now);
         incidents.observe("b2-stalled", "B2 uploads stalled",
-                b2.enabled() && b2.backlog() > 0 && stale(metrics.b2LastUpload(), now),
+                b2.enabled() && b2.backlog() > 0 && stale(b2.lastUpload(), now),
                 b2Details, b2Closure, properties.stallDuration(), now);
         String aiDetails = metrics.aiEnabled()
                 ? "Eligible pending: " + metrics.aiEligiblePending() + "; processing: " + metrics.aiProcessing()
@@ -81,12 +84,33 @@ public class SlackOperationsMonitor {
         return lastSuccess == null || !lastSuccess.isAfter(now.minus(properties.stallDuration()));
     }
 
+    private SlackOperationsRepository.Metrics currentMetrics(Instant now) {
+        try {
+            return data.snapshot(now);
+        } catch (DataAccessException exception) {
+            log.warn("Slack operational snapshot unavailable: {}", exception.getMessage());
+            return null;
+        }
+    }
+
+    private String dataStatusOrUnavailable(SlackOperationsRepository.Metrics metrics) {
+        if (metrics == null) {
+            return "Current status temporarily unavailable.";
+        }
+        try {
+            return dataStatus(metrics);
+        } catch (DataAccessException exception) {
+            log.warn("Slack current status unavailable: {}", exception.getMessage());
+            return "Current status temporarily unavailable.";
+        }
+    }
+
     private String dataStatus(SlackOperationsRepository.Metrics metrics) {
         var b2 = metrics.b2();
         return "Exportable rejects awaiting download: *" + data.pendingRejects() + "*\n"
                 + "AI delivery: " + (metrics.aiEnabled() ? "enabled" : "paused")
                 + "; eligible pending: " + metrics.aiEligiblePending() + "; processing: " + metrics.aiProcessing() + "\n"
                 + "B2: " + (b2.enabled() ? "enabled" : "disabled") + "; pending: " + b2.backlog()
-                + "; repeated attempts: " + metrics.b2RepeatedFailures();
+                + "; repeated attempts: " + b2.repeatedAttempts();
     }
 }

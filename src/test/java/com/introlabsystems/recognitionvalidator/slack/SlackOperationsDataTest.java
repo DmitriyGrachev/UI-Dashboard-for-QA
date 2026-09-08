@@ -72,8 +72,9 @@ class SlackOperationsDataTest {
         assertThat(metrics.aiExpired()).isOne();
         assertThat(metrics.aiLastResult()).isEqualTo(NOW.minusSeconds(30));
         assertThat(metrics.b2().enabled()).isFalse();
-        assertThat(metrics.b2RepeatedFailures()).isOne();
-        assertThat(metrics.b2LastUpload()).isEqualTo(NOW);
+        assertThat(metrics.b2().backlog()).isEqualTo(6);
+        assertThat(metrics.b2().repeatedAttempts()).isOne();
+        assertThat(metrics.b2().lastUpload()).isEqualTo(NOW);
     }
 
     @Test
