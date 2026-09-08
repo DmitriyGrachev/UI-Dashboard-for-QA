@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
 import com.introlabsystems.recognitionvalidator.ai.service.AiQueueService;
+import com.introlabsystems.recognitionvalidator.ai.repository.AiResultFilterSql;
 
 import com.introlabsystems.recognitionvalidator.dto.request.AdminScreenshotSearchRequest;
 import com.introlabsystems.recognitionvalidator.dto.response.AdminScreenshotDetailsResponse;
@@ -63,6 +64,7 @@ public class AdminScreenshotApiController {
                     "Decision and reviewer filters require Checked screenshots"
             );
         }
+        AiResultFilterSql.validate(request.getConfidenceFrom(), request.getConfidenceTo());
         boolean hasCursorTime = request.getCursorCreatedAt() != null;
         boolean hasCursorId = hasText(request.getCursorId());
         if (!cursorAllowed && (hasCursorTime || hasCursorId)) {

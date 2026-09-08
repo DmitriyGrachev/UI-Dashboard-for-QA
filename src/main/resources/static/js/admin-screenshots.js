@@ -28,6 +28,9 @@ function buildSearchParams(filters, cursor = null) {
     appendIfPresent(params, "notification", filters.notification);
     appendIfPresent(params, "hasUserHand", filters.hasUserHand);
     appendIfPresent(params, "aiResult", filters.aiResult);
+    appendIfPresent(params, "aiVerdict", filters.aiVerdict);
+    appendIfPresent(params, "confidenceFrom", filters.confidenceFrom);
+    appendIfPresent(params, "confidenceTo", filters.confidenceTo);
     params.set("limit", "50");
     if (cursor?.createdAt && cursor?.id) {
         params.set("cursorCreatedAt", cursor.createdAt);
@@ -179,6 +182,9 @@ if (typeof document !== "undefined") {
         notification: byId("explorer-notification"),
         hasUserHand: byId("explorer-has-user-hand"),
         aiResult: byId("explorer-ai-result"),
+        aiVerdict: byId("explorer-ai-verdict"),
+        confidenceFrom: byId("explorer-confidence-from"),
+        confidenceTo: byId("explorer-confidence-to"),
         aiDetails: byId("explorer-ai-details"),
         imageId: byId("explorer-image-id"),
         fileName: byId("explorer-file-name"),
@@ -286,6 +292,9 @@ if (typeof document !== "undefined") {
             notification: elements.notification.value,
             hasUserHand: elements.hasUserHand.value,
             aiResult: elements.aiResult.value,
+            aiVerdict: elements.aiVerdict.value,
+            confidenceFrom: elements.confidenceFrom.value,
+            confidenceTo: elements.confidenceTo.value,
             imageId: elements.imageId.value,
             fileName: elements.fileName.value
         };
@@ -388,6 +397,9 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.notification, params, "notification");
         setInputFromQuery(elements.hasUserHand, params, "hasUserHand");
         setInputFromQuery(elements.aiResult, params, "aiResult");
+        setInputFromQuery(elements.aiVerdict, params, "aiVerdict");
+        setInputFromQuery(elements.confidenceFrom, params, "confidenceFrom");
+        setInputFromQuery(elements.confidenceTo, params, "confidenceTo");
         setInputFromQuery(elements.imageId, params, "imageId");
         setInputFromQuery(elements.fileName, params, "fileName");
         updateCheckedOnlyControls();

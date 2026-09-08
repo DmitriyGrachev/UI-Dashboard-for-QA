@@ -192,6 +192,22 @@
                         <option value="UNMATCHED">Unmatched</option>
                     </select>
                 </label>
+                <label>AI verdict
+                    <select id="explorer-ai-verdict">
+                        <option value="">All verdicts</option>
+                        <option value="MATCH">MATCH</option>
+                        <option value="MISMATCH">MISMATCH</option>
+                        <option value="LOW_CONFIDENCE">LOW_CONFIDENCE</option>
+                        <option value="HAND_COUNT_MISMATCH">HAND_COUNT_MISMATCH</option>
+                        <option value="NO_HANDS_FOUND">NO_HANDS_FOUND</option>
+                    </select>
+                </label>
+                <label>AI confidence from (%)
+                    <input id="explorer-confidence-from" type="number" min="0" max="100" step="1">
+                </label>
+                <label>AI confidence to (%)
+                    <input id="explorer-confidence-to" type="number" min="0" max="100" step="1">
+                </label>
                 <label>
                         Notification
                         <select id="explorer-notification">

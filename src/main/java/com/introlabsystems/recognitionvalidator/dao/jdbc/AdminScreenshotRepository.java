@@ -64,7 +64,8 @@ public class AdminScreenshotRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("fetchLimit", filters.limit() + 1)
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
-        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult());
+        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
+                filters.confidenceFrom(), filters.confidenceTo());
         String order = aiOrdered ? "ai" : "rt";
         String baseConditions = conditions(filters, parameters, aiOrdered);
         String listConditions = baseConditions + cursorCondition(filters, parameters, order);
@@ -217,7 +218,8 @@ public class AdminScreenshotRepository {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
             parameters.addValue("hasUserHand", filters.hasUserHand());
         }
-        AiResultFilterSql.append(sql, filters.aiResult(), aiOrdered);
+        AiResultFilterSql.append(sql, parameters, filters.aiResult(), filters.aiVerdict(),
+                filters.confidenceFrom(), filters.confidenceTo(), aiOrdered);
         return sql.toString();
     }
 

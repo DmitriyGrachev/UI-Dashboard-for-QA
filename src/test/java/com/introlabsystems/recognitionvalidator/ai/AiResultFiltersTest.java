@@ -79,6 +79,56 @@ class AiResultFiltersTest extends AiTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ai.certainty").value(97));
     }
 
+    @Test
+    void adminAndOperatorCanFilterAiVerdictAndConfidenceRange() throws Exception {
+        String match = image(1, 53);
+        String lowConfidence = image(2, 53);
+        String mismatch = image(3, 53);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=true,verdict='MATCH',confidence=95,checked_at=now() WHERE image_id=?", match);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=false,verdict='LOW_CONFIDENCE',confidence=40,checked_at=now() WHERE image_id=?", lowConfidence);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=false,verdict='MISMATCH',confidence=80,checked_at=now() WHERE image_id=?", mismatch);
+
+        mvc.perform(get("/admin/api/screenshots")
+                        .param("aiVerdict", "LOW_CONFIDENCE")
+                        .param("confidenceFrom", "30")
+                        .param("confidenceTo", "50")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].imageId").value(lowConfidence));
+        mvc.perform(get("/admin/api/screenshots/summary")
+                        .param("aiVerdict", "MATCH")
+                        .param("confidenceFrom", "90")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalCount").value(1));
+
+        UUID operator = UUID.randomUUID();
+        jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-verdict-op','hash',true,now())", operator);
+        var principal = new OperatorPrincipal(operator, "ai-verdict-op", "hash", true);
+        String filter = "{\"aiVerdict\":\"LOW_CONFIDENCE\",\"confidenceFrom\":30,\"confidenceTo\":50}";
+        mvc.perform(post("/api/review-tasks/summary").with(user(principal)).with(csrf())
+                        .contentType("application/json").content(filter))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(1));
+        mvc.perform(post("/api/review-tasks/claim").with(user(principal)).with(csrf())
+                        .contentType("application/json").content("{\"filters\":" + filter + "}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.item.imageId").value(lowConfidence));
+    }
+
+    @Test
+    void confidenceRangeMustBeAnOrderedPercentage() throws Exception {
+        var admin = user("admin").roles("ADMIN");
+        mvc.perform(get("/admin/api/screenshots/summary")
+                        .param("confidenceFrom", "80").param("confidenceTo", "20").with(admin))
+                .andExpect(status().isBadRequest());
+        UUID operator = UUID.randomUUID();
+        jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-invalid-range-op','hash',true,now())", operator);
+        mvc.perform(post("/api/review-tasks/summary").with(user(new OperatorPrincipal(operator, "ai-invalid-range-op", "hash", true)))
+                        .with(csrf()).contentType("application/json")
+                        .content("{\"confidenceFrom\":101}"))
+                .andExpect(status().isBadRequest());
+    }
+
     @ParameterizedTest
     @CsvSource({"'',6,1", "ALL,6,1", "CHECKED,2,1", "MATCHED,1,1", "UNMATCHED,1,2", "UNCHECKED,4,3"})
     void aiStateFiltersPagesSummariesAndOperatorClaims(String state, int count, int oldest) throws Exception {

@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.model.value;
 
 import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+import com.introlabsystems.recognitionvalidator.ai.model.AiVerdict;
 
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
@@ -27,7 +28,10 @@ public record AdminScreenshotFilters(
         Instant cursorCreatedAt,
         String cursorId,
         int limit,
-        AiResultState aiResult
+        AiResultState aiResult,
+        AiVerdict aiVerdict,
+        Integer confidenceFrom,
+        Integer confidenceTo
 ) {
     public AdminScreenshotFilters(Instant createdFrom, Instant createdTo, AdminReviewState reviewState,
                                   String gameCode, Long tokenId, String sessionId, String imageId,
@@ -36,6 +40,6 @@ public record AdminScreenshotFilters(
                                   Boolean hasUserHand, Instant cursorCreatedAt, String cursorId, int limit) {
         this(createdFrom, createdTo, reviewState, gameCode, tokenId, sessionId, imageId, fileName,
                 decision, reviewedBy, storageState, parseStatus, notification, hasUserHand,
-                cursorCreatedAt, cursorId, limit, null);
+                cursorCreatedAt, cursorId, limit, null, null, null, null);
     }
 }

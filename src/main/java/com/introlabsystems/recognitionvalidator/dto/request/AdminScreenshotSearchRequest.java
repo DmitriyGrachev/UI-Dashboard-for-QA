@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.dto.request;
 
 import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+import com.introlabsystems.recognitionvalidator.ai.model.AiVerdict;
 
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
@@ -34,6 +35,9 @@ public class AdminScreenshotSearchRequest {
     private String cursorId;
     private int limit = 50;
     private AiResultState aiResult;
+    private AiVerdict aiVerdict;
+    private Integer confidenceFrom;
+    private Integer confidenceTo;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -54,7 +58,10 @@ public class AdminScreenshotSearchRequest {
                 cursorCreatedAt,
                 cursorId,
                 Math.clamp(limit, 1, 100),
-                aiResult
+                aiResult,
+                aiVerdict,
+                confidenceFrom,
+                confidenceTo
         );
     }
 }

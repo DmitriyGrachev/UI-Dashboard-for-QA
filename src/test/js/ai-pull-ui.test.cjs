@@ -25,6 +25,12 @@ test('AI filtering defaults to all and sends only the selected AI state', () => 
         assert.deepEqual(aiFilterValues(state), {aiResult: state});
     }
 });
+test('AI verdict and confidence filters are sent to the screenshot search', () => {
+    const params = buildSearchParams({aiVerdict:'LOW_CONFIDENCE', confidenceFrom:20, confidenceTo:60});
+    assert.equal(params.get('aiVerdict'), 'LOW_CONFIDENCE');
+    assert.equal(params.get('confidenceFrom'), '20');
+    assert.equal(params.get('confidenceTo'), '60');
+});
 test('rule dates are UTC and absent predicates stay null', () => {
     const rule = rulePayload({name:' Example ', enabled:true, priority:'10', createdFrom:'2026-09-03T10:15',
         createdTo:'', tokenId:'0', sessionId:'', notification:'false', hasUserHand:''});

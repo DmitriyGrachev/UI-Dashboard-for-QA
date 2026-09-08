@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.model.value;
 
 import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
+import com.introlabsystems.recognitionvalidator.ai.model.AiVerdict;
 
 import java.time.Instant;
 
@@ -12,12 +13,23 @@ public record ReviewFilters(
         String gameCode,
         Boolean notification,
         Boolean hasUserHand,
-        AiResultState aiResult
+        AiResultState aiResult,
+        AiVerdict aiVerdict,
+        Integer confidenceFrom,
+        Integer confidenceTo
 ) {
 
     public ReviewFilters(Instant createdFrom, Instant createdTo, Long tokenId, String sessionId,
+                         String gameCode, Boolean notification, Boolean hasUserHand,
+                         AiResultState aiResult) {
+        this(createdFrom, createdTo, tokenId, sessionId, gameCode, notification, hasUserHand,
+                aiResult, null, null, null);
+    }
+
+    public ReviewFilters(Instant createdFrom, Instant createdTo, Long tokenId, String sessionId,
                          String gameCode, Boolean notification, Boolean hasUserHand) {
-        this(createdFrom, createdTo, tokenId, sessionId, gameCode, notification, hasUserHand, null);
+        this(createdFrom, createdTo, tokenId, sessionId, gameCode, notification, hasUserHand,
+                null, null, null, null);
     }
 
     public static ReviewFilters none() {

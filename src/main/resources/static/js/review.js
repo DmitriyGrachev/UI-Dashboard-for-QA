@@ -179,6 +179,9 @@ if (typeof document !== "undefined") {
         notification: document.getElementById("notification"),
         hasUserHand: document.getElementById("has-user-hand"),
         aiResult: document.getElementById("ai-result"),
+        aiVerdict: document.getElementById("ai-verdict"),
+        confidenceFrom: document.getElementById("confidence-from"),
+        confidenceTo: document.getElementById("confidence-to"),
         aiDetails: document.getElementById("ai-result-details"),
         remainingCount: document.getElementById("remaining-count"),
         queueOldestDate: document.getElementById("queue-oldest-date"),
@@ -255,7 +258,8 @@ if (typeof document !== "undefined") {
             gameCode: emptyToNull(elements.gameCode.value),
             notification: toOptionalBoolean(elements.notification.value),
             hasUserHand: toOptionalBoolean(elements.hasUserHand.value),
-            ...aiFilterValues(elements.aiResult.value)
+            ...aiFilterValues(elements.aiResult.value, elements.aiVerdict.value,
+                elements.confidenceFrom.value, elements.confidenceTo.value)
         };
     }
 
@@ -268,7 +272,10 @@ if (typeof document !== "undefined") {
             gameCode: elements.gameCode.value,
             notification: elements.notification.value,
             hasUserHand: elements.hasUserHand.value,
-            aiResult: elements.aiResult.value
+            aiResult: elements.aiResult.value,
+            aiVerdict: elements.aiVerdict.value,
+            confidenceFrom: elements.confidenceFrom.value,
+            confidenceTo: elements.confidenceTo.value
         };
     }
 
@@ -287,6 +294,9 @@ if (typeof document !== "undefined") {
         elements.notification.value = stored.notification || "";
         elements.hasUserHand.value = stored.hasUserHand || "";
         elements.aiResult.value = stored.aiResult || "";
+        elements.aiVerdict.value = stored.aiVerdict || "";
+        elements.confidenceFrom.value = stored.confidenceFrom || "";
+        elements.confidenceTo.value = stored.confidenceTo || "";
     }
 
     function activeFilterTotal() {
@@ -657,6 +667,7 @@ if (typeof document !== "undefined") {
 
     function applyFilters() {
         clearTimeout(state.filterTimer);
+        if (!elements.filterForm.reportValidity()) return;
         persistFilters();
         updateActiveFilterCount();
         loadQueue({replaceCurrent: true});
@@ -689,11 +700,12 @@ if (typeof document !== "undefined") {
         elements.gameCode,
         elements.notification,
         elements.hasUserHand,
-        elements.aiResult
+        elements.aiResult,
+        elements.aiVerdict
     ]
         .forEach(element => element.addEventListener("change", scheduleFilterApplication));
 
-    [elements.tokenId, elements.sessionId].forEach(element => {
+    [elements.tokenId, elements.sessionId, elements.confidenceFrom, elements.confidenceTo].forEach(element => {
         element.addEventListener("input", scheduleFilterApplication);
         element.addEventListener("keydown", event => {
             if (event.key === "Enter") {
