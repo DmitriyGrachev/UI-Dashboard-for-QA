@@ -8,7 +8,7 @@ Only `bj_single_deck_ags` is issued in V1; the outgoing game is `SINGLE_DECK`.
 
 ## API contract
 
-All claim/result calls require `X-API-Key: <INTEGRATION_IMAGE_API_KEY>` over HTTPS.
+All claim/result/reject calls require `X-API-Key: <INTEGRATION_IMAGE_API_KEY>` over HTTPS.
 They do not use an operator login, cookie or CSRF token. Do not put the API key in URLs.
 
 ```bash
@@ -24,9 +24,9 @@ curl --fail-with-body -X POST "$VALIDATOR_URL/api/integration/ai/tasks/claim?siz
       "imageId": "<64-character image ID>",
       "claimId": "<UUID of this attempt>",
       "url": "https://...temporary-download-url...",
-      "expected": "7K",
+      "image_name": "original-screenshot.png",
       "game": "SINGLE_DECK",
-      "leaseExpiresAt": "2026-09-03T10:02:00Z"
+      "leaseExpiresAt": "2026-09-08T10:10:00Z"
     }
   ]
 }
@@ -44,9 +44,8 @@ do not log or publish it. Local URLs expire 30 seconds after the lease. B2 URLs 
 at least that lifetime. Metadata availability is not a guarantee that an external
 filesystem cleanup or B2 lifecycle rule has not removed the file.
 
-`expected` contains the first active `_u_` hand, not the dealer or inactive hands.
-Named ranks become `A2345678910JQK`; a hand with other than two cards ends with a comma:
-`7K`, `22104,`, `22769K,`. Unmappable payloads become technical `FAILED` tasks, not mismatches.
+`image_name` contains the complete original filename including its extension, without a
+directory path. `expected` is no longer returned or parsed as a prerequisite for issuing a task.
 
 ```bash
 curl --fail-with-body -X POST "$VALIDATOR_URL/api/integration/ai/tasks/$IMAGE_ID/result" \
@@ -71,8 +70,10 @@ Success: `{"imageId":"...","status":"COMPLETED"}`.
 
 Workers must preserve the exact received claim ID. On a network error posting a result,
 retry the **same result** with backoff while the lease is live. On 409 discard it.
-If downloading or the model fails, do not invent `valid=false`: abandon the lease.
-There is no technical-failure/renew/release endpoint in V1. Expired leases are recovered
+If downloading or the model fails, do not invent `valid=false`: submit
+`POST /api/integration/ai/tasks/reject` with `imageId`, `claimId` and a nonblank `message`.
+The failure is stored for human review; the AI task is no longer issued automatically.
+There is no renew/release endpoint. Unreported expired leases are recovered
 in bounded groups during subsequent claims; some duplicate model computation is therefore possible.
 Ownership and result acceptance are fenced by claim ID, so an old worker cannot overwrite a new attempt.
 On `[]` poll with a delay (e.g. 1–2 seconds); on 503 use increasing backoff.
@@ -85,7 +86,7 @@ with `X-API-Key`. A signed image URL cannot authorize claim/result or admin requ
 
 ```dotenv
 INTEGRATION_IMAGE_API_KEY=<random integration key shared securely with Igor>
-AI_TASK_LEASE_DURATION=2m
+AI_TASK_LEASE_DURATION=10m
 
 # Required for local image delivery; not needed when every selected image is available in B2.
 VALIDATOR_PUBLIC_BASE_URL=https://validator.example.com
@@ -114,13 +115,24 @@ Operator `/review` and admin `/admin/screenshots` default to AI **All** (no AI r
 or unmatched and whether percentages are known. **Unchecked by AI** (`UNCHECKED`) includes
 absent, pending, processing and technically failed AI tasks. **Matched** and **Unmatched**
 remain available separately. Operator checked/unchecked and Match/Not match are independent.
-There is no certainty filter; old `certaintyFrom` / `certaintyTo` query/body fields are ignored.
-The result API still stores `certainty` and `confidence` unchanged.
+Both screens also support `aiVerdict` (`MATCH`, `LOW_CONFIDENCE`, `MISMATCH`,
+`HAND_COUNT_MISMATCH`, `NO_HANDS_FOUND`) and inclusive `confidenceFrom` / `confidenceTo`
+bounds from 0 to 100. Unknown confidence values are excluded when a bound is set.
+Verdict/percentage restrictions apply to completed results; combining them with Unchecked
+returns no matches. Old `certaintyFrom` / `certaintyTo` fields remain ignored.
+The result API stores `certainty` and `confidence` unchanged.
 Details display verdict, percentages, time, message and technical failure code as plain text.
 The screenshot explorer keeps cursor pagination (50 per page, API maximum 100), asynchronous
 counts and individual download via button / D shortcut.
 
 ## Deployment (one-time additive migration)
+
+September 8 update: the migration now also creates `ai_task_rejection` for technical
+failure history. Existing installations must create this table before using `/tasks/reject`
+when automatic schema updates are disabled; rerunning the script is supported. Rejection
+history is retained independently of screenshot cleanup. Set `AI_TASK_LEASE_DURATION=10m`
+in the deployed environment if it already explicitly overrides the old 2-minute default.
+Update AI clients to read `image_name` before switching to this claim contract.
 
 1. Back up PostgreSQL as usual. Disable the **old push scheduler** and let its current
    request finish. For the final cutover, stop the old application/metadata writers while

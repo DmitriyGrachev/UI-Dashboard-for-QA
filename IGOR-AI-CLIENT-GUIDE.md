@@ -1,6 +1,6 @@
 # Recognition Validator — Integration Guide for Igor's AI Service
 
-V1 contract · Verified against the current implementation on September 3, 2026.
+Updated contract · September 8, 2026. Claim responses now use `image_name` instead of `expected`.
 
 ## Overview: who calls whom
 
@@ -13,7 +13,7 @@ AI worker                  Recognition Validator                 Storage
     | POST /tasks/claim              |                               |
     |------------------------------->|                               |
     | imageId, claimId, url,          |                               |
-    | expected, game, leaseExpiresAt  |                               |
+    | image_name, game, leaseExpiresAt|                               |
     |<-------------------------------|                               |
     | GET returned url — without X-API-Key -------------------------->|
     |<--------------------------- PNG -------------------------------|
@@ -72,9 +72,9 @@ Successful response — HTTP `200`:
       "imageId": "0000000000000000000000000000000000000000000000000000000000000001",
       "claimId": "314fd2b3-0e1a-46e8-a974-a5a99d40a01b",
       "url": "https://validator.example.com/api/integration/images/0000000000000000000000000000000000000000000000000000000000000001/content?expires=EXAMPLE&signature=EXAMPLE",
-      "expected": "7K",
+      "image_name": "original-screenshot.png",
       "game": "SINGLE_DECK",
-      "leaseExpiresAt": "2026-09-03T12:02:00Z"
+      "leaseExpiresAt": "2026-09-08T12:10:00Z"
     }
   ]
 }
@@ -87,7 +87,7 @@ All IDs, signatures, and timestamps in this example are illustrative. In real re
 | `imageId` | Image identifier: 64 lowercase hexadecimal characters. Use it in the result submission path. |
 | `claimId` | UUID for this particular assignment. Return **the same UUID**; do not generate a new one. If the image is assigned again, its `claimId` changes. |
 | `url` | Ready-to-use temporary image download URL. Use the complete URL without modifying it. |
-| `expected` | Cards recognized by the source system that the AI should verify against the image. This is the recognition output being checked, not guaranteed ground truth. |
+| `image_name` | Complete original screenshot filename, including its extension; not a directory path or a download URL. `expected` is no longer returned. |
 | `game` | Always `SINGLE_DECK` in V1. |
 | `leaseExpiresAt` | Task deadline in UTC / ISO 8601. The server must accept a new result before this time. |
 
@@ -115,15 +115,7 @@ Filters are configured by the Validator administrator. The client sends only `si
 - Conditions within a rule are combined with AND. Overlapping rules do not duplicate a task within a batch.
 - Concurrent workers skip tasks already locked by another worker. Strict global completion order is not guaranteed.
 
-### The `expected` format
-
-The value uses the **first active hand marked by `_u_`**, not the dealer or other hands.
-
-- Ranks: `A`, `2`…`9`, `10`, `J`, `Q`, `K`. Ten is `10`, not `T`.
-- Cards are concatenated without spaces or suits.
-- Exactly two cards have no trailing comma: `7K`, `A10`.
-- Any other card count has a trailing comma: `22104,` = `2, 2, 10, 4`; `22769K,` = `2, 2, 7, 6, 9, K`.
-- Do not automatically strip the trailing comma: it is part of the current format.
+The client receives the original filename unchanged. Validator no longer converts the source payload into an `expected` hand before issuing a task.
 
 ## 3. Download the image
 
@@ -139,7 +131,7 @@ Send a normal **GET request to the task's `url`**.
 
 A local URL expires at approximately `leaseExpiresAt + 30 seconds`. A B2 URL is valid for at least that interval and may remain valid longer. **This does not extend the result submission deadline.** The URL may still work after results for that claim would be rejected.
 
-If downloading fails, do not submit `valid=false`: that is a technical failure, not a recognition mismatch. Retry temporary download failures within a bounded time budget. If processing cannot finish, leave the task to expire.
+If downloading fails, do not submit `valid=false`: that is a technical failure, not a recognition mismatch. Retry temporary download failures within a bounded time budget. If processing cannot finish, report the failure using `/tasks/reject` below.
 
 ## 4. Submit the validation result
 
@@ -215,6 +207,40 @@ Once the result is accepted, the server returns HTTP `200`:
 
 Validator stores the AI result separately from the operator's result. Completing an AI task does not mark the screenshot as reviewed by a human. `certainty` remains visible in result details; there is no certainty filter in the UI.
 
+### Report a technical failure for human review
+
+```http
+POST /api/integration/ai/tasks/reject
+X-API-Key: <integration key>
+Content-Type: application/json
+```
+
+```json
+{
+  "imageId": "0000000000000000000000000000000000000000000000000000000000000001",
+  "claimId": "314fd2b3-0e1a-46e8-a974-a5a99d40a01b",
+  "message": "Image could not be decoded by the model service"
+}
+```
+
+All three fields are required. `message` must be nonblank and at most 1000 UTF-16 code
+units; do not include credentials or signed URLs. The request body is limited to 16 KiB.
+Unknown fields are ignored.
+
+HTTP `200` returns `{"imageId":"...","status":"REJECTED"}`. Validator stores the image ID,
+claim ID, original message and rejection time in `ai_task_rejection`, ends the lease,
+and marks the AI task `FAILED`. The screenshot remains in the independent human review
+workflow; an existing human assignment or decision is preserved. The error text and time
+appear in AI details. No recognition verdict or AI statistics are recorded, and the image
+is not automatically reissued to AI.
+
+Retry an identical rejection after a lost response while the task still exists. It returns
+`200` without creating another record or changing the rejection time. A different message for the same accepted
+rejection conflicts. A new rejection requires the current, unexpired claim: stale or
+reassigned claims return `409 STALE_CLAIM`. A result already accepted for that claim wins:
+rejection returns `409 RESULT_CONFLICT` and keeps the result. A missing task returns
+`404 TASK_NOT_FOUND`.
+
 ## 5. Workers, deadlines, and safe retries
 
 ### Recommended simple approach
@@ -231,11 +257,11 @@ Alternatively, use one dispatcher: set `size` to the number of available worker 
 
 ### Time budget
 
-Use `leaseExpiresAt` from each response. **Do not hard-code the lease duration in the client.** It is configurable on the server. The default is 2 minutes, but a particular environment may use a different value.
+Use `leaseExpiresAt` from each response. **Do not hard-code the lease duration in the client.** It is configurable on the server. The default is 10 minutes, but a particular environment may use a different value.
 
 This budget must cover receiving the task response, downloading the image, running the model, and having the server accept the result. Set finite HTTP timeouts and leave time for result submission. Keep the client machine's clock synchronized.
 
-V1 has **no** lease extension, heartbeat, release, or worker technical-error endpoint. If the AI cannot validate an image, do not invent a `MATCH` or `MISMATCH`: submit no result. After the lease expires, the server recovers such tasks during subsequent claim requests.
+There is no lease extension, heartbeat, or `/release` endpoint. Report technical failures using `/tasks/reject`; they are held for human review without automatic AI reissue. If the worker disappears without reporting a result or rejection, the server still recovers expired tasks during subsequent claim requests.
 
 ### Retrying result submission
 
