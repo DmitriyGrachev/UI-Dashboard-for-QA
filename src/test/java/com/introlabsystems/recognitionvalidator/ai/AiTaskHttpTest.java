@@ -45,7 +45,7 @@ class AiTaskHttpTest extends AiTestSupport {
         settings.save(new AiSettings(0, true, List.of(rule(10, null))));
         var before = jdbc.queryForObject("SELECT clock_timestamp()", java.sql.Timestamp.class).toInstant();
         var response = mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[0].image_name").value(name))
+                .andExpect(jsonPath("$.items[0].imageName").value(name))
                 .andExpect(jsonPath("$.items[0].expected").doesNotExist())
                 .andReturn().getResponse().getContentAsString();
         var item = json.readTree(response).path("items").get(0);
@@ -63,7 +63,7 @@ class AiTaskHttpTest extends AiTestSupport {
         settings.save(new AiSettings(0, true, List.of(rule(10, null))));
         String response = mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].image_name").value(id + ".png"))
+                .andExpect(jsonPath("$.items[0].imageName").value(id + ".png"))
                 .andExpect(jsonPath("$.items[0].expected").doesNotExist())
                 .andExpect(jsonPath("$.items[0].game").value("SINGLE_DECK"))
                 .andReturn().getResponse().getContentAsString();

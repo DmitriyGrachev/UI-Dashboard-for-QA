@@ -40,7 +40,8 @@ class AiTaskContractTest {
         AiTask task = service.claim(1).getFirst();
         JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(task);
 
-        assertThat(json.path("image_name").asText()).isEqualTo("original screenshot.png");
+        assertThat(json.path("imageName").asText()).isEqualTo("original screenshot.png");
+        assertThat(json.has("image_name")).isFalse();
         assertThat(json.has("expected")).isFalse();
         assertThat(task.imageId()).isEqualTo(claim.imageId());
     }
