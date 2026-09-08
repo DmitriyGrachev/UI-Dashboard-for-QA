@@ -120,7 +120,7 @@ class AiTaskRepositoryTest extends AiTestSupport {
                 mock(ReviewDisagreementRepository.class)
         );
 
-        assertThat(b2Tasks.countEligiblePending(all(), b2Tasks.databaseNow())).isEqualTo(1);
+        assertThat(b2Tasks.hasEligiblePending(all(), b2Tasks.databaseNow())).isTrue();
         assertThat(b2Tasks.claim(all(), 1))
                 .extracting(AiClaim::imageId)
                 .containsExactly(id);

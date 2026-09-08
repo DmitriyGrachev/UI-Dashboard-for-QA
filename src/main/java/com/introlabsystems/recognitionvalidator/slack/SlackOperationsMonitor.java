@@ -67,12 +67,13 @@ public class SlackOperationsMonitor {
                 b2.enabled() && b2.backlog() > 0 && stale(b2.lastUpload(), now),
                 b2Details, b2Closure, properties.stallDuration(), now);
         String aiDetails = metrics.aiEnabled()
-                ? "Eligible pending: " + metrics.aiEligiblePending() + "; processing: " + metrics.aiProcessing()
+                ? "Eligible pending: " + (metrics.aiHasEligiblePending() ? "yes" : "no")
+                    + "; processing: " + metrics.aiProcessing()
                     + "; expired leases: " + metrics.aiExpired()
                 : "AI task delivery is paused.";
         String aiClosure = metrics.aiEnabled() ? "Recovered" : "Closed: AI paused";
         incidents.observe("ai-stalled", "AI results stalled",
-                metrics.aiEnabled() && metrics.aiEligiblePending() + metrics.aiProcessing() > 0
+                metrics.aiEnabled() && (metrics.aiHasEligiblePending() || metrics.aiProcessing() > 0)
                         && stale(metrics.aiLastResult(), now),
                 aiDetails, aiClosure, properties.stallDuration(), now);
         incidents.observe("ai-leases", "AI expired leases",
@@ -109,7 +110,8 @@ public class SlackOperationsMonitor {
         var b2 = metrics.b2();
         return "Exportable rejects awaiting download: *" + data.pendingRejects() + "*\n"
                 + "AI delivery: " + (metrics.aiEnabled() ? "enabled" : "paused")
-                + "; eligible pending: " + metrics.aiEligiblePending() + "; processing: " + metrics.aiProcessing() + "\n"
+                + "; eligible pending: " + (metrics.aiHasEligiblePending() ? "yes" : "no")
+                + "; processing: " + metrics.aiProcessing() + "\n"
                 + "B2: " + (b2.enabled() ? "enabled" : "disabled") + "; pending: " + b2.backlog()
                 + "; repeated attempts: " + b2.repeatedAttempts();
     }

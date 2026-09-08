@@ -79,15 +79,15 @@ public class AiTaskRepository {
         });
     }
 
-    public long countEligiblePending(AiSettings settings, Instant now) {
+    public boolean hasEligiblePending(AiSettings settings, Instant now) {
         Objects.requireNonNull(settings, "settings must not be null");
         Objects.requireNonNull(now, "now must not be null");
         if (!settings.enabled()) {
-            return 0;
+            return false;
         }
 
         MapSqlParameterSource parameters = new MapSqlParameterSource("now", timestamp(now));
-        StringBuilder sql = eligiblePendingSql(parameters, "COUNT(*)", now);
+        StringBuilder sql = eligiblePendingSql(parameters, "1", now);
         boolean hasRule = false;
         sql.append(" AND (");
         int ruleIndex = 0;
@@ -104,11 +104,10 @@ public class AiTaskRepository {
             hasRule = true;
         }
         if (!hasRule) {
-            return 0;
+            return false;
         }
-        sql.append(')');
-        Long count = jdbc.queryForObject(sql.toString(), parameters, Long.class);
-        return count == null ? 0 : count;
+        sql.append(") ORDER BY ai.file_created_at, ai.image_id LIMIT 1");
+        return !jdbc.queryForList(sql.toString(), parameters).isEmpty();
     }
 
     private void recoverExpired() {

@@ -44,7 +44,7 @@ class SlackOperationsDataTest {
     }
 
     @Test
-    void snapshotCountsEligiblePendingOnceAndKeepsExpiredLeasesVisible() {
+    void snapshotDetectsEligiblePendingAndKeepsExpiredLeasesVisible() {
         String eligible = insertAiImage(1, "PENDING", true, 11L, "session-a", null, null, null);
         insertAiImage(2, "PENDING", true, 12L, "session-a", null, null, null);
         insertAiImage(3, "COMPLETED", true, 11L, "session-a", NOW.minusSeconds(30), true, null);
@@ -67,7 +67,7 @@ class SlackOperationsDataTest {
 
         assertThat(eligible).isEqualTo(id(1));
         assertThat(metrics.aiEnabled()).isTrue();
-        assertThat(metrics.aiEligiblePending()).isOne();
+        assertThat(metrics.aiHasEligiblePending()).isTrue();
         assertThat(metrics.aiProcessing()).isEqualTo(2);
         assertThat(metrics.aiExpired()).isOne();
         assertThat(metrics.aiLastResult()).isEqualTo(NOW.minusSeconds(30));

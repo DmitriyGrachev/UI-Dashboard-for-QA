@@ -50,7 +50,7 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
     private boolean b2Enabled;
     private boolean aiEnabled;
     private long b2Failures;
-    private long aiPending;
+    private boolean aiPending;
     private long aiProcessing;
 
     @BeforeEach
@@ -65,7 +65,7 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         b2Enabled = false;
         aiEnabled = false;
         b2Failures = 0;
-        aiPending = 0;
+        aiPending = false;
         aiProcessing = 0;
         data = mock(SlackOperationsRepository.class);
         when(data.snapshot(any())).thenAnswer(invocation -> new SlackOperationsRepository.Metrics(
@@ -176,7 +176,7 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         assertThat(payloadAt(1)).contains("Closed: uploads disabled");
 
         aiEnabled = true;
-        aiPending = 1;
+        aiPending = true;
         checkEveryMinute(monitor, "2026-09-07T10:11:01Z", 16);
         assertThat(messageCount()).isEqualTo(3);
         aiEnabled = false;

@@ -34,7 +34,7 @@ public class SlackOperationsRepository {
         setStatementTimeout();
         B2Metrics b2Metrics = b2Metrics();
         AiSettings settings = aiSettings.read();
-        long eligiblePending = aiTasks.countEligiblePending(settings, now);
+        boolean hasEligiblePending = aiTasks.hasEligiblePending(settings, now);
         long processing = number("SELECT COUNT(*) FROM ai_review_task WHERE status='PROCESSING'");
         long expired = namedJdbc.queryForObject("""
                 SELECT COUNT(*)
@@ -48,7 +48,7 @@ public class SlackOperationsRepository {
         return new Metrics(
                 b2Metrics,
                 settings.enabled(),
-                eligiblePending,
+                hasEligiblePending,
                 processing,
                 expired,
                 lastResult
@@ -151,7 +151,7 @@ public class SlackOperationsRepository {
     public record Metrics(
             B2Metrics b2,
             boolean aiEnabled,
-            long aiEligiblePending,
+            boolean aiHasEligiblePending,
             long aiProcessing,
             long aiExpired,
             Instant aiLastResult
