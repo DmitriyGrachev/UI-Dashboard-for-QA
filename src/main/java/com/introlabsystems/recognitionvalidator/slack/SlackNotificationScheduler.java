@@ -41,6 +41,12 @@ public class SlackNotificationScheduler {
         try {
             notifications.deliver(operation);
             outbox.markDelivered(operation.id(), workerId);
+            log.debug(
+                    "Slack notification delivered: id={}, kind={}, attempts={}",
+                    operation.id(),
+                    operation.operationKind(),
+                    operation.attempts()
+            );
         } catch (SlackApiException exception) {
             Instant failedAt = clock.instant();
             if (exception.isRetryable()) {
@@ -52,7 +58,27 @@ public class SlackNotificationScheduler {
             } else {
                 outbox.markBlocked(operation.id(), workerId, safeMessage(exception));
             }
-            log.warn("Slack notification delivery failed: {}", safeMessage(exception));
+            if (exception.isRetryable()) {
+                log.warn(
+                        "Slack notification delivery will retry: id={}, kind={}, attempts={}, status={}, code={}, error={}",
+                        operation.id(),
+                        operation.operationKind(),
+                        operation.attempts(),
+                        exception.statusCode(),
+                        exception.errorCode(),
+                        safeMessage(exception)
+                );
+            } else {
+                log.error(
+                        "Slack notification delivery blocked: id={}, kind={}, attempts={}, status={}, code={}",
+                        operation.id(),
+                        operation.operationKind(),
+                        operation.attempts(),
+                        exception.statusCode(),
+                        exception.errorCode(),
+                        exception
+                );
+            }
         } catch (RuntimeException exception) {
             Instant failedAt = clock.instant();
             outbox.markRetry(
@@ -60,14 +86,22 @@ public class SlackNotificationScheduler {
                     nextAttempt(operation.attempts(), failedAt, null),
                     safeMessage(exception)
             );
-            log.warn("Slack notification delivery failed: {}", safeMessage(exception));
+            log.error(
+                    "Unexpected Slack notification delivery failure: id={}, kind={}, attempts={}",
+                    operation.id(),
+                    operation.operationKind(),
+                    operation.attempts(),
+                    exception
+            );
         }
     }
 
     @EventListener(ApplicationReadyEvent.class)
     public void reconcileOnStartup() {
         outbox.initializeState();
-        if (notifications.canDeliver()) {
+        boolean enabled = notifications.canDeliver();
+        log.info("Slack notification delivery initialized: enabled={}", enabled);
+        if (enabled) {
             notifications.refreshRejectedBacklog();
         }
     }

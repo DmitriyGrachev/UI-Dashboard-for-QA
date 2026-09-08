@@ -6,6 +6,7 @@ import com.introlabsystems.recognitionvalidator.exception.DecisionConflictExcept
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.slack.RejectedDecisionEvent;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -20,6 +21,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class DecisionService {
 
     private final NamedParameterJdbcTemplate jdbc;
@@ -58,5 +60,11 @@ public class DecisionService {
         if (decision == Decision.REJECTED) {
             events.publishEvent(new RejectedDecisionEvent(imageId));
         }
+        log.debug(
+                "Review decision completed: imageId={}, operatorId={}, decision={}",
+                imageId,
+                operatorId,
+                decision
+        );
     }
 }

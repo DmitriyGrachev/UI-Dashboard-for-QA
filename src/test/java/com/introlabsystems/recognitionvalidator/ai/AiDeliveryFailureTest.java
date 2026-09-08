@@ -1,5 +1,9 @@
 package com.introlabsystems.recognitionvalidator.ai;
 
+import ch.qos.logback.classic.Level;
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import com.introlabsystems.recognitionvalidator.ai.dto.*;
 import com.introlabsystems.recognitionvalidator.ai.exception.AiQueueException;
 import com.introlabsystems.recognitionvalidator.ai.mapper.AiCardPayloadMapper;
@@ -9,6 +13,7 @@ import com.introlabsystems.recognitionvalidator.ai.security.AiLocalImageUrlSigne
 import com.introlabsystems.recognitionvalidator.ai.service.AiImageLinkService;
 import com.introlabsystems.recognitionvalidator.ai.service.AiQueueService;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 
 import java.net.URI;
@@ -77,5 +82,30 @@ class AiDeliveryFailureTest {
         assertThatThrownBy(() -> service.claim(2)).isInstanceOf(AiQueueException.class);
         verify(tasks).preparationFailed(first, false, "DELIVERY_NOT_CONFIGURED");
         verify(tasks).preparationFailed(second, false, "DELIVERY_NOT_CONFIGURED");
+    }
+
+    @Test void successfulClaimsUseDebugToAvoidHighVolumeInfoLogs() {
+        var item = claim(1, "u_Seven_King_bS");
+        setup(item);
+        when(links.create(item.imageId(), item.leaseExpiresAt()))
+                .thenReturn(URI.create("https://example.com/image.png"));
+        Logger logger = (Logger) LoggerFactory.getLogger(AiQueueService.class);
+        Level previous = logger.getLevel();
+        logger.setLevel(Level.DEBUG);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            service.claim(1);
+
+            assertThat(appender.list)
+                    .filteredOn(event -> event.getFormattedMessage().contains("AI claim completed"))
+                    .singleElement()
+                    .extracting(ILoggingEvent::getLevel)
+                    .isEqualTo(Level.DEBUG);
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(previous);
+        }
     }
 }

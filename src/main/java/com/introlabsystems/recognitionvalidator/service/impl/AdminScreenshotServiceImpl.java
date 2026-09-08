@@ -9,12 +9,14 @@ import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotPage;
 import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotSummary;
 import com.introlabsystems.recognitionvalidator.service.AdminScreenshotService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminScreenshotServiceImpl implements AdminScreenshotService {
 
     private final AdminScreenshotRepository screenshots;
@@ -23,18 +25,34 @@ public class AdminScreenshotServiceImpl implements AdminScreenshotService {
 
     @Override
     public AdminScreenshotPage search(AdminScreenshotFilters filters) {
-        return screenshots.search(
+        long started = System.nanoTime();
+        AdminScreenshotPage page = screenshots.search(
                 filters,
                 clock.instant().minus(b2Properties.metadataRetention())
         );
+        log.debug(
+                "Admin screenshot search completed: limit={}, returned={}, hasNext={}, durationMs={}",
+                filters.limit(),
+                page.items().size(),
+                page.nextId() != null,
+                (System.nanoTime() - started) / 1_000_000
+        );
+        return page;
     }
 
     @Override
     public AdminScreenshotSummary summary(AdminScreenshotFilters filters) {
-        return screenshots.summary(
+        long started = System.nanoTime();
+        AdminScreenshotSummary summary = screenshots.summary(
                 filters,
                 clock.instant().minus(b2Properties.metadataRetention())
         );
+        log.debug(
+                "Admin screenshot summary completed: total={}, durationMs={}",
+                summary.totalCount(),
+                (System.nanoTime() - started) / 1_000_000
+        );
+        return summary;
     }
 
     @Override

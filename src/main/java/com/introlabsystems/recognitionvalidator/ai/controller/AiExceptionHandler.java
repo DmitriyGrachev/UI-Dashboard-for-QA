@@ -17,16 +17,21 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 public class AiExceptionHandler {
     @ExceptionHandler(AiQueueException.class)
     ResponseEntity<Error> queue(AiQueueException e) {
-        log.warn("AI request rejected: code={}", e.code());
+        if (e.status().is5xxServerError()) {
+            log.error("AI request failed: code={}", e.code(), e);
+        } else {
+            log.warn("AI request rejected: code={}", e.code());
+        }
         return response(e.status(), e.code(), e.getMessage());
     }
     @ExceptionHandler({IllegalArgumentException.class, HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
     ResponseEntity<Error> invalid(Exception e) {
+        log.debug("AI request is invalid: type={}", e.getClass().getSimpleName());
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Check JSON field types, required values and filter ranges");
     }
     @ExceptionHandler({DataAccessException.class, TransactionException.class})
     ResponseEntity<Error> database(Exception e) {
-        log.warn("AI database request failed: type={}", e.getClass().getSimpleName());
+        log.error("AI database request failed: type={}", e.getClass().getSimpleName(), e);
         return response(HttpStatus.SERVICE_UNAVAILABLE, "DATABASE_UNAVAILABLE", "Retry later with the same result claimId");
     }
     private ResponseEntity<Error> response(HttpStatus status, String code, String message) {

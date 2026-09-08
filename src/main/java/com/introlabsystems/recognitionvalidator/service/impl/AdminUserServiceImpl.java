@@ -7,6 +7,7 @@ import com.introlabsystems.recognitionvalidator.model.enums.UserRole;
 import com.introlabsystems.recognitionvalidator.security.UserSessionService;
 import com.introlabsystems.recognitionvalidator.service.AdminUserService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminUserServiceImpl implements AdminUserService {
 
     private final AppUserRepository users;
@@ -37,12 +39,14 @@ public class AdminUserServiceImpl implements AdminUserService {
             throw new AdminUserException("username", "Username is already in use");
         }
 
+        UUID operatorId = UUID.randomUUID();
         users.save(AppUser.operator(
-                UUID.randomUUID(),
+                operatorId,
                 normalizedUsername,
                 passwordEncoder.encode(password),
                 clock.instant()
         ));
+        log.info("Operator created: operatorId={}", operatorId);
     }
 
     @Override
@@ -50,7 +54,7 @@ public class AdminUserServiceImpl implements AdminUserService {
     public void deactivateOperator(UUID operatorId) {
         AppUser operator = operator(operatorId);
         operator.deactivate();
-        jdbc.update("""
+        int releasedAssignments = jdbc.update("""
                 UPDATE review_task
                 SET status = 'PENDING',
                     assigned_to = NULL,
@@ -60,12 +64,18 @@ public class AdminUserServiceImpl implements AdminUserService {
                   AND status = 'ASSIGNED'
                 """, operatorId);
         sessions.expireFor(operatorId);
+        log.info(
+                "Operator deactivated: operatorId={}, releasedAssignments={}",
+                operatorId,
+                releasedAssignments
+        );
     }
 
     @Override
     @Transactional
     public void restoreOperator(UUID operatorId) {
         operator(operatorId).restore();
+        log.info("Operator restored: operatorId={}", operatorId);
     }
 
     @Override
@@ -74,6 +84,7 @@ public class AdminUserServiceImpl implements AdminUserService {
         validatePassword(password);
         operator(operatorId).changePasswordHash(passwordEncoder.encode(password));
         sessions.expireFor(operatorId);
+        log.info("Operator password changed: operatorId={}", operatorId);
     }
 
     private void validatePassword(String password) {

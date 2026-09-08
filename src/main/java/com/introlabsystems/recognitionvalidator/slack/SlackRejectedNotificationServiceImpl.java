@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Service
 @Slf4j
@@ -18,6 +19,7 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
     private final SlackNotificationStateRepository stateRepository;
     private final Clock clock;
     private final SlackNotificationOutboxRepository outbox;
+    private final AtomicBoolean incompleteCredentialsReported = new AtomicBoolean();
 
     @Autowired
     public SlackRejectedNotificationServiceImpl(
@@ -128,7 +130,9 @@ public class SlackRejectedNotificationServiceImpl implements SlackRejectedNotifi
         }
         if (properties.botToken() == null || properties.botToken().isBlank()
                 || properties.channelId() == null || properties.channelId().isBlank()) {
-            log.warn("Slack rejected notifications are enabled but credentials are incomplete");
+            if (incompleteCredentialsReported.compareAndSet(false, true)) {
+                log.warn("Slack rejected notifications are enabled but credentials are incomplete");
+            }
             return false;
         }
         return true;

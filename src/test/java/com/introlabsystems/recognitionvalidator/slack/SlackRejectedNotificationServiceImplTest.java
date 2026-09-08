@@ -1,6 +1,10 @@
 package com.introlabsystems.recognitionvalidator.slack;
 
+import ch.qos.logback.classic.Logger;
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -13,8 +17,40 @@ import java.util.UUID;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.assertj.core.api.Assertions.assertThat;
 
 class SlackRejectedNotificationServiceImplTest {
+
+    @Test
+    void incompleteCredentialsAreReportedOnlyOnce() {
+        SlackRejectedNotificationServiceImpl service = new SlackRejectedNotificationServiceImpl(
+                new SlackProperties(
+                        true, "", "", 10, "", Duration.ofSeconds(2),
+                        Duration.ofSeconds(3), "https://slack.test"
+                ),
+                mock(RejectedBacklogRepository.class),
+                mock(SlackMessageFormatter.class),
+                mock(SlackWebApiClient.class),
+                mock(SlackNotificationStateRepository.class),
+                Clock.systemUTC(),
+                mock(SlackNotificationOutboxRepository.class)
+        );
+        Logger logger = (Logger) LoggerFactory.getLogger(SlackRejectedNotificationServiceImpl.class);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThat(service.canDeliver()).isFalse();
+            assertThat(service.canDeliver()).isFalse();
+
+            assertThat(appender.list)
+                    .extracting(ILoggingEvent::getFormattedMessage)
+                    .filteredOn(message -> message.contains("credentials are incomplete"))
+                    .hasSize(1);
+        } finally {
+            logger.detachAppender(appender);
+        }
+    }
 
     @Test
     void archiveDeliveryUsesItsStoredTargetAndFixedPayload() {

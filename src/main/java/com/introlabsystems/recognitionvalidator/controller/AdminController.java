@@ -6,6 +6,7 @@ import com.introlabsystems.recognitionvalidator.service.AdminUserService;
 import com.introlabsystems.recognitionvalidator.service.RejectedScreenshotExportService;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -26,6 +27,7 @@ import java.util.UUID;
 
 @Controller
 @RequiredArgsConstructor
+@Slf4j
 public class AdminController {
 
     private final AdminUserService users;
@@ -132,6 +134,7 @@ public class AdminController {
 
     @ExceptionHandler(AdminUserException.class)
     String adminUserError(AdminUserException exception) {
+        log.warn("Admin operator operation rejected: code={}", exception.code());
         return "redirect:/admin?error=" + exception.code();
     }
 }

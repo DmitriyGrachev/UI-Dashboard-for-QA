@@ -8,6 +8,7 @@ import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueResult;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewQueueSummary;
 import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -16,6 +17,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ReviewQueueServiceImpl implements ReviewQueueService {
 
     private final ReviewClaimRepository claimRepository;
@@ -34,7 +36,8 @@ public class ReviewQueueServiceImpl implements ReviewQueueService {
             boolean replaceCurrent,
             boolean includeRemaining
     ) {
-        return claimRepository.claim(
+        long started = System.nanoTime();
+        ReviewQueueResult result = claimRepository.claim(
                 operatorId,
                 filters == null ? ReviewFilters.none() : filters,
                 clock.instant(),
@@ -42,6 +45,15 @@ public class ReviewQueueServiceImpl implements ReviewQueueService {
                 replaceCurrent,
                 includeRemaining && properties.countRemainingScreenshots()
         );
+        log.debug(
+                "Review queue claim completed: operatorId={}, replaceCurrent={}, includeRemaining={}, assigned={}, durationMs={}",
+                operatorId,
+                replaceCurrent,
+                includeRemaining,
+                result.item().isPresent(),
+                (System.nanoTime() - started) / 1_000_000
+        );
+        return result;
     }
 
     @Override
