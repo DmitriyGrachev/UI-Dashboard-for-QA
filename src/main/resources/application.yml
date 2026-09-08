@@ -57,7 +57,7 @@ validator:
   integration:
     image-api-key: ${INTEGRATION_IMAGE_API_KEY:}
   ai-queue:
-    lease-duration: ${AI_TASK_LEASE_DURATION:2m}
+    lease-duration: ${AI_TASK_LEASE_DURATION:10m}
   ai-delivery:
     public-base-url: ${VALIDATOR_PUBLIC_BASE_URL:}
     signing-key: ${AI_IMAGE_LINK_SIGNING_KEY:}

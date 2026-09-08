@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.cfg.CoercionAction;
 import com.fasterxml.jackson.databind.cfg.CoercionInputShape;
 import com.fasterxml.jackson.databind.type.LogicalType;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiResult;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiReject;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiTask;
 import com.introlabsystems.recognitionvalidator.ai.exception.AiQueueException;
 import com.introlabsystems.recognitionvalidator.ai.service.AiQueueService;
@@ -52,6 +53,20 @@ public class AiTaskController {
         if (result == null) throw new IllegalArgumentException("Result is required");
         queue.complete(imageId, result);
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new Completed(imageId, "COMPLETED"));
+    }
+
+    @PostMapping(value = "/reject", consumes = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<Completed> reject(HttpServletRequest request) throws IOException {
+        byte[] body = request.getInputStream().readNBytes(16 * 1024 + 1);
+        if (body.length > 16 * 1024) {
+            throw new AiQueueException(HttpStatus.PAYLOAD_TOO_LARGE, "REJECT_TOO_LARGE", "Reject exceeds 16 KiB");
+        }
+        AiReject reject;
+        try { reject = json.readValue(body, AiReject.class); }
+        catch (JsonProcessingException e) { throw new IllegalArgumentException("Invalid AI reject fields or JSON"); }
+        if (reject == null) throw new IllegalArgumentException("Reject is required");
+        queue.reject(reject);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new Completed(reject.imageId(), "REJECTED"));
     }
     public record Claims(List<AiTask> items) {}
     public record Completed(String imageId, String status) {}

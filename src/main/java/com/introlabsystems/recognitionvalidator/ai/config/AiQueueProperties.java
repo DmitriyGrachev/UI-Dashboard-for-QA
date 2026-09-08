@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.bind.DefaultValue;
 import java.time.Duration;
 
 @ConfigurationProperties("validator.ai-queue")
-public record AiQueueProperties(@DefaultValue("2m") Duration leaseDuration) {
+public record AiQueueProperties(@DefaultValue("10m") Duration leaseDuration) {
     public AiQueueProperties {
         if (leaseDuration == null || leaseDuration.compareTo(Duration.ofSeconds(10)) < 0
                 || leaseDuration.compareTo(Duration.ofHours(1)) > 0) {

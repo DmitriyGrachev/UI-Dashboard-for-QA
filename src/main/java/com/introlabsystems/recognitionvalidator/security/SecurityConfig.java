@@ -73,7 +73,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authorize -> authorize
                         .requestMatchers(HttpMethod.GET, "/api/integration/images/*/content")
                         .hasAuthority(IntegrationImageApiKeyFilter.AUTHORITY)
-                        .requestMatchers(HttpMethod.POST, "/api/integration/ai/tasks/claim", "/api/integration/ai/tasks/*/result")
+                        .requestMatchers(HttpMethod.POST, "/api/integration/ai/tasks/claim", "/api/integration/ai/tasks/reject", "/api/integration/ai/tasks/*/result")
                         .hasAuthority(IntegrationImageApiKeyFilter.AUTHORITY)
                         .anyRequest().denyAll()
                 )

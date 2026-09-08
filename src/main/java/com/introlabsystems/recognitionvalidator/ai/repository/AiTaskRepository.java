@@ -59,16 +59,16 @@ public class AiTaskRepository {
                 if (!rule.enabled() || claimed.size() == size) continue;
                 MapSqlParameterSource parameters = new MapSqlParameterSource("limit", size - claimed.size())
                         .addValue("now", timestamp(claimNow));
-                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.payload_raw", claimNow);
+                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.file_name", claimNow);
                 appendRuleConditions(sql, parameters, rule, "");
                 sql.append(" ORDER BY ai.file_created_at, ai.image_id LIMIT :limit FOR UPDATE OF ai SKIP LOCKED");
                 List<AiClaim> candidates = jdbc.query(sql.toString(), parameters, (rs, row) ->
-                        new AiClaim(rs.getString("image_id"), UUID.randomUUID(), expires, rs.getString("payload_raw")));
+                        new AiClaim(rs.getString("image_id"), UUID.randomUUID(), rs.getString("file_name"), expires));
                 for (AiClaim candidate : candidates) {
                     jdbc.update("""
                             UPDATE ai_review_task SET status='PROCESSING', claim_id=:claim,
                               lease_expires_at=:expires, attempt_count=attempt_count+1,
-                              issued_rule_id=:rule, expected=NULL, game='SINGLE_DECK', retry_after=NULL,
+                              issued_rule_id=:rule, game='SINGLE_DECK', retry_after=NULL,
                               last_error_code=NULL, last_error_message=NULL, last_error_at=NULL
                             WHERE image_id=:id
                             """, key(candidate).addValue("expires", timestamp(expires)).addValue("rule", rule.id()));
@@ -156,11 +156,50 @@ public class AiTaskRepository {
         });
     }
 
-    public boolean savePrepared(AiClaim claim, String expected) {
-        return jdbc.update("""
-                UPDATE ai_review_task SET expected=:expected
-                WHERE image_id=:id AND claim_id=:claim AND status='PROCESSING' AND lease_expires_at > clock_timestamp()
-                """, key(claim).addValue("expected", expected)) == 1;
+    public void reject(AiReject reject) {
+        transactions.executeWithoutResult(tx -> {
+            disagreements.lockImage(reject.imageId());
+            var rows = jdbc.query("SELECT status, claim_id, lease_expires_at FROM ai_review_task WHERE image_id=:id FOR UPDATE",
+                    new MapSqlParameterSource("id", reject.imageId()), (rs, row) -> new StoredClaim(
+                            rs.getString("status"), rs.getObject("claim_id", UUID.class), instant(rs, "lease_expires_at")));
+            if (rows.isEmpty()) throw new AiQueueException(HttpStatus.NOT_FOUND, "TASK_NOT_FOUND", "AI task does not exist");
+
+            var previous = jdbc.query(
+                    "SELECT message FROM ai_task_rejection WHERE image_id=:id AND claim_id=:claim FOR UPDATE",
+                    key(reject),
+                    (rs, row) -> rs.getString("message")
+            );
+            if (!previous.isEmpty()) {
+                if (!reject.message().equals(previous.getFirst())) {
+                    throw new AiQueueException(HttpStatus.CONFLICT, "RESULT_CONFLICT", "This claim already has a different rejection");
+                }
+                return;
+            }
+
+            StoredClaim stored = rows.getFirst();
+            if ("COMPLETED".equals(stored.status) && reject.claimId().equals(stored.claimId)) {
+                throw new AiQueueException(HttpStatus.CONFLICT, "RESULT_CONFLICT", "This claim already has a result");
+            }
+            if (!reject.claimId().equals(stored.claimId)) throw stale();
+            Instant now = databaseNow();
+            if (!"PROCESSING".equals(stored.status) || stored.expires == null || !stored.expires.isAfter(now)) {
+                throw stale();
+            }
+
+            jdbc.update("""
+                    INSERT INTO ai_task_rejection (id, image_id, claim_id, message, rejected_at)
+                    VALUES (:rejectionId, :id, :claim, :message, :rejectedAt)
+                    """, key(reject).addValue("rejectionId", UUID.randomUUID())
+                    .addValue("message", reject.message()).addValue("rejectedAt", timestamp(now)));
+            jdbc.update("""
+                    UPDATE ai_review_task SET status='FAILED', claim_id=NULL, lease_expires_at=NULL,
+                      retry_after=NULL, valid=NULL, verdict=NULL, certainty=NULL, confidence=NULL,
+                      message=NULL, checked_at=NULL, last_error_code='AI_REJECTED',
+                      last_error_message=:message, last_error_at=:rejectedAt
+                    WHERE image_id=:id
+                    """, new MapSqlParameterSource("id", reject.imageId())
+                    .addValue("message", reject.message()).addValue("rejectedAt", timestamp(now)));
+        });
     }
 
     public void preparationFailed(AiClaim claim, boolean permanent, String code) {
@@ -238,6 +277,9 @@ public class AiTaskRepository {
     private static MapSqlParameterSource key(AiClaim claim) {
         return new MapSqlParameterSource("id", claim.imageId()).addValue("claim", claim.claimId());
     }
+    private static MapSqlParameterSource key(AiReject reject) {
+        return new MapSqlParameterSource("id", reject.imageId()).addValue("claim", reject.claimId());
+    }
     private static Timestamp timestamp(Instant value) { return value == null ? null : Timestamp.from(value); }
     private static void condition(StringBuilder sql, MapSqlParameterSource p, String predicate, String name, Object value) {
         if (value != null) { sql.append(" AND ").append(predicate); p.addValue(name, value); }
@@ -247,4 +289,5 @@ public class AiTaskRepository {
     }
     private record StoredResult(String status, UUID claimId, Instant expires, Boolean valid, String verdict,
                                 Integer certainty, Integer confidence, String message) {}
+    private record StoredClaim(String status, UUID claimId, Instant expires) {}
 }

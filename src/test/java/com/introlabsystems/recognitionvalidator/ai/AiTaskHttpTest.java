@@ -35,6 +35,27 @@ class AiTaskHttpTest extends AiTestSupport {
     static final String KEY = "local-ai-test-key";
 
     @Test
+    void claimReturnsOriginalFilenameWithoutParsingExpectedAndUsesTenMinuteLease() throws Exception {
+        String id = image(99, 53);
+        String name = "original screenshot 99.png";
+        Files.createDirectories(properties.imageRoot().resolve("nested"));
+        Files.write(properties.imageRoot().resolve("nested").resolve(name), new byte[]{1});
+        jdbc.update("UPDATE image_asset SET file_name=?, relative_path=?, payload_raw='unparseable' WHERE id=?",
+                name, "nested/" + name, id);
+        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        var before = jdbc.queryForObject("SELECT clock_timestamp()", java.sql.Timestamp.class).toInstant();
+        var response = mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].image_name").value(name))
+                .andExpect(jsonPath("$.items[0].expected").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+        var item = json.readTree(response).path("items").get(0);
+        var expires = java.time.Instant.parse(item.path("leaseExpiresAt").asText());
+        assertThat(expires).isBetween(before.plusSeconds(600), before.plusSeconds(610));
+        assertThat(URI.create(item.path("url").asText()).getQuery())
+                .startsWith("expires=" + expires.plusSeconds(30).getEpochSecond() + "&");
+    }
+
+    @Test
     void claimsDownloadsAndCompletesWithoutChangingOperator() throws Exception {
         String id = image(1, 53);
         Files.createDirectories(properties.imageRoot());
@@ -42,7 +63,8 @@ class AiTaskHttpTest extends AiTestSupport {
         settings.save(new AiSettings(0, true, List.of(rule(10, null))));
         String response = mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].expected").value("7K"))
+                .andExpect(jsonPath("$.items[0].image_name").value(id + ".png"))
+                .andExpect(jsonPath("$.items[0].expected").doesNotExist())
                 .andExpect(jsonPath("$.items[0].game").value("SINGLE_DECK"))
                 .andReturn().getResponse().getContentAsString();
         var item = json.readTree(response).path("items").get(0);
@@ -87,5 +109,91 @@ class AiTaskHttpTest extends AiTestSupport {
         mvc.perform(post(path).header("X-API-Key", KEY).contentType("application/json")
                 .content(template.formatted("true", "97").replace("\"certainty\":97", "\"certainty\":97,\"message\":123")))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void rejectStoresTechnicalFailureAndMakesTaskHumanOnly() throws Exception {
+        String id = image(1, 53);
+        Files.createDirectories(properties.imageRoot());
+        Files.write(properties.imageRoot().resolve(id + ".png"), new byte[]{1, 2, 3});
+        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        String claimResponse = mvc.perform(post(CLAIM).header("X-API-Key", KEY))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        var item = json.readTree(claimResponse).path("items").get(0);
+        String body = "{\"imageId\":\"%s\",\"claimId\":\"%s\",\"message\":\"image could not be decoded\"}"
+                .formatted(id, item.path("claimId").asText());
+
+        mvc.perform(post("/api/integration/ai/tasks/reject")
+                        .header("X-API-Key", KEY).contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.imageId").value(id))
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+
+        assertThat(jdbc.queryForMap("SELECT status, claim_id, lease_expires_at, valid, verdict, checked_at, last_error_code, last_error_message FROM ai_review_task WHERE image_id=?", id))
+                .containsEntry("status", "FAILED")
+                .containsEntry("claim_id", null)
+                .containsEntry("lease_expires_at", null)
+                .containsEntry("valid", null)
+                .containsEntry("verdict", null)
+                .containsEntry("checked_at", null)
+                .containsEntry("last_error_code", "AI_REJECTED")
+                .containsEntry("last_error_message", "image could not be decoded");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_task_rejection WHERE image_id=?", Long.class, id)).isOne();
+        assertThat(jdbc.queryForObject("SELECT status FROM review_task WHERE image_id=?", String.class, id)).isEqualTo("PENDING");
+        assertThat(mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andReturn().getResponse().getContentAsString())
+                .contains("\"items\":[]");
+
+        mvc.perform(post("/api/integration/ai/tasks/reject")
+                        .header("X-API-Key", KEY).contentType("application/json").content(body))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("REJECTED"));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_task_rejection WHERE image_id=?", Long.class, id)).isOne();
+    }
+
+    @Test
+    void rejectFencesExpiredAndCompletedClaims() throws Exception {
+        String id = image(1, 53);
+        Files.createDirectories(properties.imageRoot());
+        Files.write(properties.imageRoot().resolve(id + ".png"), new byte[]{1, 2, 3});
+        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        var item = json.readTree(mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andReturn()
+                .getResponse().getContentAsString()).path("items").get(0);
+        String stale = "{\"imageId\":\"%s\",\"claimId\":\"%s\",\"message\":\"late\"}"
+                .formatted(id, item.path("claimId").asText());
+        jdbc.update("UPDATE ai_review_task SET lease_expires_at=now()-interval '1 second' WHERE image_id=?", id);
+        mvc.perform(post("/api/integration/ai/tasks/reject").header("X-API-Key", KEY)
+                        .contentType("application/json").content(stale))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("STALE_CLAIM"));
+
+        var next = json.readTree(mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andReturn()
+                .getResponse().getContentAsString()).path("items").get(0);
+        String resultPath = "/api/integration/ai/tasks/" + id + "/result";
+        String result = "{\"claimId\":\"%s\",\"valid\":true,\"verdict\":\"MATCH\"}"
+                .formatted(next.path("claimId").asText());
+        mvc.perform(post(resultPath).header("X-API-Key", KEY).contentType("application/json").content(result))
+                .andExpect(status().isOk());
+        String afterResult = "{\"imageId\":\"%s\",\"claimId\":\"%s\",\"message\":\"too late\"}"
+                .formatted(id, next.path("claimId").asText());
+        mvc.perform(post("/api/integration/ai/tasks/reject").header("X-API-Key", KEY)
+                        .contentType("application/json").content(afterResult))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.code").value("RESULT_CONFLICT"));
+    }
+
+    @Test
+    void rejectRequiresIntegrationAuthAndBoundedFields() throws Exception {
+        String id = image(1, 53);
+        String valid = "{\"imageId\":\"%s\",\"claimId\":\"314fd2b3-0e1a-46e8-a974-a5a99d40a01b\",\"message\":\"failed\"}"
+                .formatted(id);
+        mvc.perform(post("/api/integration/ai/tasks/reject").contentType("application/json").content(valid))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/integration/ai/tasks/reject").header("X-API-Key", KEY)
+                        .contentType("application/json").content(valid.replace("failed", " ")))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/integration/ai/tasks/reject").header("X-API-Key", KEY)
+                        .contentType("application/json").content(valid.replace("failed", "x".repeat(1001))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/integration/ai/tasks/reject").header("X-API-Key", KEY)
+                        .contentType("application/json").content(" ".repeat(16 * 1024 + 1)))
+                .andExpect(status().isPayloadTooLarge());
     }
 }

@@ -24,6 +24,14 @@ CREATE TABLE IF NOT EXISTS ai_review_task (
     valid boolean, verdict varchar(32), certainty integer, confidence integer, message varchar(2000),
     checked_at timestamptz, last_error_code varchar(64), last_error_message varchar(1000), last_error_at timestamptz
 );
+CREATE TABLE IF NOT EXISTS ai_task_rejection (
+    id uuid PRIMARY KEY,
+    image_id varchar(64) NOT NULL,
+    claim_id uuid NOT NULL,
+    message varchar(1000) NOT NULL,
+    rejected_at timestamptz NOT NULL,
+    CONSTRAINT uk_ai_task_rejection_claim UNIQUE (image_id, claim_id)
+);
 
 ALTER TABLE ai_review_task ADD COLUMN IF NOT EXISTS file_available boolean NOT NULL DEFAULT false;
 ALTER TABLE ai_review_task ADD COLUMN IF NOT EXISTS cloud_available_at timestamptz;

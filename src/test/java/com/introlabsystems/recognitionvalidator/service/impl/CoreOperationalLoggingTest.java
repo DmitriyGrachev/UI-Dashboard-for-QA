@@ -3,7 +3,6 @@ package com.introlabsystems.recognitionvalidator.service.impl;
 import ch.qos.logback.classic.Level;
 import ch.qos.logback.classic.Logger;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiResult;
-import com.introlabsystems.recognitionvalidator.ai.mapper.AiCardPayloadMapper;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository;
 import com.introlabsystems.recognitionvalidator.ai.service.AiImageLinkService;
@@ -121,7 +120,6 @@ class CoreOperationalLoggingTest {
         AiQueueService service = new AiQueueService(
                 mock(AiSettingsRepository.class),
                 tasks,
-                new AiCardPayloadMapper(),
                 mock(AiImageLinkService.class)
         );
         String imageId = "a".repeat(64);
