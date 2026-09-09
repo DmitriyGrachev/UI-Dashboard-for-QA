@@ -69,6 +69,7 @@ public class SlackOperationsMonitor {
         String aiDetails = metrics.aiEnabled()
                 ? "Eligible pending: " + (metrics.aiHasEligiblePending() ? "yes" : "no")
                     + "; processing: " + metrics.aiProcessing()
+                    + "; failed: " + metrics.aiFailed()
                     + "; expired leases: " + metrics.aiExpired()
                 : "AI task delivery is paused.";
         String aiClosure = metrics.aiEnabled() ? "Recovered" : "Closed: AI paused";

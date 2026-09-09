@@ -16,5 +16,10 @@ public record AiSettings(long revision, boolean enabled, List<AiRule> rules) {
         }
         rules = rules.stream().sorted(Comparator.comparingInt(AiRule::priority)
                 .thenComparing(rule -> rule.id().toString())).toList();
+        for (int index = 0; index < rules.size(); index++) {
+            if (rules.get(index).priority() != index + 1) {
+                throw new IllegalArgumentException("Rule priorities must be unique and sequential from 1");
+            }
+        }
     }
 }

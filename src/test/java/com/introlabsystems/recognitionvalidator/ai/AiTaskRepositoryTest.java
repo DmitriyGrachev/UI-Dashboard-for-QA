@@ -25,13 +25,13 @@ import static org.mockito.Mockito.mock;
 class AiTaskRepositoryTest extends AiTestSupport {
     @Autowired AiTaskRepository tasks;
 
-    AiSettings all() { return new AiSettings(0, true, List.of(rule(10, null))); }
+    AiSettings all() { return new AiSettings(0, true, List.of(rule(1, null))); }
 
     @Test
     void fillsByPriorityThenAgeWithoutDuplicatesAcrossOverlappingRules() {
         String old = image(1, 1);
         String priority = image(2, 53);
-        AiSettings rules = new AiSettings(0, true, List.of(rule(20, null), rule(10, 53L)));
+        AiSettings rules = new AiSettings(0, true, List.of(rule(2, null), rule(1, 53L)));
         assertThat(tasks.claim(rules, 5)).extracting(AiClaim::imageId).containsExactly(priority, old);
         assertThat(tasks.claim(rules, 5)).isEmpty();
         assertThat(jdbc.queryForList("SELECT status FROM review_task", String.class)).containsOnly("PENDING");
@@ -103,9 +103,23 @@ class AiTaskRepositoryTest extends AiTestSupport {
     void noFallbackAndNoCloudOnlyWhenB2Disabled() {
         String id = image(1, 53);
         assertThat(tasks.claim(new AiSettings(0, false, List.of()), 1)).isEmpty();
-        assertThat(tasks.claim(new AiSettings(0, true, List.of(rule(10, 999L))), 1)).isEmpty();
+        assertThat(tasks.claim(new AiSettings(0, true, List.of(rule(1, 999L))), 1)).isEmpty();
         jdbc.update("UPDATE image_asset SET file_available=false, cloud_object_key='test.png', cloud_uploaded_at=now() WHERE id=?", id);
         assertThat(tasks.claim(all(), 1)).isEmpty();
+    }
+
+    @Test
+    void claimsConfiguredGameAndReturnsItsExactCode() {
+        String id = image(1, 53);
+        jdbc.update("UPDATE image_asset SET game_code='bj_igt' WHERE id=?", id);
+        jdbc.update("UPDATE review_task SET game_code='bj_igt' WHERE image_id=?", id);
+        jdbc.update("UPDATE ai_review_task SET game_code='bj_igt' WHERE image_id=?", id);
+
+        AiClaim claim = tasks.claim(new AiSettings(0, true, List.of(rule(1, null, "bj_igt"))), 1).getFirst();
+
+        assertThat(claim.gameCode()).isEqualTo("bj_igt");
+        assertThat(jdbc.queryForObject("SELECT game FROM ai_review_task WHERE image_id=?", String.class, id))
+                .isEqualTo("bj_igt");
     }
 
     @Test

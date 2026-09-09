@@ -28,7 +28,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ReviewDisagreementRepositoryTest extends AiTestSupport {
 
-    private final AiSettings all = new AiSettings(0, true, List.of(rule(10, null)));
+    private final AiSettings all = new AiSettings(0, true, List.of(rule(1, null)));
 
     @Autowired AiTaskRepository tasks;
     @Autowired DecisionService decisions;

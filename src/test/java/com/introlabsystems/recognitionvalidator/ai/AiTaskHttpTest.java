@@ -42,7 +42,7 @@ class AiTaskHttpTest extends AiTestSupport {
         Files.write(properties.imageRoot().resolve("nested").resolve(name), new byte[]{1});
         jdbc.update("UPDATE image_asset SET file_name=?, relative_path=?, payload_raw='unparseable' WHERE id=?",
                 name, "nested/" + name, id);
-        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        settings.save(new AiSettings(0, true, List.of(rule(1, null))));
         var before = jdbc.queryForObject("SELECT clock_timestamp()", java.sql.Timestamp.class).toInstant();
         var response = mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items[0].imageName").value(name))
@@ -60,12 +60,12 @@ class AiTaskHttpTest extends AiTestSupport {
         String id = image(1, 53);
         Files.createDirectories(properties.imageRoot());
         Files.write(properties.imageRoot().resolve(id + ".png"), new byte[]{1, 2, 3});
-        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        settings.save(new AiSettings(0, true, List.of(rule(1, null))));
         String response = mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].imageName").value(id + ".png"))
                 .andExpect(jsonPath("$.items[0].expected").doesNotExist())
-                .andExpect(jsonPath("$.items[0].game").value("SINGLE_DECK"))
+                .andExpect(jsonPath("$.items[0].game").value("bj_single_deck_ags"))
                 .andReturn().getResponse().getContentAsString();
         var item = json.readTree(response).path("items").get(0);
         URI url = URI.create(item.path("url").asText());
@@ -116,7 +116,7 @@ class AiTaskHttpTest extends AiTestSupport {
         String id = image(1, 53);
         Files.createDirectories(properties.imageRoot());
         Files.write(properties.imageRoot().resolve(id + ".png"), new byte[]{1, 2, 3});
-        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        settings.save(new AiSettings(0, true, List.of(rule(1, null))));
         String claimResponse = mvc.perform(post(CLAIM).header("X-API-Key", KEY))
                 .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
         var item = json.readTree(claimResponse).path("items").get(0);
@@ -155,7 +155,7 @@ class AiTaskHttpTest extends AiTestSupport {
         String id = image(1, 53);
         Files.createDirectories(properties.imageRoot());
         Files.write(properties.imageRoot().resolve(id + ".png"), new byte[]{1, 2, 3});
-        settings.save(new AiSettings(0, true, List.of(rule(10, null))));
+        settings.save(new AiSettings(0, true, List.of(rule(1, null))));
         var item = json.readTree(mvc.perform(post(CLAIM).header("X-API-Key", KEY)).andReturn()
                 .getResponse().getContentAsString()).path("items").get(0);
         String stale = "{\"imageId\":\"%s\",\"claimId\":\"%s\",\"message\":\"late\"}"

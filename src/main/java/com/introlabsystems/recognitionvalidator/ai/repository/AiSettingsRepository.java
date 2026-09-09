@@ -41,8 +41,9 @@ public class AiSettingsRepository {
             do {
                 if (rs.getObject("id") != null) rules.add(new AiRule(rs.getObject("id", UUID.class),
                         rs.getString("name"), rs.getBoolean("enabled"), rs.getInt("priority"),
+                        rs.getString("game_code"),
                         instant(rs, "created_from"), instant(rs, "created_to"), rs.getObject("token_id", Long.class),
-                        rs.getString("session_id"), rs.getObject("notification", Boolean.class), rs.getObject("has_user_hand", Boolean.class)));
+                        rs.getString("session_id"), rs.getObject("has_user_hand", Boolean.class)));
             } while (rs.next());
             return new AiSettings(revision, enabled, rules);
         });
@@ -57,10 +58,10 @@ public class AiSettingsRepository {
             }
             jdbc.update("DELETE FROM ai_selection_rule");
             for (AiRule r : settings.rules()) jdbc.update("""
-                    INSERT INTO ai_selection_rule(id,name,enabled,priority,created_from,created_to,token_id,session_id,notification,has_user_hand)
+                    INSERT INTO ai_selection_rule(id,name,enabled,priority,game_code,created_from,created_to,token_id,session_id,has_user_hand)
                     VALUES (?,?,?,?,?,?,?,?,?,?)
-                    """, r.id(), r.name(), r.enabled(), r.priority(), timestamp(r.createdFrom()), timestamp(r.createdTo()),
-                    r.tokenId(), r.sessionId(), r.notification(), r.hasUserHand());
+                    """, r.id(), r.name(), r.enabled(), r.priority(), r.gameCode(), timestamp(r.createdFrom()),
+                    timestamp(r.createdTo()), r.tokenId(), r.sessionId(), r.hasUserHand());
             return read();
         });
     }

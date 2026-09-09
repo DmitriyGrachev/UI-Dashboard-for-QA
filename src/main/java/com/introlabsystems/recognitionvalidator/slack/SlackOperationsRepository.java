@@ -1,8 +1,6 @@
 package com.introlabsystems.recognitionvalidator.slack;
 
-import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
-import com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository;
-import com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository;
+import com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -24,8 +22,7 @@ public class SlackOperationsRepository {
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final B2StorageProperties b2;
-    private final AiSettingsRepository aiSettings;
-    private final AiTaskRepository aiTasks;
+    private final AiOperationsRepository aiOperations;
     private final RejectedBacklogRepository rejectedBacklog;
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
@@ -33,25 +30,15 @@ public class SlackOperationsRepository {
         Objects.requireNonNull(now, "now must not be null");
         setStatementTimeout();
         B2Metrics b2Metrics = b2Metrics();
-        AiSettings settings = aiSettings.read();
-        boolean hasEligiblePending = aiTasks.hasEligiblePending(settings, now);
-        long processing = number("SELECT COUNT(*) FROM ai_review_task WHERE status='PROCESSING'");
-        long expired = namedJdbc.queryForObject("""
-                SELECT COUNT(*)
-                FROM ai_review_task
-                WHERE status='PROCESSING' AND lease_expires_at <= :now
-                """, new MapSqlParameterSource("now", timestamp(now)), Long.class);
-        Instant lastResult = instant(namedJdbc.queryForObject(
-                "SELECT MAX(last_checked_at) FROM ai_daily_statistics",
-                new MapSqlParameterSource(), Timestamp.class
-        ));
+        var ai = aiOperations.snapshot(now);
         return new Metrics(
                 b2Metrics,
-                settings.enabled(),
-                hasEligiblePending,
-                processing,
-                expired,
-                lastResult
+                ai.enabled(),
+                ai.hasEligiblePending(),
+                ai.processing(),
+                ai.failed(),
+                ai.expired(),
+                ai.lastResult()
         );
     }
 
@@ -135,11 +122,6 @@ public class SlackOperationsRepository {
         jdbc.execute("SET LOCAL statement_timeout='5s'");
     }
 
-    private long number(String sql) {
-        Long value = jdbc.queryForObject(sql, Long.class);
-        return value == null ? 0 : value;
-    }
-
     private static Timestamp timestamp(Instant value) {
         return Timestamp.from(value);
     }
@@ -153,6 +135,7 @@ public class SlackOperationsRepository {
             boolean aiEnabled,
             boolean aiHasEligiblePending,
             long aiProcessing,
+            long aiFailed,
             long aiExpired,
             Instant aiLastResult
     ) {

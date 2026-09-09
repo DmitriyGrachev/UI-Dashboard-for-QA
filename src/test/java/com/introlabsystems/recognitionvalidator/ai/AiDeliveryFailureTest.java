@@ -30,10 +30,11 @@ class AiDeliveryFailureTest {
     final AiQueueService service = new AiQueueService(settings, tasks, links);
 
     AiClaim claim(int id, String imageName) {
-        return new AiClaim("%064x".formatted(id), UUID.randomUUID(), imageName, now.plusSeconds(120));
+        return new AiClaim("%064x".formatted(id), UUID.randomUUID(), imageName,
+                "bj_single_deck_ags", now.plusSeconds(120));
     }
     void setup(AiClaim... claims) {
-        var snapshot = new AiSettings(0, true, List.of(AiSettingsRepositoryTest.rule(10, null)));
+        var snapshot = new AiSettings(0, true, List.of(AiSettingsRepositoryTest.rule(1, null)));
         when(settings.read()).thenReturn(snapshot);
         when(tasks.claim(snapshot, claims.length)).thenReturn(List.of(claims));
         when(tasks.databaseNow()).thenReturn(now);

@@ -8,7 +8,8 @@ SET statement_timeout = '10min';
 UPDATE image_asset SET file_available=false WHERE id<=lpad('1000000',64,'0');
 -- Positive AI results far from the operator queue head must not require scanning the entire queue.
 UPDATE ai_review_task SET status='COMPLETED',valid=true,verdict='MATCH',certainty=97,
-    checked_at='2026-09-03T10:00:00Z' WHERE image_id>=lpad('1400000',64,'0');
+    confidence=(token_id % 101)::integer, checked_at='2026-09-03T10:00:00Z'
+WHERE image_id>=lpad('1400000',64,'0');
 ANALYZE image_asset;
 ANALYZE review_task;
 ANALYZE ai_review_task;

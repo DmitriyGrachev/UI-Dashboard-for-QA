@@ -19,11 +19,6 @@ ORDER BY ai.file_created_at,ai.image_id LIMIT 20;
 EXPLAIN (ANALYZE, BUFFERS) EXECUTE token_claim(53,'session-53');
 \echo 'Empty token + session'
 EXPLAIN (ANALYZE, BUFFERS) EXECUTE token_claim(999999,'absent');
-\echo 'Notification true'
-EXPLAIN (ANALYZE, BUFFERS) SELECT ai.image_id FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
-WHERE ai.status='PENDING' AND ai.game_code='bj_single_deck_ags' AND ia.file_available AND ai.is_notification=TRUE
-AND ai.file_available AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
-ORDER BY ai.file_created_at,ai.image_id LIMIT 20;
 \echo 'AI + operator filters, rare completed result'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai
 JOIN review_task rt ON rt.image_id=ai.image_id JOIN image_asset ia ON ia.id=rt.image_id
@@ -42,6 +37,19 @@ ORDER BY ai.file_created_at DESC,ai.image_id DESC LIMIT 51;
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai JOIN review_task rt ON rt.image_id=ai.image_id
 WHERE ai.status='COMPLETED' AND (ai.file_created_at,ai.image_id)<('2026-08-18'::timestamptz,repeat('f',64))
 ORDER BY ai.file_created_at DESC,ai.image_id DESC LIMIT 51;
+\echo 'Admin confidence 90-100 newest page'
+EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai JOIN review_task rt ON rt.image_id=ai.image_id
+WHERE ai.status='COMPLETED' AND ai.confidence BETWEEN 90 AND 100
+ORDER BY ai.file_created_at DESC,ai.image_id DESC LIMIT 51;
+\echo 'Operator exact confidence oldest task'
+EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM ai_review_task ai
+JOIN review_task rt ON rt.image_id=ai.image_id JOIN image_asset ia ON ia.id=rt.image_id
+WHERE rt.status='PENDING' AND ia.file_available AND ai.status='COMPLETED' AND ai.confidence=50
+ORDER BY ai.file_created_at,ai.image_id LIMIT 1 FOR UPDATE OF rt SKIP LOCKED;
+\echo 'Confidence summary through current EXISTS path'
+EXPLAIN (ANALYZE, BUFFERS) SELECT COUNT(*),MIN(rt.file_created_at),MAX(rt.file_created_at) FROM review_task rt
+WHERE EXISTS (SELECT 1 FROM ai_review_task ai WHERE ai.image_id=rt.image_id
+AND ai.status='COMPLETED' AND ai.confidence BETWEEN 90 AND 100);
 \echo 'Admin cursor with AI unchecked'
 EXPLAIN (ANALYZE, BUFFERS) SELECT rt.image_id FROM review_task rt
 WHERE (rt.file_created_at,rt.image_id)<('2026-08-10'::timestamptz,repeat('f',64)) AND NOT EXISTS (

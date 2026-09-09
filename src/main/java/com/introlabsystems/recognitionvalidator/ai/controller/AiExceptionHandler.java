@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @Slf4j @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = {AiTaskController.class, AiSettingsController.class})
+@RestControllerAdvice(assignableTypes = {AiTaskController.class, AiSettingsController.class, AiOperationsController.class})
 public class AiExceptionHandler {
     @ExceptionHandler(AiQueueException.class)
     ResponseEntity<Error> queue(AiQueueException e) {

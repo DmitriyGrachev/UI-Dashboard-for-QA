@@ -1,7 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const {aiResultText, aiFilterValues} = require('../../main/resources/static/js/ai-result.js');
-const {rulePayload} = require('../../main/resources/static/js/ai-queue.js');
 const {buildSearchParams} = require('../../main/resources/static/js/admin-screenshots.js');
 
 test('AI state survives cursor pagination without retired certainty filters', () => {
@@ -30,13 +29,4 @@ test('AI verdict and confidence filters are sent to the screenshot search', () =
     assert.equal(params.get('aiVerdict'), 'LOW_CONFIDENCE');
     assert.equal(params.get('confidenceFrom'), '20');
     assert.equal(params.get('confidenceTo'), '60');
-});
-test('rule dates are UTC and absent predicates stay null', () => {
-    const rule = rulePayload({name:' Example ', enabled:true, priority:'10', createdFrom:'2026-09-03T10:15',
-        createdTo:'', tokenId:'0', sessionId:'', notification:'false', hasUserHand:''});
-    assert.equal(rule.createdFrom, '2026-09-03T10:15:00Z');
-    assert.equal(rule.tokenId, 0);
-    assert.equal(rule.notification, false);
-    assert.equal(rule.hasUserHand, null);
-    assert.equal(rule.name, 'Example');
 });

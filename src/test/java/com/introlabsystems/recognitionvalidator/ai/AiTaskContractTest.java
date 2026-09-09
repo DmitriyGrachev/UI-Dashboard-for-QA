@@ -30,8 +30,8 @@ class AiTaskContractTest {
     @Test
     void claimUsesFilenameAndDoesNotRequireExpectedPayload() throws Exception {
         Instant expires = Instant.parse("2026-09-08T10:00:00Z");
-        AiSettings snapshot = new AiSettings(0, true, List.of(rule(10, null)));
-        AiClaim claim = new AiClaim("a".repeat(64), UUID.randomUUID(), "original screenshot.png", expires);
+        AiSettings snapshot = new AiSettings(0, true, List.of(rule(1, null)));
+        AiClaim claim = new AiClaim("a".repeat(64), UUID.randomUUID(), "original screenshot.png", "bj_igt", expires);
         when(settings.read()).thenReturn(snapshot);
         when(tasks.claim(snapshot, 1)).thenReturn(List.of(claim));
         when(tasks.databaseNow()).thenReturn(Instant.parse("2026-09-08T09:50:00Z"));
@@ -44,5 +44,6 @@ class AiTaskContractTest {
         assertThat(json.has("image_name")).isFalse();
         assertThat(json.has("expected")).isFalse();
         assertThat(task.imageId()).isEqualTo(claim.imageId());
+        assertThat(task.game()).isEqualTo("bj_igt");
     }
 }

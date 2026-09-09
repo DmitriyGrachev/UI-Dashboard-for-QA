@@ -155,7 +155,7 @@ public class ImageAssetBatchWriter {
                        (COALESCE(BTRIM(active_user_cards), '') <> '' OR
                         COALESCE(BTRIM(inactive_user_cards), '') <> ''), 0, file_available,
                        CASE WHEN NULLIF(BTRIM(cloud_object_key),'') IS NOT NULL THEN cloud_uploaded_at END
-                FROM image_asset WHERE id = :id AND game_code = 'bj_single_deck_ags'
+                FROM image_asset WHERE id = :id
                 ON CONFLICT (image_id) DO UPDATE SET
                     file_created_at = EXCLUDED.file_created_at, game_code = EXCLUDED.game_code,
                     token_id = EXCLUDED.token_id, session_id = EXCLUDED.session_id,

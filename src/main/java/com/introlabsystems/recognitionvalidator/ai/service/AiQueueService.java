@@ -36,7 +36,7 @@ public class AiQueueService {
             try {
                 var url = links.create(claim.imageId(), claim.leaseExpiresAt());
                 prepared.add(new AiTask(claim.imageId(), claim.claimId(), url,
-                        claim.imageName(), "SINGLE_DECK", claim.leaseExpiresAt()));
+                        claim.imageName(), claim.gameCode(), claim.leaseExpiresAt()));
             } catch (AiQueueException e) {
                 if (e.code().equals("DELIVERY_NOT_CONFIGURED")) {
                     for (AiClaim own : claims) tasks.preparationFailed(own, false, e.code());

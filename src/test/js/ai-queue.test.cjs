@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue} =
+const {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue, initializeAiOperations} =
     require('../../main/resources/static/js/ai-queue.js');
 
 class FakeElement {
@@ -116,6 +116,11 @@ class FakeElement {
 
 class FakeDocument {
     constructor(root, view) { this.root = root; this.defaultView = view; this.activeElement = null; }
+    createElement(tagName) {
+        const node = new FakeElement(tagName);
+        node.ownerDocument = this;
+        return node;
+    }
     getElementById(id) { return this.root.querySelector(`#${id}`); }
     querySelector(selector) {
         if (selector === 'meta[name="_csrf"]') return {content: 'token'};
@@ -155,18 +160,24 @@ function fakeQueueDom() {
         field.required = required;
         fields.append(field);
     };
+    const position = new FakeElement('span');
+    position.dataset.rulePosition = '';
+    fields.append(position);
     addField('input', 'name', 'text', true);
-    addField('input', 'priority', 'number', true);
+    addField('select', 'gameCode', 'select-one', true);
     addField('input', 'enabled', 'checkbox');
     addField('input', 'createdFrom', 'datetime-local');
     addField('input', 'createdTo', 'datetime-local');
     addField('input', 'tokenId', 'number');
     addField('input', 'sessionId');
-    addField('select', 'notification');
     addField('select', 'hasUserHand');
+    const up = new FakeElement('button');
+    up.dataset.moveRule = 'up';
+    const down = new FakeElement('button');
+    down.dataset.moveRule = 'down';
     const remove = new FakeElement('button');
     remove.dataset.removeRule = '';
-    fields.append(remove);
+    fields.append(up, down, remove);
     source.append(ruleSummaryElement, fields);
     const template = new FakeElement('template', {id: 'ai-rule-template'});
     template.content = {firstElementChild: source};
@@ -176,54 +187,57 @@ function fakeQueueDom() {
     return {form, enabled, rules, save, stop, reload, document};
 }
 
-test('rules use server priority then id order without renumbering', () => {
+test('rules use server priority order', () => {
     const rules = [
-        {id: 'b', priority: 10},
-        {id: 'a', priority: 10},
-        {id: 'z', priority: 20}
+        {id: 'b', priority: 2},
+        {id: 'a', priority: 1},
+        {id: 'z', priority: 3}
     ];
     assert.deepEqual(sortRules(rules).map(rule => rule.id), ['a', 'b', 'z']);
     assert.deepEqual(rules.map(rule => rule.id), ['b', 'a', 'z']);
-    assert.deepEqual(sortRules(rules).map(rule => rule.priority), [10, 10, 20]);
+    assert.deepEqual(sortRules(rules).map(rule => rule.priority), [1, 2, 3]);
 });
 
 test('rule summary keeps selected false and zero conditions', () => {
-    const summary = ruleSummary({name: '<unsafe>', enabled: false, priority: '0', tokenId: '0', notification: 'false'});
+    const summary = ruleSummary({name: '<unsafe>', enabled: false, priority: '1', gameCode: 'bj_igt', tokenId: '0'});
     assert.match(summary, /<unsafe>/);
     assert.match(summary, /disabled/);
-    assert.match(summary, /priority 0/);
+    assert.match(summary, /priority 1/);
+    assert.match(summary, /bj_igt/);
     assert.match(summary, /token 0/);
-    assert.match(summary, /notification no/);
 });
 
 test('settings snapshot normalizes server dates while preserving disabled values', () => {
     const snapshot = settingsSnapshot({enabled: false, rules: [{id: 'r1', name: ' Rule ', enabled: false,
-        priority: 5, createdFrom: '2026-09-03T10:15:30Z', tokenId: 0, notification: false, hasUserHand: null}]});
+        priority: 1, gameCode: 'bj_igt', createdFrom: '2026-09-03T10:15:30Z', tokenId: 0, hasUserHand: null}]});
     assert.deepEqual(snapshot, {enabled: false, rules: [{id: 'r1', name: 'Rule', enabled: false,
-        priority: 5, createdFrom: '2026-09-03T10:15:30Z', createdTo: null, tokenId: 0, sessionId: null,
-        notification: false, hasUserHand: null}]});
+        priority: 1, gameCode: 'bj_igt', createdFrom: '2026-09-03T10:15:30Z', createdTo: null, tokenId: 0,
+        sessionId: null, hasUserHand: null}]});
 });
 
 test('rule dates are UTC and absent predicates stay null', () => {
-    const rule = rulePayload({name:' Example ', enabled:true, priority:'10', createdFrom:'2026-09-03T10:15:30',
-        createdTo:'', tokenId:'0', sessionId:'', notification:'false', hasUserHand:''});
+    const rule = rulePayload({name:' Example ', enabled:true, priority:'1', gameCode:'bj_single_deck_ags',
+        createdFrom:'2026-09-03T10:15:30', createdTo:'', tokenId:'0', sessionId:'', hasUserHand:''});
     assert.equal(rule.createdFrom, '2026-09-03T10:15:30Z');
     assert.equal(rule.tokenId, 0);
-    assert.equal(rule.notification, false);
+    assert.equal(rule.gameCode, 'bj_single_deck_ags');
+    assert.equal(Object.hasOwn(rule, 'notification'), false);
     assert.equal(rule.hasUserHand, null);
     assert.equal(rule.name, 'Example');
 });
 
 test('queue renders rules and keeps the draft across stop, save, and reload', async () => {
     const {form, enabled, rules, save, stop, reload, document} = fakeQueueDom();
-    const saved = {id: 'saved', name: 'Saved', enabled: true, priority: 5, createdFrom: '2026-09-03T10:15:30.123456Z',
-        createdTo: null, tokenId: 0, sessionId: null, notification: false, hasUserHand: null};
+    const saved = {id: 'saved', name: 'Saved', enabled: true, priority: 1, gameCode: 'bj_igt',
+        createdFrom: '2026-09-03T10:15:30.123456Z', createdTo: null, tokenId: 0, sessionId: null, hasUserHand: null};
     const savedDraft = {...saved, name: 'Draft'};
     const calls = [];
-    const initial = {revision: 1, enabled: true, rules: [saved], leaseSeconds: 120, game: 'SINGLE_DECK'};
-    const stopped = {revision: 2, enabled: false, rules: [saved], leaseSeconds: 120, game: 'SINGLE_DECK'};
-    const afterSave = {revision: 3, enabled: false, rules: [savedDraft], leaseSeconds: 120, game: 'SINGLE_DECK'};
+    const games = ['bj_single_deck_ags', 'bj_igt'];
+    const initial = {revision: 1, enabled: true, rules: [saved], leaseSeconds: 120, games};
+    const stopped = {revision: 2, enabled: false, rules: [saved], leaseSeconds: 120, games};
+    const afterSave = {revision: 3, enabled: false, rules: [savedDraft], leaseSeconds: 120, games};
     const previousFetch = global.fetch;
+    let operationRefreshes = 0;
     global.fetch = async (_url, options) => {
         const body = options.body ? JSON.parse(options.body) : null;
         calls.push(body);
@@ -231,13 +245,14 @@ test('queue renders rules and keeps the draft across stop, save, and reload', as
         return {ok: true, status: 200, json: async () => calls.length === 2 ? stopped : afterSave};
     };
     try {
-        initializeAiQueue(form);
+        const queue = initializeAiQueue(form, {refresh: () => operationRefreshes++});
         await new Promise(resolve => setTimeout(resolve, 0));
         assert.equal(form.noValidate, true);
         const rendered = rules.firstElementChild;
         assert.ok(rendered);
         assert.equal(rendered.querySelector('[name="name"]').value, 'Saved');
-        assert.equal(String(rendered.querySelector('[name="priority"]').value), '5');
+        assert.equal(rendered.querySelector('[name="gameCode"]').value, 'bj_igt');
+        assert.equal(rendered.querySelector('[data-rule-position]').textContent, '1');
 
         let name = rendered.querySelector('[name="name"]');
         name.value = 'Draft';
@@ -249,12 +264,14 @@ test('queue renders rules and keeps the draft across stop, save, and reload', as
         assert.equal(calls[1].rules[0].createdFrom, saved.createdFrom);
         assert.equal(rules.firstElementChild.querySelector('[name="name"]').value, 'Draft');
         assert.equal(enabled.checked, false);
+        assert.equal(operationRefreshes, 1);
 
         form.dispatchEvent({type: 'submit'});
         await new Promise(resolve => setTimeout(resolve, 0));
         assert.equal(calls[2].rules[0].name, 'Draft');
         assert.equal(calls[2].rules[0].createdFrom, saved.createdFrom);
         assert.equal(rules.firstElementChild.querySelector('[name="name"]').value, 'Draft');
+        assert.equal(operationRefreshes, 2);
 
         name = rules.firstElementChild.querySelector('[name="name"]');
         name.value = 'Reload draft';
@@ -267,12 +284,12 @@ test('queue renders rules and keeps the draft across stop, save, and reload', as
     }
 });
 
-test('committed priority edits reorder existing draft nodes without saving', async () => {
+test('move and remove keep priorities unique and sequential without saving', async () => {
     const {form, rules, document} = fakeQueueDom();
     const initial = {revision: 1, enabled: true, rules: [
-        {id: 'b', name: 'B', enabled: true, priority: 20},
-        {id: 'a', name: 'A', enabled: true, priority: 10}
-    ], leaseSeconds: 120, game: 'SINGLE_DECK'};
+        {id: 'b', name: 'B', enabled: true, priority: 2, gameCode: 'bj_igt'},
+        {id: 'a', name: 'A', enabled: true, priority: 1, gameCode: 'bj_single_deck_ags'}
+    ], leaseSeconds: 120, games: ['bj_single_deck_ags', 'bj_igt']};
     const calls = [];
     const previousFetch = global.fetch;
     global.fetch = async (_url, options) => {
@@ -280,35 +297,69 @@ test('committed priority edits reorder existing draft nodes without saving', asy
         return {ok: true, status: 200, json: async () => initial};
     };
     try {
-        initializeAiQueue(form);
+        const queue = initializeAiQueue(form);
         await new Promise(resolve => setTimeout(resolve, 0));
         const first = rules.children[0];
         const second = rules.children[1];
-        assert.equal(first.dataset.ruleId, 'a');
-        assert.equal(second.dataset.ruleId, 'b');
-        second.open = true;
-        second.querySelector('[name="name"]').value = 'Draft B';
-        const priority = second.querySelector('[name="priority"]');
-        priority.value = '5';
-        priority.ownerDocument = document;
-        priority.focus();
-        form.dispatchEvent({type: 'change', target: priority});
+        second.querySelector('[data-move-rule="up"]').dispatchEvent({type: 'click'});
         assert.deepEqual(Array.from(rules.children, node => node.dataset.ruleId), ['b', 'a']);
-        assert.equal(rules.children[0], second);
-        assert.equal(rules.children[1], first);
-        assert.equal(second.querySelector('[name="name"]').value, 'Draft B');
-        assert.equal(second.open, true);
-        assert.equal(document.activeElement, priority);
+        assert.deepEqual(queue.draftSettings().rules.map(rule => rule.priority), [1, 2]);
+        assert.equal(rules.children[0].querySelector('[data-rule-position]').textContent, '1');
+        assert.equal(rules.children[1].querySelector('[data-rule-position]').textContent, '2');
         assert.equal(calls.length, 1);
 
-        priority.value = '10';
-        form.dispatchEvent({type: 'change', target: priority});
-        assert.deepEqual(Array.from(rules.children, node => node.dataset.ruleId), ['a', 'b']);
-
-        priority.value = '';
-        form.dispatchEvent({type: 'change', target: priority});
-        assert.deepEqual(Array.from(rules.children, node => node.dataset.ruleId), ['a', 'b']);
+        first.querySelector('[data-remove-rule]').dispatchEvent({type: 'click'});
+        assert.equal(rules.children.length, 1);
+        assert.equal(rules.firstElementChild.querySelector('[data-rule-position]').textContent, '1');
+        assert.equal(queue.draftSettings().rules[0].priority, 1);
         assert.equal(calls.length, 1);
+    } finally {
+        global.fetch = previousFetch;
+    }
+});
+
+test('new rules default to Single Deck', async () => {
+    const {form, rules, document} = fakeQueueDom();
+    const initial = {revision: 1, enabled: false, rules: [], leaseSeconds: 120,
+        games: ['bj_single_deck_ags', 'bj_igt']};
+    const previousFetch = global.fetch;
+    global.fetch = async () => ({ok: true, status: 200, json: async () => initial});
+    try {
+        const queue = initializeAiQueue(form);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        document.getElementById('ai-rule-add').dispatchEvent({type: 'click'});
+        assert.equal(rules.firstElementChild.querySelector('[name="gameCode"]').value, 'bj_single_deck_ags');
+        assert.equal(queue.draftSettings().rules[0].priority, 1);
+    } finally {
+        global.fetch = previousFetch;
+    }
+});
+
+test('AI operations load and refresh on demand', async () => {
+    const root = new FakeElement('main');
+    for (const id of ['ai-operations-state', 'ai-operations-eligible', 'ai-operations-processing',
+        'ai-operations-failed', 'ai-operations-expired', 'ai-operations-last-result', 'ai-operations-message']) {
+        root.append(new FakeElement('span', {id}));
+    }
+    const refresh = new FakeElement('button', {id: 'ai-operations-refresh'});
+    root.append(refresh);
+    const document = new FakeDocument(root, {addEventListener() {}});
+    document.register(root);
+    let calls = 0;
+    const previousFetch = global.fetch;
+    global.fetch = async () => ({ok: true, status: 200, json: async () => ({
+        enabled: calls++ > 0, hasEligiblePending: true, processing: 3, failed: 2, expired: 1,
+        lastResult: '2026-09-09T10:00:00Z'
+    })});
+    try {
+        initializeAiOperations(document);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        assert.equal(document.getElementById('ai-operations-state').textContent, 'STOPPED');
+        assert.equal(document.getElementById('ai-operations-failed').textContent, '2');
+        refresh.dispatchEvent({type: 'click'});
+        await new Promise(resolve => setTimeout(resolve, 0));
+        assert.equal(document.getElementById('ai-operations-state').textContent, 'ACTIVE');
+        assert.equal(calls, 2);
     } finally {
         global.fetch = previousFetch;
     }

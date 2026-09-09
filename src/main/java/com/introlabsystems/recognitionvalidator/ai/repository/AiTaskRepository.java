@@ -59,19 +59,21 @@ public class AiTaskRepository {
                 if (!rule.enabled() || claimed.size() == size) continue;
                 MapSqlParameterSource parameters = new MapSqlParameterSource("limit", size - claimed.size())
                         .addValue("now", timestamp(claimNow));
-                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.file_name", claimNow);
+                StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.file_name, ai.game_code", claimNow);
                 appendRuleConditions(sql, parameters, rule, "");
                 sql.append(" ORDER BY ai.file_created_at, ai.image_id LIMIT :limit FOR UPDATE OF ai SKIP LOCKED");
                 List<AiClaim> candidates = jdbc.query(sql.toString(), parameters, (rs, row) ->
-                        new AiClaim(rs.getString("image_id"), UUID.randomUUID(), rs.getString("file_name"), expires));
+                        new AiClaim(rs.getString("image_id"), UUID.randomUUID(), rs.getString("file_name"),
+                                rs.getString("game_code"), expires));
                 for (AiClaim candidate : candidates) {
                     jdbc.update("""
                             UPDATE ai_review_task SET status='PROCESSING', claim_id=:claim,
                               lease_expires_at=:expires, attempt_count=attempt_count+1,
-                              issued_rule_id=:rule, game='SINGLE_DECK', retry_after=NULL,
+                              issued_rule_id=:rule, game=:game, retry_after=NULL,
                               last_error_code=NULL, last_error_message=NULL, last_error_at=NULL
                             WHERE image_id=:id
-                            """, key(candidate).addValue("expires", timestamp(expires)).addValue("rule", rule.id()));
+                            """, key(candidate).addValue("expires", timestamp(expires)).addValue("rule", rule.id())
+                            .addValue("game", candidate.gameCode()));
                     claimed.add(candidate);
                 }
             }
@@ -236,7 +238,7 @@ public class AiTaskRepository {
         StringBuilder sql = new StringBuilder("""
                 SELECT %s
                 FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
-                WHERE ai.status='PENDING' AND ai.game_code='bj_single_deck_ags'
+                WHERE ai.status='PENDING'
                   AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
                   AND (ai.retry_after IS NULL OR ai.retry_after <= :now)
                 """.formatted(projection));
@@ -259,6 +261,8 @@ public class AiTaskRepository {
             AiRule rule,
             String suffix
     ) {
+        condition(sql, parameters, "ai.game_code = :gameCode" + suffix,
+                "gameCode" + suffix, rule.gameCode());
         condition(sql, parameters, "ai.file_created_at >= :createdFrom" + suffix,
                 "createdFrom" + suffix, timestamp(rule.createdFrom()));
         condition(sql, parameters, "ai.file_created_at < :createdTo" + suffix,
@@ -267,9 +271,6 @@ public class AiTaskRepository {
                 "tokenId" + suffix, rule.tokenId());
         condition(sql, parameters, "ai.session_id = :sessionId" + suffix,
                 "sessionId" + suffix, rule.sessionId());
-        if (rule.notification() != null) {
-            sql.append(rule.notification() ? " AND ai.is_notification = TRUE" : " AND ai.is_notification = FALSE");
-        }
         condition(sql, parameters, "ai.has_user_hand = :hasUserHand" + suffix,
                 "hasUserHand" + suffix, rule.hasUserHand());
     }

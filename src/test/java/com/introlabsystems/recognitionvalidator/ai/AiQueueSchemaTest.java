@@ -51,4 +51,17 @@ class AiQueueSchemaTest {
         jdbc.update("DELETE FROM image_asset WHERE id=?", id);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_review_task", Long.class)).isZero();
     }
+
+    @Test
+    void indexingCreatesAiTasksForOtherConfiguredGames() throws Exception {
+        String name = "bj_igt_39_850746c3-874d-495d-aefa-5ea3636cfb51"
+                + "_u_Jack_bSbH_27-07-2026-22-48-01_754.png";
+        Files.write(root.resolve(name), new byte[]{1});
+
+        new ImageIndexer(root, 10, parser, writer, clock).scanRoot();
+
+        String id = ImageId.fromRelativePath(Path.of(name));
+        assertThat(jdbc.queryForObject("SELECT game_code FROM ai_review_task WHERE image_id=?", String.class, id))
+                .isEqualTo("bj_igt");
+    }
 }

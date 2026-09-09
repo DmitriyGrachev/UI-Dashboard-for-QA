@@ -37,7 +37,7 @@ public class AiReviewTask {
     @Column(name = "attempt_count", nullable = false) @ColumnDefault("0") private int attemptCount;
     @Column(name = "issued_rule_id") private UUID issuedRuleId;
     @Column(length = 512) private String expected;
-    @Column(length = 32) private String game;
+    @Column(length = 100) private String game;
     private Boolean valid;
     @Column(length = 32) private String verdict;
     private Integer certainty;

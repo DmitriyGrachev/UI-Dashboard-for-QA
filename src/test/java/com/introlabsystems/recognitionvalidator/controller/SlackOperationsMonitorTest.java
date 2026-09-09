@@ -70,7 +70,7 @@ class SlackOperationsMonitorTest extends AbstractWebIntegrationTest {
         data = mock(SlackOperationsRepository.class);
         when(data.snapshot(any())).thenAnswer(invocation -> new SlackOperationsRepository.Metrics(
                 new SlackOperationsRepository.B2Metrics(b2Enabled, 0, b2Failures, null),
-                aiEnabled, aiPending, aiProcessing, 0, null));
+                aiEnabled, aiPending, aiProcessing, 0, 0, null));
         when(data.daily(any())).thenReturn(new SlackOperationsRepository.Daily(12, 3, 5, 4, 1, 2, 1));
         when(data.pendingRejects()).thenReturn(0L);
     }

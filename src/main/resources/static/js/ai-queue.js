@@ -1,4 +1,5 @@
 const MAX_RULES = 20;
+const DEFAULT_GAME_CODE = 'bj_single_deck_ags';
 
 function utcDateValue(value) {
     if (!value) return null;
@@ -24,11 +25,11 @@ function rulePayload(values = {}, saved = {}) {
         name: String(values.name ?? '').trim(),
         enabled: values.enabled === true || values.enabled === 'true',
         priority: Number(values.priority),
+        gameCode: String(values.gameCode ?? '').trim(),
         createdFrom: dateValue('createdFrom'),
         createdTo: dateValue('createdTo'),
         tokenId: empty(values.tokenId) ? null : Number(values.tokenId),
         sessionId: empty(values.sessionId) ? null : String(values.sessionId).trim() || null,
-        notification: boolValue(values.notification),
         hasUserHand: boolValue(values.hasUserHand)
     };
 }
@@ -51,11 +52,11 @@ function normalizedRule(rule = {}) {
         name: rule.name,
         enabled: rule.enabled,
         priority: rule.priority,
+        gameCode: rule.gameCode,
         createdFrom: localDateValue(rule.createdFrom),
         createdTo: localDateValue(rule.createdTo),
         tokenId: rule.tokenId,
         sessionId: rule.sessionId,
-        notification: rule.notification,
         hasUserHand: rule.hasUserHand
     });
 }
@@ -71,14 +72,11 @@ function ruleSummary(values = {}) {
     const name = String(values.name ?? '').trim() || 'Unnamed rule';
     const enabled = values.enabled === true || values.enabled === 'true';
     const priority = values.priority === '' || values.priority == null ? '—' : String(values.priority);
-    const selected = [];
+    const selected = [String(values.gameCode || 'no game')];
     if (values.createdFrom) selected.push(`from ${String(values.createdFrom)}`);
     if (values.createdTo) selected.push(`to ${String(values.createdTo)}`);
     if (values.tokenId !== '' && values.tokenId != null) selected.push(`token ${String(values.tokenId)}`);
     if (values.sessionId != null && String(values.sessionId).trim()) selected.push(`session ${String(values.sessionId).trim()}`);
-    if (values.notification !== '' && values.notification != null) {
-        selected.push(`notification ${values.notification === true || values.notification === 'true' ? 'yes' : 'no'}`);
-    }
     if (values.hasUserHand !== '' && values.hasUserHand != null) {
         selected.push(`user hand ${values.hasUserHand === true || values.hasUserHand === 'true' ? 'yes' : 'no'}`);
     }
@@ -86,11 +84,45 @@ function ruleSummary(values = {}) {
 }
 
 if (typeof document !== 'undefined') {
+    const operations = initializeAiOperations(document);
     const form = document.getElementById('ai-queue-form');
-    if (form) initializeAiQueue(form);
+    if (form) initializeAiQueue(form, operations);
 }
 
-function initializeAiQueue(form) {
+function initializeAiOperations(doc) {
+    const byId = id => doc.getElementById(id);
+    const refreshButton = byId('ai-operations-refresh');
+    const state = byId('ai-operations-state');
+    const message = byId('ai-operations-message');
+    if (!refreshButton || !state || !message) return null;
+
+    async function refresh() {
+        refreshButton.disabled = true;
+        message.textContent = 'Refreshing…';
+        try {
+            const response = await fetch('/admin/api/ai-queue/operations', {cache: 'no-store'});
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.message || `Request failed (${response.status})`);
+            state.textContent = data.enabled ? 'ACTIVE' : 'STOPPED';
+            byId('ai-operations-eligible').textContent = data.hasEligiblePending ? 'Yes' : 'No';
+            byId('ai-operations-processing').textContent = String(data.processing);
+            byId('ai-operations-failed').textContent = String(data.failed);
+            byId('ai-operations-expired').textContent = String(data.expired);
+            byId('ai-operations-last-result').textContent = data.lastResult || '—';
+            message.textContent = 'Updated.';
+        } catch (error) {
+            message.textContent = error.message || 'Could not load AI operations.';
+        } finally {
+            refreshButton.disabled = false;
+        }
+    }
+
+    refreshButton.addEventListener('click', refresh);
+    refresh();
+    return {refresh};
+}
+
+function initializeAiQueue(form, operations) {
     if (!form || form.dataset.aiQueueInitialized === 'true') return;
     const doc = form.ownerDocument || document;
     const byId = id => doc.getElementById(id);
@@ -113,7 +145,7 @@ function initializeAiQueue(form) {
     let busy = false;
 
     function nodeValues(node) {
-        const values = {id: node.dataset.ruleId || null};
+        const values = {id: node.dataset.ruleId || null, priority: node.dataset.priority};
         node.querySelectorAll('[name]').forEach(input => {
             values[input.name] = input.type === 'checkbox' ? input.checked : input.value;
         });
@@ -176,9 +208,8 @@ function initializeAiQueue(form) {
     function updateQueueSummary() {
         if (!current) return;
         const issuing = current.enabled ? 'Issuing enabled' : 'Issuing paused';
-        const game = current.game === 'SINGLE_DECK' || current.sourceGame === 'bj_single_deck_ags' ? 'Single Deck' : (current.game || 'AI queue');
         const lease = current.leaseSeconds == null ? '' : ` · lease ${current.leaseSeconds}s`;
-        summary.textContent = `${issuing} · ${game}${lease} · revision ${current.revision}`;
+        summary.textContent = `${issuing}${lease} · revision ${current.revision}`;
     }
 
     function updateRuleSummary(node) {
@@ -190,26 +221,34 @@ function initializeAiQueue(form) {
         rules.querySelectorAll('.ai-rule').forEach(updateRuleSummary);
     }
 
-    function reorderRules(target) {
-        if (target?.name !== 'priority') return;
-        const nodes = Array.from(rules.children);
-        const entries = nodes.map(node => {
-            const priority = node.querySelector('[name="priority"]');
-            const value = String(priority?.value ?? '').trim();
-            return {node, ...nodeValues(node), valid: Boolean(value) && Number.isFinite(Number(value))
-                && (typeof priority?.checkValidity !== 'function' || priority.checkValidity())};
+    function renumberRules() {
+        Array.from(rules.children).forEach((node, index, nodes) => {
+            node.dataset.priority = String(index + 1);
+            const position = node.querySelector('[data-rule-position]');
+            if (position) position.textContent = String(index + 1);
+            const up = node.querySelector('[data-move-rule="up"]');
+            const down = node.querySelector('[data-move-rule="down"]');
+            if (up) up.disabled = index === 0;
+            if (down) down.disabled = index === nodes.length - 1;
+            updateRuleSummary(node);
         });
-        if (!entries.every(entry => entry.valid)) return;
-        const ordered = sortRules(entries).map(entry => entry.node);
-        if (!ordered.some((node, index) => node !== nodes[index])) return;
-        const active = doc.activeElement;
-        rules.replaceChildren(...ordered);
-        if (active?.focus) active.focus();
+    }
+
+    function moveRule(node, offset) {
+        const nodes = Array.from(rules.children);
+        const index = nodes.indexOf(node);
+        const destination = index + offset;
+        if (index < 0 || destination < 0 || destination >= nodes.length) return;
+        [nodes[index], nodes[destination]] = [nodes[destination], nodes[index]];
+        rules.replaceChildren(...nodes);
+        renumberRules();
+        refreshControls();
     }
 
     function cloneSettings(data) {
         const value = {...(data || {})};
         value.rules = sortRules((Array.isArray(value.rules) ? value.rules : []).map(rule => ({...rule})));
+        value.games = Array.isArray(value.games) ? [...value.games] : [];
         return value;
     }
 
@@ -232,20 +271,32 @@ function initializeAiQueue(form) {
         node.dataset.ruleId = rule.id || '';
         node.dataset.newRule = String(isNew);
         if ('open' in node) node.open = isNew || Boolean(rule.invalid);
+        const game = node.querySelector('[name="gameCode"]');
+        if (game) {
+            game.replaceChildren(...current.games.map(code => {
+                const option = doc.createElement('option');
+                option.value = code;
+                option.textContent = code === DEFAULT_GAME_CODE ? 'Single Deck' : code;
+                return option;
+            }));
+        }
         node.querySelectorAll('[name]').forEach(input => {
             const value = rule[input.name];
             if (input.type === 'checkbox') input.checked = value == null ? true : value === true || value === 'true';
             else if (input.type === 'datetime-local') input.value = localDateValue(value);
-            else input.value = value ?? (input.name === 'priority' ? (rules.children.length + 1) * 10 : '');
+            else input.value = value ?? (input.name === 'gameCode' ? DEFAULT_GAME_CODE : '');
         });
+        node.querySelectorAll('[data-move-rule]').forEach(button =>
+            button.addEventListener('click', () => moveRule(node, button.dataset.moveRule === 'up' ? -1 : 1)));
         const remove = node.querySelector('[data-remove-rule]');
         if (remove) remove.addEventListener('click', () => {
             if (busy) return;
             node.remove();
+            renumberRules();
             refreshControls();
         });
         rules.append(node);
-        updateRuleSummary(node);
+        renumberRules();
         return node;
     }
 
@@ -272,7 +323,8 @@ function initializeAiQueue(form) {
             error.status = response.status;
             throw error;
         }
-        if (!Array.isArray(data.rules) || typeof data.enabled !== 'boolean' || !Number.isSafeInteger(data.revision)) {
+        if (!Array.isArray(data.rules) || !Array.isArray(data.games)
+                || typeof data.enabled !== 'boolean' || !Number.isSafeInteger(data.revision)) {
             throw new Error('Unexpected AI settings response. Draft kept; reload the page.');
         }
         return data;
@@ -287,7 +339,7 @@ function initializeAiQueue(form) {
         return data;
     }
 
-    async function perform(action, success, reconcile = render) {
+    async function perform(action, success, reconcile = render, refreshOperations = false) {
         if (busy) return null;
         busy = true;
         form.setAttribute('aria-busy', 'true');
@@ -297,6 +349,7 @@ function initializeAiQueue(form) {
         try {
             const data = await action();
             reconcile(data);
+            if (refreshOperations) operations?.refresh();
             lockFields(true);
             setMessage(success);
             return data;
@@ -355,7 +408,6 @@ function initializeAiQueue(form) {
             delete disclosure.dataset.invalid;
             updateRuleSummary(disclosure);
         }
-        reorderRules(event.target);
         refreshControls();
     });
     add.addEventListener('click', () => {
@@ -379,14 +431,14 @@ function initializeAiQueue(form) {
                 updateRuleSummaries();
                 updateQueueSummary();
                 refreshControls();
-            });
+            }, true);
     });
     form.addEventListener('submit', event => {
         event.preventDefault();
         if (busy || !current || !validDraft()) return;
         const draft = draftSettings();
         perform(() => request({revision: current.revision, enabled: draft.enabled, rules: draft.rules}),
-            'Saved. The next claim uses these rules; active tasks are unchanged.');
+            'Saved. The next claim uses these rules; active tasks are unchanged.', render, true);
     });
 
     const view = form.ownerDocument?.defaultView || (typeof window !== 'undefined' ? window : null);
@@ -398,10 +450,10 @@ function initializeAiQueue(form) {
         });
     }
 
-    perform(() => request(), 'Rules are checked in priority order (smaller number first, oldest screenshot first).');
+    perform(() => request(), 'Rules are checked from top to bottom, oldest screenshot first.');
     return {render, row, draftSettings, dirty};
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue};
+    module.exports = {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue, initializeAiOperations};
 }

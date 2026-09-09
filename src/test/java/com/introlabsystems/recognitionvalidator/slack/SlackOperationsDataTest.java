@@ -52,10 +52,11 @@ class SlackOperationsDataTest {
         insertAiImage(5, "PROCESSING", true, 11L, "session-a", null, null, NOW.minusSeconds(30));
         insertAiImage(6, "PENDING", false, 11L, "session-a", null, null, null);
         insertAiImage(7, "PENDING", true, 12L, "session-a", null, null, null);
+        insertAiImage(8, "FAILED", true, 11L, "session-a", null, null, null);
 
         jdbc.update("UPDATE ai_queue_settings SET enabled = TRUE WHERE id = 1");
-        insertRule("rule-a", 0, 11L, "session-a");
-        insertRule("rule-overlap", 1, 11L, "session-a");
+        insertRule("rule-a", 1, 11L, "session-a");
+        insertRule("rule-overlap", 2, 11L, "session-a");
 
         jdbc.update("UPDATE image_asset SET cloud_object_key = 'validator/id6.png', cloud_uploaded_at = ?, "
                 + "cloud_upload_attempt_count = 0 WHERE id = ?", Timestamp.from(NOW), id(6));
@@ -69,10 +70,11 @@ class SlackOperationsDataTest {
         assertThat(metrics.aiEnabled()).isTrue();
         assertThat(metrics.aiHasEligiblePending()).isTrue();
         assertThat(metrics.aiProcessing()).isEqualTo(2);
+        assertThat(metrics.aiFailed()).isOne();
         assertThat(metrics.aiExpired()).isOne();
         assertThat(metrics.aiLastResult()).isEqualTo(NOW.minusSeconds(30));
         assertThat(metrics.b2().enabled()).isFalse();
-        assertThat(metrics.b2().backlog()).isEqualTo(6);
+        assertThat(metrics.b2().backlog()).isEqualTo(7);
         assertThat(metrics.b2().repeatedAttempts()).isOne();
         assertThat(metrics.b2().lastUpload()).isEqualTo(NOW);
     }
@@ -198,8 +200,8 @@ class SlackOperationsDataTest {
 
     private void insertRule(String name, int priority, Long token, String session) {
         jdbc.update("""
-                INSERT INTO ai_selection_rule(id, name, enabled, priority, token_id, session_id)
-                VALUES (?, ?, TRUE, ?, ?, ?)
+                INSERT INTO ai_selection_rule(id, name, enabled, priority, game_code, token_id, session_id)
+                VALUES (?, ?, TRUE, ?, 'bj_single_deck_ags', ?, ?)
                 """, UUID.randomUUID(), name, priority, token, session);
     }
 

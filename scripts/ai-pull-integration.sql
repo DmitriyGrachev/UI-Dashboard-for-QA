@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS ai_queue_settings (
 INSERT INTO ai_queue_settings (id, revision, enabled) VALUES (1, 0, false) ON CONFLICT (id) DO NOTHING;
 CREATE TABLE IF NOT EXISTS ai_selection_rule (
     id uuid PRIMARY KEY, name varchar(100) NOT NULL, enabled boolean NOT NULL, priority integer NOT NULL,
-    created_from timestamptz, created_to timestamptz, token_id bigint, session_id varchar(128),
+    game_code varchar(100) NOT NULL, created_from timestamptz, created_to timestamptz, token_id bigint, session_id varchar(128),
     notification boolean, has_user_hand boolean
 );
 CREATE TABLE IF NOT EXISTS ai_review_task (
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS ai_review_task (
     token_id bigint, session_id varchar(128), is_notification boolean NOT NULL, has_user_hand boolean NOT NULL,
     file_available boolean NOT NULL DEFAULT false, cloud_available_at timestamptz,
     claim_id uuid, lease_expires_at timestamptz, retry_after timestamptz,
-    attempt_count integer NOT NULL DEFAULT 0, issued_rule_id uuid, expected varchar(512), game varchar(32),
+    attempt_count integer NOT NULL DEFAULT 0, issued_rule_id uuid, expected varchar(512), game varchar(100),
     valid boolean, verdict varchar(32), certainty integer, confidence integer, message varchar(2000),
     checked_at timestamptz, last_error_code varchar(64), last_error_message varchar(1000), last_error_at timestamptz
 );
@@ -35,6 +35,17 @@ CREATE TABLE IF NOT EXISTS ai_task_rejection (
 
 ALTER TABLE ai_review_task ADD COLUMN IF NOT EXISTS file_available boolean NOT NULL DEFAULT false;
 ALTER TABLE ai_review_task ADD COLUMN IF NOT EXISTS cloud_available_at timestamptz;
+ALTER TABLE ai_review_task ALTER COLUMN game TYPE varchar(100);
+ALTER TABLE ai_selection_rule ADD COLUMN IF NOT EXISTS game_code varchar(100);
+UPDATE ai_selection_rule SET game_code='bj_single_deck_ags' WHERE game_code IS NULL OR BTRIM(game_code)='';
+WITH ranked AS (
+    SELECT id, row_number() OVER (ORDER BY priority, id) AS priority
+    FROM ai_selection_rule
+)
+UPDATE ai_selection_rule rule SET priority=ranked.priority
+FROM ranked WHERE ranked.id=rule.id AND rule.priority<>ranked.priority;
+ALTER TABLE ai_selection_rule ALTER COLUMN game_code SET NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS ux_ai_selection_rule_priority ON ai_selection_rule(priority);
 -- Keep this small DDL identical to src/main/resources/db/ai-availability.sql (also used on fresh databases).
 CREATE OR REPLACE FUNCTION sync_ai_image_availability() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
@@ -66,7 +77,7 @@ BEGIN
         -- all legacy results for every batch. Re-plan this migration's bounded statements.
         SET LOCAL plan_cache_mode = force_custom_plan;
         SELECT max(id) INTO end_id FROM (
-            SELECT id FROM image_asset WHERE id > cursor_id AND game_code='bj_single_deck_ags'
+            SELECT id FROM image_asset WHERE id > cursor_id
             ORDER BY id LIMIT batch_size
         ) batch;
         EXIT WHEN end_id IS NULL;
@@ -75,7 +86,7 @@ BEGIN
         SELECT id, 'PENDING', file_created_at, game_code, token_id, session_id, is_notification,
             (NULLIF(BTRIM(active_user_cards),'') IS NOT NULL OR NULLIF(BTRIM(inactive_user_cards),'') IS NOT NULL), 0,
             file_available, CASE WHEN NULLIF(BTRIM(cloud_object_key),'') IS NOT NULL THEN cloud_uploaded_at END
-        FROM image_asset WHERE id > cursor_id AND id <= end_id AND game_code='bj_single_deck_ags'
+        FROM image_asset WHERE id > cursor_id AND id <= end_id
         ON CONFLICT (image_id) DO UPDATE SET file_available=EXCLUDED.file_available,
             cloud_available_at=EXCLUDED.cloud_available_at
         WHERE (ai_review_task.file_available,ai_review_task.cloud_available_at)
@@ -89,7 +100,7 @@ BEGIN
                 confidence=(to_jsonb(rt)->>'ai_confidence')::integer,
                 checked_at=(to_jsonb(rt)->>'ai_checked_at')::timestamptz,
                 attempt_count=COALESCE((to_jsonb(rt)->>'ai_attempt_count')::integer,0),
-                game='SINGLE_DECK'
+                game=ai.game_code
             FROM review_task rt WHERE rt.image_id=ai.image_id
                 AND ai.image_id > cursor_id AND ai.image_id <= end_id
                 AND rt.image_id > cursor_id AND rt.image_id <= end_id
@@ -126,9 +137,7 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_pending_token_order
 CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_pending_session_order
     ON ai_review_task (session_id, file_created_at, image_id)
     WHERE status='PENDING' AND (file_available OR cloud_available_at IS NOT NULL);
-CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_pending_notification_order
-    ON ai_review_task (file_created_at, image_id)
-    WHERE status='PENDING' AND is_notification=TRUE AND (file_available OR cloud_available_at IS NOT NULL);
+DROP INDEX CONCURRENTLY IF EXISTS ix_ai_pending_notification_order;
 CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_expired_lease
     ON ai_review_task (lease_expires_at, image_id) WHERE status='PROCESSING';
 CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_completed_result_order
@@ -139,8 +148,8 @@ CREATE STATISTICS IF NOT EXISTS st_ai_token_session (dependencies, ndistinct, mc
     ON token_id, session_id FROM ai_review_task;
 ANALYZE ai_review_task;
 
-SELECT COUNT(*) AS missing_single_deck_tasks FROM image_asset ia
-WHERE ia.game_code='bj_single_deck_ags' AND NOT EXISTS (SELECT 1 FROM ai_review_task ai WHERE ai.image_id=ia.id);
+SELECT COUNT(*) AS missing_ai_tasks FROM image_asset ia
+WHERE NOT EXISTS (SELECT 1 FROM ai_review_task ai WHERE ai.image_id=ia.id);
 SELECT COUNT(*) AS incorrect_availability_projections FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
 WHERE (ai.file_available,ai.cloud_available_at) IS DISTINCT FROM
     (ia.file_available,CASE WHEN NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL THEN ia.cloud_uploaded_at END);
