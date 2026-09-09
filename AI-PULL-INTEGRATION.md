@@ -4,12 +4,13 @@ Client-facing handoff for Igor: [API client guide](IGOR-AI-CLIENT-GUIDE.md).
 
 Igor owns the scheduler and parallel workers. Validator does **not** call Igor's API.
 Each worker claims work, downloads the returned URL, validates locally, and posts the result.
-Only `bj_single_deck_ags` is issued in V1; the outgoing game is `SINGLE_DECK`.
+Rules can issue any game configured in `validator.games`; the outgoing `game` is its exact game code.
 
 ## API contract
 
 All claim/result/reject calls require `X-API-Key: <INTEGRATION_IMAGE_API_KEY>` over HTTPS.
 They do not use an operator login, cookie or CSRF token. Do not put the API key in URLs.
+Interactive OpenAPI documentation is available at `/swagger-ui.html`; raw JSON is at `/v3/api-docs`.
 
 ```bash
 # size is optional (default 1), range 1..20. Use only the number of available workers.
@@ -24,8 +25,8 @@ curl --fail-with-body -X POST "$VALIDATOR_URL/api/integration/ai/tasks/claim?siz
       "imageId": "<64-character image ID>",
       "claimId": "<UUID of this attempt>",
       "url": "https://...temporary-download-url...",
-      "image_name": "original-screenshot.png",
-      "game": "SINGLE_DECK",
+      "imageName": "original-screenshot.png",
+      "game": "bj_single_deck_ags",
       "leaseExpiresAt": "2026-09-08T10:10:00Z"
     }
   ]
@@ -34,7 +35,7 @@ curl --fail-with-body -X POST "$VALIDATOR_URL/api/integration/ai/tasks/claim?siz
 
 Always an `items` array: requesting 5 can return 1, 3, 5, or `[]`. Empty queue or
 paused issuance returns HTTP 200 with `{"items":[]}`. It does not wait for work.
-Priority rules are evaluated in `(priority, rule ID)` order; within a rule the
+Priority rules are evaluated from position 1 onward; within a rule the
 oldest `(file_created_at, image_id)` is first. Rules fill the remaining batch capacity.
 Overlapping rules do not duplicate a task. No implicit fallback beyond configured rules.
 
@@ -44,7 +45,7 @@ do not log or publish it. Local URLs expire 30 seconds after the lease. B2 URLs 
 at least that lifetime. Metadata availability is not a guarantee that an external
 filesystem cleanup or B2 lifecycle rule has not removed the file.
 
-`image_name` contains the complete original filename including its extension, without a
+`imageName` contains the complete original filename including its extension, without a
 directory path. `expected` is no longer returned or parsed as a prerequisite for issuing a task.
 
 ```bash
@@ -102,9 +103,10 @@ Do not share the local signing secret or B2 secret with Igor.
 
 In `/admin` → **AI queue**:
 
-1. Add up to 20 rules: name, enabled, priority, UTC date bounds, Token, Session,
-   Notification and Has user hand. Empty optional fields mean any value. Conditions within a rule use AND.
-2. Smaller numeric priority is earlier. Date lower bound is inclusive; upper bound is exclusive.
+1. Add up to 20 rules: name, enabled, game, UTC date bounds, Token, Session and Has user hand.
+   New rules default to **Single Deck**. Empty optional fields mean any value. Conditions within a rule use AND.
+2. Move rules up/down to set their unique sequential priorities (1, 2, 3…). Date lower bound is inclusive;
+   upper bound is exclusive.
 3. Check **Allow new AI claims** and save. A new installation starts disabled with no rules.
 4. **Stop issuing** immediately saves disabled state using the last saved rules. Active tasks may finish.
 5. **Reload saved settings** discards unsaved edits. A concurrent admin save returns a conflict;
@@ -132,7 +134,7 @@ failure history. Existing installations must create this table before using `/ta
 when automatic schema updates are disabled; rerunning the script is supported. Rejection
 history is retained independently of screenshot cleanup. Set `AI_TASK_LEASE_DURATION=10m`
 in the deployed environment if it already explicitly overrides the old 2-minute default.
-Update AI clients to read `image_name` before switching to this claim contract.
+Update AI clients to read `imageName` before switching to this claim contract.
 
 1. Back up PostgreSQL as usual. Disable the **old push scheduler** and let its current
    request finish. For the final cutover, stop the old application/metadata writers while
@@ -153,10 +155,10 @@ Update AI clients to read `image_name` before switching to this claim contract.
      < scripts/ai-pull-integration.sql
    ```
 
-3. Require `missing_single_deck_tasks = 0`, `incorrect_availability_projections = 0`
+3. Require `missing_ai_tasks = 0`, `incorrect_availability_projections = 0`
    and all listed indexes valid/ready.
    The script commits backfill in batches of 5000, builds partial indexes concurrently,
-   and copies old completed Single Deck AI results when the old columns exist.
+   and copies old completed AI results when the old columns exist.
    It never resets new pull results/rules or drops old columns. Hibernate update alone
    does not perform this backfill or create the partial indexes. Re-running the script
    is safe, but is not required for every ordinary redeploy.
@@ -184,7 +186,7 @@ databases still require the migration/backfill/indexes; do not disable the trigg
 Completed-result filters use a one-to-one AI join and the AI timestamp/index for ordered
 selection; this avoids sorting every matching result before returning the next screenshot.
 All/Unchecked keep their existing queue order and the explorer retains its keyset cursor.
-Partial indexes cover pending game/token/session/notification, expired leases, and ordered
+Partial indexes cover pending game/token/session, expired leases, and ordered
 completed results (with or without a Match/Unmatched constraint).
 
 Local verification on 2026-09-03: `mvn clean verify` passed 268 tests (no skips/failures),
@@ -204,8 +206,7 @@ For repeatable scale checks, use a disk-backed disposable PostgreSQL with suffic
 clusters 100,001 positive AI results near the newest end. These measurements are SQL execution
 times on synthetic local data, not production HTTP latency guarantees.
 
-Historical stress-query execution times, measured before certainty filtering was removed
-(first measured / subsequent warm run where available; not a benchmark of the updated filters):
+Stress-query execution times (first measured / subsequent warm run where available):
 
 | Query | SQL execution |
 | --- | --- |
@@ -213,8 +214,13 @@ Historical stress-query execution times, measured before certainty filtering was
 | AI Token + Session, generic prepared plan | 30.21 / 7.04 ms |
 | Empty AI Token + Session | 0.06 ms |
 | Operator oldest AI Match, 100,001 results near the tail | 2.25 / 0.10 ms (before ordered AI join: 3.69 s) |
-| Admin AI/certainty/Unchecked cursor pages | 0.63–3.51 ms |
+| Admin confidence 90–100, newest page | 6.23 / 0.83 ms |
+| Operator exact confidence 50, oldest task | 4.51 / 0.18 ms |
+| Confidence 90–100 result summary | 326.18 / 197.24 ms |
 | Operator AI + Token + Session, baseline indexes present | 125.75 ms with disk reads; empty combination 0.12 ms |
+
+The ordered completed-result index keeps interactive confidence-filtered pages fast. The aggregate
+summary scans the completed subset, but the measured cost does not justify another production index yet.
 
 Locking variants were also checked: 20 AI rows with `FOR UPDATE OF ai SKIP LOCKED`
 took 0.47 ms; one operator row with `FOR UPDATE OF rt SKIP LOCKED` took 2.42 ms.

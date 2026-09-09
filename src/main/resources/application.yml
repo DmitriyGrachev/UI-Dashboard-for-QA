@@ -12,6 +12,10 @@ spring:
     open-in-view: false
     hibernate:
       ddl-auto: update
+springdoc:
+  paths-to-match: /api/integration/**
+  swagger-ui:
+    path: /swagger-ui.html
 server:
   error:
     whitelabel:

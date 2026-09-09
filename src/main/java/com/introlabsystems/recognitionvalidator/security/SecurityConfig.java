@@ -94,7 +94,8 @@ public class SecurityConfig {
     ) throws Exception {
         return http
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers("/login", "/error", "/css/**", "/js/**").permitAll()
+                        .requestMatchers("/login", "/error", "/css/**", "/js/**",
+                                "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers(
                                 "/review",

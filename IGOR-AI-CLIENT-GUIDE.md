@@ -1,6 +1,6 @@
 # Recognition Validator — Integration Guide for Igor's AI Service
 
-Updated contract · September 8, 2026. Claim responses now use `image_name` instead of `expected`.
+Updated contract · September 9, 2026. Claim responses use `imageName`; `game` is the exact Validator game code.
 
 ## Overview: who calls whom
 
@@ -13,7 +13,7 @@ AI worker                  Recognition Validator                 Storage
     | POST /tasks/claim              |                               |
     |------------------------------->|                               |
     | imageId, claimId, url,          |                               |
-    | image_name, game, leaseExpiresAt|                               |
+    | imageName, game, leaseExpiresAt |                               |
     |<-------------------------------|                               |
     | GET returned url — without X-API-Key -------------------------->|
     |<--------------------------- PNG -------------------------------|
@@ -47,6 +47,7 @@ VALIDATOR_API_KEY=<obtain separately from Dmytro>
 `validator.example.com` is a placeholder, not a live service address. Confirm the actual production URL and availability before starting. The key is shared separately, not in this document.
 
 You do not need an operator login, cookies, a CSRF token, B2 access or secret keys, or the local URL signing key. The integration API key does not grant access to the admin interface.
+Interactive OpenAPI documentation is available at `/swagger-ui.html`; raw JSON is at `/v3/api-docs`.
 
 External requests must use HTTPS with certificate verification. Do not send the key over plain HTTP or disable TLS verification. Do not put keys or complete temporary URLs in shared logs or Git.
 
@@ -72,8 +73,8 @@ Successful response — HTTP `200`:
       "imageId": "0000000000000000000000000000000000000000000000000000000000000001",
       "claimId": "314fd2b3-0e1a-46e8-a974-a5a99d40a01b",
       "url": "https://validator.example.com/api/integration/images/0000000000000000000000000000000000000000000000000000000000000001/content?expires=EXAMPLE&signature=EXAMPLE",
-      "image_name": "original-screenshot.png",
-      "game": "SINGLE_DECK",
+      "imageName": "original-screenshot.png",
+      "game": "bj_single_deck_ags",
       "leaseExpiresAt": "2026-09-08T12:10:00Z"
     }
   ]
@@ -87,8 +88,8 @@ All IDs, signatures, and timestamps in this example are illustrative. In real re
 | `imageId` | Image identifier: 64 lowercase hexadecimal characters. Use it in the result submission path. |
 | `claimId` | UUID for this particular assignment. Return **the same UUID**; do not generate a new one. If the image is assigned again, its `claimId` changes. |
 | `url` | Ready-to-use temporary image download URL. Use the complete URL without modifying it. |
-| `image_name` | Complete original screenshot filename, including its extension; not a directory path or a download URL. `expected` is no longer returned. |
-| `game` | Always `SINGLE_DECK` in V1. |
+| `imageName` | Complete original screenshot filename, including its extension; not a directory path or a download URL. `expected` is no longer returned. |
+| `game` | Exact game code selected by the matching Validator rule, for example `bj_single_deck_ags`. |
 | `leaseExpiresAt` | Task deadline in UTC / ISO 8601. The server must accept a new result before this time. |
 
 The response **always contains an `items` array**, even when `size=1`.
@@ -105,12 +106,11 @@ This is HTTP `200`, not an error or a signal to stop the scheduler permanently. 
 
 ### How images are selected
 
-V1 issues only `bj_single_deck_ags` images, represented as `SINGLE_DECK` in the external JSON.
+Rules may issue any game configured in Validator. The client must use the exact `game` value returned by each claim.
 
 Filters are configured by the Validator administrator. The client sends only `size` in the claim request, not Token, Session, Game, or dates.
 
-- Rules with a lower numeric `priority` are evaluated first.
-- Rules with the same priority are ordered by rule ID.
+- Rules are evaluated in their unique sequential priority order: 1, 2, 3, and so on.
 - Within each rule, images are ordered by `file_created_at`, oldest first, then by `imageId`.
 - Conditions within a rule are combined with AND. Overlapping rules do not duplicate a task within a batch.
 - Concurrent workers skip tasks already locked by another worker. Strict global completion order is not guaranteed.
