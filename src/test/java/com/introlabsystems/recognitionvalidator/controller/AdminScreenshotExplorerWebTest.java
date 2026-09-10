@@ -15,6 +15,76 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
 
     @Test
+    void thumbnailIsSmallAndRestrictedToAdministrators() throws Exception {
+        var image = new java.awt.image.BufferedImage(1600, 900, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        javax.imageio.ImageIO.write(image, "png", imageRoot.resolve("preview.png").toFile());
+        String id = insertReviewImage(780, "preview.png", true, "bj_igt", "preview", null, "Two", null);
+        byte[] data = mockMvc.perform(get("/admin/api/screenshots/" + id + "/thumbnail")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        var thumbnail = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data));
+        assertThat(thumbnail.getWidth()).isEqualTo(320);
+        assertThat(thumbnail.getHeight()).isEqualTo(180);
+        mockMvc.perform(get("/admin/api/screenshots/" + id + "/thumbnail")
+                        .with(user("operator").roles("OPERATOR"))).andExpect(status().is3xxRedirection())
+                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl("/review"));
+    }
+
+    @Test
+    void reviewedPeriodUsesReviewTimeWithInclusiveStartAndExclusiveEnd() throws Exception {
+        UUID operator = insertOperator("review-period", "password");
+        String included = insertReviewImage(750, "reviewed-inside.png", true, "bj_igt", "period", null, "Two", null);
+        String before = insertReviewImage(751, "reviewed-before.png", true, "bj_igt", "period", null, "Two", null);
+        String end = insertReviewImage(752, "reviewed-end.png", true, "bj_igt", "period", null, "Two", null);
+        insertReviewImage(753, "reviewed-pending.png", true, "bj_igt", "period", null, "Two", null);
+        complete(included, operator, "REJECTED", "2026-09-09T00:00:00Z");
+        complete(before, operator, "ACCEPTED", "2026-09-08T23:59:59Z");
+        complete(end, operator, "ACCEPTED", "2026-09-10T00:00:00Z");
+
+        mockMvc.perform(get("/admin/api/screenshots")
+                        .param("reviewedFrom", "2026-09-09T00:00:00Z")
+                        .param("reviewedTo", "2026-09-10T00:00:00Z")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].imageId").value(included));
+        mockMvc.perform(get("/admin/api/screenshots/summary")
+                        .param("reviewedFrom", "2026-09-09T00:00:00Z")
+                        .param("reviewedTo", "2026-09-10T00:00:00Z")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(1));
+    }
+
+    @Test
+    void invalidReviewedPeriodsAndUncheckedCombinationsAreRejected() throws Exception {
+        for (String path : new String[]{"/admin/api/screenshots", "/admin/api/screenshots/summary"}) {
+            mockMvc.perform(get(path).param("reviewedFrom", "2026-09-10T00:00:00Z")
+                            .param("reviewedTo", "2026-09-10T00:00:00Z")
+                            .with(user("admin").roles("ADMIN")))
+                    .andExpect(status().isBadRequest());
+            mockMvc.perform(get(path).param("reviewState", "UNCHECKED")
+                            .param("reviewedFrom", "2026-09-09T00:00:00Z")
+                            .with(user("admin").roles("ADMIN")))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
+    void filenamePrefixTreatsUnderscoresPercentAndEscapeCharacterLiterally() throws Exception {
+        String selected = insertReviewImage(754, "bj_igt_37_100%!_one.png", true, "bj_igt", "prefix", null, "Two", null);
+        insertReviewImage(755, "bjXigtX37X100anything!_two.png", true, "bj_igt", "prefix", null, "Two", null);
+        insertReviewImage(756, "other_bj_igt_37_100%!_three.png", true, "bj_igt", "prefix", null, "Two", null);
+
+        mockMvc.perform(get("/admin/api/screenshots").param("fileName", " bj_igt_37_100%!_ ")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].imageId").value(selected));
+        mockMvc.perform(get("/admin/api/screenshots/summary").param("fileName", "bj_igt_37_100%!_")
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(1));
+    }
+
+    @Test
     void adminCanFilterCheckedScreenshotsWithoutWaitingForSummary() throws Exception {
         UUID operatorId = insertOperator("reviewer", "password");
         String checkedInside = insertReviewImage(

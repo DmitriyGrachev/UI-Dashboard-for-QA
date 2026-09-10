@@ -172,6 +172,17 @@ public class AdminScreenshotRepository {
             sql.append(" AND ").append(queue).append(".file_created_at < :createdTo");
             parameters.addValue("createdTo", Timestamp.from(filters.createdTo()));
         }
+        if (filters.reviewedFrom() != null || filters.reviewedTo() != null) {
+            sql.append(" AND rt.status = 'COMPLETED'");
+        }
+        if (filters.reviewedFrom() != null) {
+            sql.append(" AND rt.reviewed_at >= :reviewedFrom");
+            parameters.addValue("reviewedFrom", Timestamp.from(filters.reviewedFrom()));
+        }
+        if (filters.reviewedTo() != null) {
+            sql.append(" AND rt.reviewed_at < :reviewedTo");
+            parameters.addValue("reviewedTo", Timestamp.from(filters.reviewedTo()));
+        }
         if (filters.reviewState() == AdminReviewState.CHECKED) {
             sql.append(" AND rt.status = 'COMPLETED'");
         } else if (filters.reviewState() == AdminReviewState.UNCHECKED) {
@@ -194,8 +205,9 @@ public class AdminScreenshotRepository {
             parameters.addValue("imageId", filters.imageId().trim());
         }
         if (hasText(filters.fileName())) {
-            sql.append(" AND ia.file_name = :fileName");
-            parameters.addValue("fileName", filters.fileName().trim());
+            sql.append(" AND ia.file_name LIKE :fileName ESCAPE '!'");
+            parameters.addValue("fileName", filters.fileName().trim()
+                    .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%");
         }
         if (filters.decision() != null) {
             sql.append(" AND rt.status = 'COMPLETED' AND rt.decision = :decision");

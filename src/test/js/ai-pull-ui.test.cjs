@@ -30,3 +30,13 @@ test('AI verdict and confidence filters are sent to the screenshot search', () =
     assert.equal(params.get('confidenceFrom'), '20');
     assert.equal(params.get('confidenceTo'), '60');
 });
+
+test('AI card distinguishes uncertainty, failure, mismatch and zero confidence', () => {
+    const {aiPresentation} = require('../../main/resources/static/js/ai-result.js');
+    assert.equal(aiPresentation(null).label, 'Not checked');
+    assert.equal(aiPresentation({status:'PROCESSING'}).label, 'Checking…');
+    assert.equal(aiPresentation({status:'FAILED'}).label, 'Check failed');
+    assert.equal(aiPresentation({status:'COMPLETED', verdict:'LOW_CONFIDENCE'}).tone, 'warning');
+    assert.equal(aiPresentation({status:'COMPLETED', verdict:'MISMATCH'}).tone, 'danger');
+    assert.equal(aiPresentation({status:'COMPLETED', verdict:'MATCH', confidence:0}).confidence, 0);
+});

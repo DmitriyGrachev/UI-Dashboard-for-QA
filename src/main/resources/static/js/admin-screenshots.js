@@ -22,6 +22,8 @@ function buildSearchParams(filters, cursor = null) {
     if (filters.reviewState !== "UNCHECKED") {
         appendIfPresent(params, "decision", filters.decision);
         appendIfPresent(params, "reviewedBy", filters.reviewedBy);
+        appendIfPresent(params, "reviewedFrom", utcIso(filters.reviewedFrom));
+        appendIfPresent(params, "reviewedTo", utcIso(filters.reviewedTo));
     }
     appendIfPresent(params, "storageState", filters.storageState);
     appendIfPresent(params, "parseStatus", filters.parseStatus);
@@ -56,7 +58,15 @@ function canonicalUtcMinute(date) {
     return date.toISOString().slice(0, 16);
 }
 
-function presetRange(now, {hours = 0, days = 0}) {
+function presetRange(now, {hours = 0, days = 0, day} = {}) {
+    if (day === "today" || day === "yesterday") {
+        const from = new Date(now);
+        from.setUTCHours(0, 0, 0, 0);
+        if (day === "yesterday") from.setUTCDate(from.getUTCDate() - 1);
+        const to = new Date(from);
+        to.setUTCDate(to.getUTCDate() + 1);
+        return {from: canonicalUtcMinute(from), to: canonicalUtcMinute(to)};
+    }
     const durationMs = (hours + days * 24) * 60 * 60 * 1000;
     const to = new Date(Math.ceil(now.getTime() / 60000) * 60000);
     const from = new Date(to.getTime() - durationMs);
@@ -82,6 +92,8 @@ function storageSupportsTemporaryLink(storageState) {
 }
 
 function createTechnicalReport(details) {
+    const formatAi = typeof module !== "undefined" && module.exports
+        ? require("./ai-result.js").aiResultText : aiResultText;
     const actions = [
         details.stand && "stand",
         details.hit && "hit",
@@ -104,7 +116,8 @@ function createTechnicalReport(details) {
         `Parse: ${details.parseStatus || "—"}`,
         `Review: ${details.reviewState || "—"} · ${details.decision || "—"} · ${details.reviewedBy || "—"}`,
         `Reviewed: ${formatUtcDate(details.reviewedAt)}`,
-        `Storage: ${details.storageState || "—"}`
+        `Storage: ${details.storageState || "—"}`,
+        formatAi(details.ai)
     ].join("\n");
 }
 
@@ -171,6 +184,7 @@ if (typeof document !== "undefined") {
         createdFrom: byId("explorer-created-from"),
         createdTo: byId("explorer-created-to"),
         dateError: byId("explorer-date-range-error"),
+        dateField: byId("explorer-date-field"),
         reviewState: byId("screenshot-filter-form")?.elements.namedItem("reviewState"),
         gameCode: byId("explorer-game-code"),
         tokenId: byId("explorer-token-id"),
@@ -278,9 +292,12 @@ if (typeof document !== "undefined") {
     });
 
     function currentFilters() {
+        const reviewed = elements.dateField.value === "reviewed";
         return {
-            createdFrom: elements.createdFrom.value,
-            createdTo: elements.createdTo.value,
+            createdFrom: reviewed ? "" : elements.createdFrom.value,
+            createdTo: reviewed ? "" : elements.createdTo.value,
+            reviewedFrom: reviewed ? elements.createdFrom.value : "",
+            reviewedTo: reviewed ? elements.createdTo.value : "",
             reviewState: elements.reviewState.value,
             gameCode: elements.gameCode.value,
             tokenId: elements.tokenId.value,
@@ -307,6 +324,7 @@ if (typeof document !== "undefined") {
         if (disabled) {
             elements.decision.value = "";
             elements.reviewedBy.value = "";
+            elements.dateField.value = "created";
         }
     }
 
@@ -315,7 +333,7 @@ if (typeof document !== "undefined") {
         elements.searchButton.disabled = busy;
         elements.resetFilters.disabled = busy;
         elements.form.setAttribute("aria-busy", String(busy));
-        document.querySelectorAll("[data-range-hours], [data-range-days]").forEach(button => {
+        document.querySelectorAll("[data-range-hours], [data-range-days], [data-range-day]").forEach(button => {
             button.disabled = busy;
         });
         elements.filterStatus.textContent = filterStatus(currentFilters(), state.appliedFilters, busy);
@@ -381,11 +399,12 @@ if (typeof document !== "undefined") {
         if (dateInput._flatpickr) dateInput._flatpickr.setDate(dateInput.value, false, "d.m.Y");
     }
 
-    function restoreFromUrl() {
-        const params = new URLSearchParams(window.location.search);
+    function restoreFromUrl(params = new URLSearchParams(window.location.search)) {
         const canonical = value => value ? value.slice(0, 16) : value;
-        writeBoundary(elements.createdFrom, canonical(params.get("createdFrom")) || "");
-        writeBoundary(elements.createdTo, canonical(params.get("createdTo")) || "");
+        const reviewed = params.has("reviewedFrom") || params.has("reviewedTo");
+        elements.dateField.value = reviewed ? "reviewed" : "created";
+        writeBoundary(elements.createdFrom, canonical(params.get(reviewed ? "reviewedFrom" : "createdFrom")) || "");
+        writeBoundary(elements.createdTo, canonical(params.get(reviewed ? "reviewedTo" : "createdTo")) || "");
         setInputFromQuery(elements.reviewState, params, "reviewState", "ALL");
         setInputFromQuery(elements.gameCode, params, "gameCode");
         setInputFromQuery(elements.tokenId, params, "tokenId");
@@ -401,6 +420,7 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.confidenceFrom, params, "confidenceFrom");
         setInputFromQuery(elements.confidenceTo, params, "confidenceTo");
         setInputFromQuery(elements.imageId, params, "imageId");
+        if (params.get("selected")) elements.imageId.value = params.get("selected");
         setInputFromQuery(elements.fileName, params, "fileName");
         updateCheckedOnlyControls();
         return params.get("selected");
@@ -451,6 +471,18 @@ if (typeof document !== "undefined") {
             const storage = document.createElement("span");
             storage.textContent = storageLabel(item.storageState);
             bottom.append(game, storage);
+            if (byId("results-view").value === "grid") {
+                const preview = document.createElement("img");
+                preview.className = "result-thumbnail";
+                preview.alt = "";
+                preview.loading = "lazy";
+                preview.decoding = "async";
+                preview.width = 320;
+                preview.height = 180;
+                if (item.storageState !== "MISSING") preview.src = `/admin/api/screenshots/${encodeURIComponent(item.imageId)}/thumbnail`;
+                preview.addEventListener("error", () => { preview.alt = "Preview unavailable"; });
+                button.append(preview);
+            }
             button.append(top, file, bottom);
             button.addEventListener("click", () => selectResult(index));
             elements.results.append(button);
@@ -799,6 +831,13 @@ if (typeof document !== "undefined") {
         search();
     });
     byId("review-state").addEventListener("change", updateCheckedOnlyControls);
+    elements.dateField.addEventListener("change", () => {
+        if (elements.dateField.value === "reviewed" && elements.reviewState.value === "UNCHECKED") {
+            elements.reviewState.value = "CHECKED";
+            updateCheckedOnlyControls();
+        }
+        updateSearchControls();
+    });
     elements.form.addEventListener("input", updateSearchControls);
     elements.form.addEventListener("change", updateSearchControls);
     elements.resetFilters.addEventListener("click", () => {
@@ -808,11 +847,12 @@ if (typeof document !== "undefined") {
         updateCheckedOnlyControls();
         search();
     });
-    document.querySelectorAll("[data-range-hours], [data-range-days]").forEach(button => {
+    document.querySelectorAll("[data-range-hours], [data-range-days], [data-range-day]").forEach(button => {
         button.addEventListener("click", () => {
             const range = presetRange(new Date(), {
                 hours: Number(button.dataset.rangeHours || 0),
-                days: Number(button.dataset.rangeDays || 0)
+                days: Number(button.dataset.rangeDays || 0),
+                day: button.dataset.rangeDay
             });
             writeBoundary(elements.createdFrom, range.from);
             writeBoundary(elements.createdTo, range.to);
@@ -878,6 +918,61 @@ if (typeof document !== "undefined") {
         if (action === "resetZoom") resetZoom();
         if (action === "zoomIn") setScale(state.scale + 0.1);
         if (action === "zoomOut") setScale(state.scale - 0.1);
+    });
+
+    const savedSelect = byId("saved-filter-select");
+    const savedName = byId("saved-filter-name");
+    const savedMessage = byId("saved-filter-message");
+    const savedKey = "recognition-validator.admin-saved-filters";
+    let savedFilters = [];
+    try {
+        const value = JSON.parse(localStorage.getItem(savedKey) || "[]");
+        if (Array.isArray(value)) savedFilters = value.filter(item => typeof item?.name === "string" && typeof item?.query === "string").slice(0, 20);
+    } catch { /* Filters remain usable without browser storage. */ }
+    function renderSavedFilters() {
+        savedSelect.replaceChildren(new Option("Choose saved filters…", ""));
+        savedFilters.forEach((item, index) => savedSelect.add(new Option(item.name, String(index))));
+    }
+    function persistSavedFilters(next) {
+        try {
+            localStorage.setItem(savedKey, JSON.stringify(next));
+            savedFilters = next;
+            renderSavedFilters();
+            return true;
+        } catch {
+            savedMessage.textContent = "Browser storage is unavailable. Filters were not saved.";
+            return false;
+        }
+    }
+    byId("save-filter").addEventListener("click", () => {
+        const name = savedName.value.trim();
+        if (!name) { savedMessage.textContent = "Enter a name for these filters."; savedName.focus(); return; }
+        if (!dateRange.validate() || !elements.form.reportValidity()) return;
+        const next = savedFilters.filter(item => item.name !== name);
+        if (next.length >= 20) { savedMessage.textContent = "Delete a saved filter before adding another (maximum 20)."; return; }
+        const params = buildSearchParams(currentFilters());
+        params.delete("limit");
+        next.push({name, query: params.toString()});
+        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); savedMessage.textContent = "Saved in this browser. Dates are saved exactly as selected."; }
+    });
+    savedSelect.addEventListener("change", () => {
+        if (savedSelect.value === "") return;
+        if (state.searching || state.loadingMore) { savedMessage.textContent = "Wait for the current search to finish, then select the filters."; savedSelect.value = ""; return; }
+        const saved = savedFilters[Number(savedSelect.value)];
+        savedName.value = saved.name;
+        restoreFromUrl(new URLSearchParams(saved.query));
+        savedMessage.textContent = `Applied: ${saved.name}`;
+        search();
+    });
+    byId("delete-filter").addEventListener("click", () => {
+        if (savedSelect.value === "") return;
+        if (persistSavedFilters(savedFilters.filter((_, index) => index !== Number(savedSelect.value)))) savedMessage.textContent = "Saved filters deleted.";
+    });
+    renderSavedFilters();
+    byId("results-view").addEventListener("change", event => {
+        elements.results.classList.toggle("is-grid", event.target.value === "grid");
+        document.querySelector(".screenshot-explorer").classList.toggle("grid-view", event.target.value === "grid");
+        renderResults();
     });
 
     const selectedId = restoreFromUrl();

@@ -74,6 +74,13 @@
                     <legend>Period · UTC</legend>
                     <div class="explorer-filter-fields">
                 <label class="wide-filter">
+                    Date field
+                    <select id="explorer-date-field">
+                        <option value="created">Screenshot created</option>
+                        <option value="reviewed">Operator reviewed</option>
+                    </select>
+                </label>
+                <label class="wide-filter">
                     <span>From (inclusive)</span>
                     <span class="utc-datetime-control" data-utc-boundary>
                         <input id="explorer-created-from" type="hidden">
@@ -269,14 +276,16 @@
                                placeholder="SHA-256 ID" autocomplete="off">
                     </label>
 <label>
-                        File name
+                        File name starts with
                         <input id="explorer-file-name" type="search"
-                               placeholder="image.png" autocomplete="off">
+                               placeholder="e.g. bj_netent_37_" autocomplete="off">
                     </label>
                 </div>
             </details>
             <div class="explorer-search-actions">
                 <div class="quick-date-presets" aria-label="Quick date ranges">
+                    <button type="button" data-range-day="today">Today (UTC)</button>
+                    <button type="button" data-range-day="yesterday">Yesterday (UTC)</button>
                     <button type="button" data-range-hours="24">Last 24h</button>
                     <button type="button" data-range-days="4">Last 4 days</button>
                     <button type="button" data-range-days="21">Last 21 days</button>
@@ -289,6 +298,13 @@
         </form>
     </details>
 
+    <section class="saved-filter-bar" aria-label="Saved filters">
+        <label>Saved filters <select id="saved-filter-select"><option value="">Choose saved filters…</option></select></label>
+        <label>Filter name <input id="saved-filter-name" type="text" maxlength="60" placeholder="e.g. IGT mismatches"></label>
+        <button type="button" class="button secondary" id="save-filter">Save / replace</button>
+        <button type="button" class="button secondary" id="delete-filter">Delete selected</button>
+        <p id="saved-filter-message" role="status">Stored in this browser. Dates are saved exactly as selected.</p>
+    </section>
     <main class="screenshot-explorer">
         <aside class="explorer-sidebar" aria-labelledby="results-title">
             <section class="explorer-results-panel" aria-labelledby="results-title">
@@ -299,6 +315,7 @@
                     </span>
                     <span class="result-range" id="result-range">—</span>
                 </header>
+                <label class="results-view-control">View <select id="results-view"><option value="list">List</option><option value="grid">Grid</option></select></label>
                 <div class="screenshot-results" id="screenshot-results"
                      role="listbox" aria-label="Matching screenshots"></div>
                 <button class="load-more-results" type="button" id="load-more-results" hidden>

@@ -38,6 +38,8 @@ public class AdminScreenshotSearchRequest {
     private AiVerdict aiVerdict;
     private Integer confidenceFrom;
     private Integer confidenceTo;
+    private Instant reviewedFrom;
+    private Instant reviewedTo;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -61,7 +63,9 @@ public class AdminScreenshotSearchRequest {
                 aiResult,
                 aiVerdict,
                 confidenceFrom,
-                confidenceTo
+                confidenceTo,
+                reviewedFrom,
+                reviewedTo
         );
     }
 }

@@ -3289,3 +3289,17 @@ span.flatpickr-weekday {
         transition-duration: 0.01ms !important;
     }
 }
+
+.ai-review-card { border: 1px solid var(--line); border-radius: 8px; padding: 14px; margin: 16px 0; min-width: 0; }
+.ai-card-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ai-status { font-size: 12px; padding: 4px 8px; border-radius: 5px; border: 1px solid currentColor; }
+.ai-status.neutral { color: var(--muted); }
+.ai-status.success { color: var(--accept); }
+.ai-status.warning { color: var(--warning); }
+.ai-status.danger { color: var(--reject); }
+.ai-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 16px 0 0; }
+.ai-metrics dt { color: var(--muted); font-size: 12px; }
+.ai-metrics dd { margin: 4px 0 0; font-size: 20px; font-weight: 600; }
+.ai-explanation { margin: 14px 0 0; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere; }
+.ai-diagnostics { margin-top: 14px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.ai-diagnostics summary { cursor: pointer; }

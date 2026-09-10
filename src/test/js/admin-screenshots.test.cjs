@@ -16,6 +16,23 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
+test("shared links search by the selected ID even beyond the first page", () => {
+    const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
+    const restore = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function storageLabel('));
+    const elements = new Proxy({}, {get: (target, name) => target[name] ||= {value: ''}});
+    const restoreFromUrl = require('node:vm').runInNewContext(`(${restore.trim()})`, {
+        elements, URLSearchParams,
+        window: {location: {search: '?sessionId=session-a&selected=image-51'}},
+        writeBoundary: (input, value) => { input.value = value; },
+        setInputFromQuery: (input, params, name, fallback = '') => { input.value = params.get(name) ?? fallback; },
+        updateCheckedOnlyControls() {}
+    });
+    assert.equal(restoreFromUrl(), 'image-51');
+    const params = buildSearchParams({imageId: elements.imageId.value, sessionId: elements.sessionId.value});
+    assert.equal(params.get('imageId'), 'image-51');
+    assert.equal(params.get('sessionId'), 'session-a');
+});
+
 test("filter status distinguishes an edited draft from the displayed search", () => {
     assert.equal(filterStatus({gameCode: "bj_playtech"}, {gameCode: "bj_igt"}, false),
         "Changes not applied. Select Search.");
@@ -58,6 +75,17 @@ test("segmented operator review sends its selected value and clears checked-only
         assert.equal(params.get('decision'), value === 'UNCHECKED' ? null : 'ACCEPTED');
         assert.equal(params.get('reviewedBy'), value === 'UNCHECKED' ? null : 'reviewer');
     }
+    reviewInputs.value = 'CHECKED';
+    fields.get('explorer-date-field').value = 'reviewed';
+    fields.get('explorer-created-from').value = '2026-09-09T00:00';
+    fields.get('explorer-created-to').value = '2026-09-10T00:00';
+    const reviewed = buildSearchParams(controller.currentFilters());
+    assert.equal(reviewed.get('reviewedFrom'), '2026-09-09T00:00:00Z');
+    assert.equal(reviewed.get('reviewedTo'), '2026-09-10T00:00:00Z');
+    assert.equal(reviewed.has('createdFrom'), false);
+    reviewInputs.value = 'UNCHECKED';
+    controller.updateCheckedOnlyControls();
+    assert.equal(fields.get('explorer-date-field').value, 'created');
 });
 
 test("finishing pagination cannot override a newer screenshot selection", async () => {
@@ -171,6 +199,37 @@ test("quick ranges use UTC boundaries without browser timezone conversion", () =
     );
 });
 
+test("today and yesterday use whole UTC days across month and year boundaries", () => {
+    const now = new Date("2026-01-01T00:15:00+03:00");
+    assert.deepEqual(presetRange(now, {day: "today"}),
+        {from: "2025-12-31T00:00", to: "2026-01-01T00:00"});
+    assert.deepEqual(presetRange(now, {day: "yesterday"}),
+        {from: "2025-12-30T00:00", to: "2025-12-31T00:00"});
+});
+
+test("review date filters are sent in UTC and omitted for unchecked screenshots", () => {
+    const filters = {reviewedFrom: "2026-09-09T00:00", reviewedTo: "2026-09-10T00:00"};
+    const params = buildSearchParams(filters);
+    assert.equal(params.get("reviewedFrom"), "2026-09-09T00:00:00Z");
+    assert.equal(params.get("reviewedTo"), "2026-09-10T00:00:00Z");
+    const unchecked = buildSearchParams({...filters, reviewState: "UNCHECKED"});
+    assert.equal(unchecked.has("reviewedFrom"), false);
+    assert.equal(unchecked.has("reviewedTo"), false);
+});
+
+test("copied report includes AI verdict, confidence, explanation and failure details", () => {
+    const report = createTechnicalReport({ai: {status: "COMPLETED", valid: false,
+        verdict: "MISMATCH", confidence: 0, certainty: 95,
+        message: "Dealer card differs", checkedAt: "2026-09-10T10:00:00Z"}});
+    assert.match(report, /MISMATCH/);
+    assert.match(report, /confidence: 0%/);
+    assert.match(report, /Dealer card differs/);
+    assert.match(report, /2026-09-10T10:00:00Z/);
+    assert.match(createTechnicalReport({ai: {status: "FAILED", lastErrorCode: "AI_REJECTED",
+        lastErrorMessage: "Unreadable image"}}), /AI_REJECTED[\s\S]*Unreadable image/);
+    assert.match(createTechnicalReport({}), /AI: Unchecked/);
+});
+
 test("keyboard shortcuts ignore form controls", () => {
     assert.equal(keyboardAction({key: "ArrowRight", tagName: "BODY"}), "next");
     assert.equal(keyboardAction({key: "d", tagName: "DIV"}), "download");
@@ -275,4 +334,41 @@ test("loading another page keeps the filters of the applied search", () => {
 
     assert.equal(resolveSearchFilters(edited, applied, true), applied);
     assert.equal(resolveSearchFilters(edited, applied, false), edited);
+});
+
+test('saved filters persist, restore exact filter values, replace and delete without selected IDs', () => {
+    const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
+    const setup = source.slice(source.indexOf('    const savedSelect ='), source.indexOf('    const selectedId = restoreFromUrl();'));
+    const fields = new Map();
+    const byId = id => {
+        if (!fields.has(id)) fields.set(id, {value:'', listeners:{}, options:[], focus(){},
+            addEventListener(type, fn){this.listeners[type]=fn;}, replaceChildren(...items){this.options=items;this.value='';}, add(item){this.options.push(item);}});
+        return fields.get(id);
+    };
+    const store = new Map();
+    let restored;
+    let searches = 0;
+    const context = {byId, localStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value)},
+        Option:function(text,value){this.text=text;this.value=value;}, URLSearchParams,
+        elements:{form:{reportValidity:()=>true}}, dateRange:{validate:()=>true}, state:{}, buildSearchParams,
+        currentFilters:()=>({sessionId:'session-a', aiVerdict:'MISMATCH', reviewedFrom:'2026-09-10T00:00'}),
+        restoreFromUrl:params=>{restored=params;},search:()=>{searches++;}};
+    const run = () => require('node:vm').runInNewContext(setup, {...context});
+    run();
+    byId('saved-filter-name').value='My filter';
+    byId('save-filter').listeners.click();
+    run();
+    assert.equal(byId('saved-filter-select').options[1].text, 'My filter');
+    byId('saved-filter-select').value='0';
+    byId('saved-filter-select').listeners.change();
+    assert.equal(restored.get('sessionId'),'session-a');
+    assert.equal(restored.get('aiVerdict'),'MISMATCH');
+    assert.equal(restored.get('reviewedFrom'),'2026-09-10T00:00:00Z');
+    assert.equal(restored.has('selected'),false);
+    assert.equal(searches,1);
+    byId('save-filter').listeners.click();
+    assert.equal(byId('saved-filter-select').options.length,2);
+    byId('delete-filter').listeners.click();
+    run();
+    assert.equal(byId('saved-filter-select').options.length,1);
 });

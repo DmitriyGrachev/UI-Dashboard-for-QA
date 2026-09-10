@@ -12,6 +12,12 @@ import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotSumma
 import com.introlabsystems.recognitionvalidator.service.AdminScreenshotService;
 import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
+import java.awt.RenderingHints;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -57,11 +63,17 @@ public class AdminScreenshotApiController {
                     "Created from must be earlier than created to"
             );
         }
+        if (request.getReviewedFrom() != null && request.getReviewedTo() != null
+                && !request.getReviewedFrom().isBefore(request.getReviewedTo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "Reviewed from must be earlier than reviewed to");
+        }
         if (request.getReviewState() == AdminReviewState.UNCHECKED
-                && (request.getDecision() != null || hasText(request.getReviewedBy()))) {
+                && (request.getDecision() != null || hasText(request.getReviewedBy())
+                    || request.getReviewedFrom() != null || request.getReviewedTo() != null)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Decision and reviewer filters require Checked screenshots"
+                    "Decision, reviewer and review date filters require Checked screenshots"
             );
         }
         AiResultFilterSql.validate(request.getConfidenceFrom(), request.getConfidenceTo());
@@ -98,6 +110,36 @@ public class AdminScreenshotApiController {
         ImageStorageService.ImageContent content =
                 ((ImageStorageService.BrowserDelivery.Local) delivery).content();
         return imageResponse(content, ContentDisposition.inline());
+    }
+
+    @GetMapping("/{imageId}/thumbnail")
+    ResponseEntity<byte[]> thumbnail(@PathVariable String imageId) throws IOException {
+        var content = storage.open(imageId);
+        try (var input = content.resource().getInputStream(); var imageInput = ImageIO.createImageInputStream(input)) {
+            var readers = ImageIO.getImageReaders(imageInput);
+            if (!readers.hasNext()) throw new ResponseStatusException(HttpStatus.UNSUPPORTED_MEDIA_TYPE, "Preview unavailable");
+            var reader = readers.next();
+            try {
+                reader.setInput(imageInput);
+                var parameters = reader.getDefaultReadParam();
+                int sample = Math.max(1, Math.max(reader.getWidth(0) / 320, reader.getHeight(0) / 180));
+                parameters.setSourceSubsampling(sample, sample, 0, 0);
+                var original = reader.read(0, parameters);
+                double scale = Math.min(1.0, Math.min(320.0 / original.getWidth(), 180.0 / original.getHeight()));
+                var preview = new BufferedImage(Math.max(1, (int) (original.getWidth() * scale)),
+                        Math.max(1, (int) (original.getHeight() * scale)), BufferedImage.TYPE_INT_RGB);
+                var graphics = preview.createGraphics();
+                try {
+                    graphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+                    graphics.drawImage(original, 0, 0, preview.getWidth(), preview.getHeight(), null);
+                } finally { graphics.dispose(); }
+                var output = new ByteArrayOutputStream();
+                ImageIO.write(preview, "jpeg", output);
+                return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG)
+                        .cacheControl(CacheControl.maxAge(5, TimeUnit.MINUTES).cachePrivate())
+                        .body(output.toByteArray());
+            } finally { reader.dispose(); }
+        }
     }
 
     @GetMapping("/{imageId}/download")

@@ -496,7 +496,7 @@ if (typeof document !== "undefined") {
     }
 
     function renderItem(item) {
-        elements.aiDetails.textContent = aiResultText(item.ai);
+        renderAiResult(elements.aiDetails, item.ai);
         clearTimeout(state.imageRetryTimer);
         state.item = item;
         state.imageReady = false;
@@ -584,7 +584,7 @@ if (typeof document !== "undefined") {
     }
 
     function clearMetadata() {
-        elements.aiDetails.textContent = "—";
+        renderAiResult(elements.aiDetails, null);
         [
             elements.game,
             elements.gameSummary,
