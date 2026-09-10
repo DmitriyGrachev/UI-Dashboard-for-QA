@@ -82,10 +82,10 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
                 Instant.parse("2026-08-21T00:00:00Z"),
                 false,
                 archive,
-                ADMIN
+                ADMIN, null, false
         );
 
-        assertThat(readZipEntries(archive.toByteArray()))
+        assertThat(readZipImages(archive.toByteArray()))
                 .containsExactlyEntriesOf(Map.of("included.png", includedBytes));
         assertThat(downloadedAt(includedId)).isEqualTo(EXPORTED_AT);
         assertThat(downloadedAt(excludedId)).isNull();
@@ -138,10 +138,10 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
             }
         };
 
-        int written = rejectedExports.writeZip(null, null, false, output, ADMIN);
+        int written = rejectedExports.writeZip(null, null, false, output, ADMIN, null, false);
 
         assertThat(written).isEqualTo(1);
-        assertThat(readZipEntries(archive.toByteArray()).keySet()).containsExactly("original.png");
+        assertThat(readZipImages(archive.toByteArray()).keySet()).containsExactly("original.png");
         assertThat(downloadedAt(originalId)).isEqualTo(EXPORTED_AT);
         assertThat(downloadedAt(lateId[0])).isNull();
         assertThat(archiveCount()).isEqualTo(1L);
@@ -151,10 +151,10 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
     void emptyExportCreatesNoArchiveAndNoMarkers() throws Exception {
         ByteArrayOutputStream archive = new ByteArrayOutputStream();
 
-        int written = rejectedExports.writeZip(null, null, false, archive, ADMIN);
+        int written = rejectedExports.writeZip(null, null, false, archive, ADMIN, null, false);
 
         assertThat(written).isZero();
-        assertThat(readZipEntries(archive.toByteArray())).isEmpty();
+        assertThat(readZipImages(archive.toByteArray())).isEmpty();
         assertThat(outboxCount()).isZero();
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM review_task WHERE rejected_downloaded_at IS NOT NULL",
@@ -177,7 +177,7 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
         };
 
         assertThatThrownBy(() -> rejectedExports.writeZip(null, null, false,
-                failingOutput, ADMIN)).isInstanceOf(IOException.class);
+                failingOutput, ADMIN, null, false)).isInstanceOf(IOException.class);
 
         assertThat(downloadedAt(imageId)).isNull();
         assertThat(outboxCount()).isZero();
@@ -194,7 +194,7 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
         };
 
         assertThatThrownBy(() -> rejectedExports.writeZip(null, null, false,
-                failingOutput, ADMIN)).isInstanceOf(IOException.class);
+                failingOutput, ADMIN, null, false)).isInstanceOf(IOException.class);
 
         assertThat(downloadedAt(imageId)).isNull();
         assertThat(outboxCount()).isZero();
@@ -213,7 +213,7 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
                 Timestamp.from(EXPORTED_AT.minusSeconds(60)), imageId);
 
         int written = rejectedExports.writeZip(null, null, true,
-                new ByteArrayOutputStream(), ADMIN);
+                new ByteArrayOutputStream(), ADMIN, null, false);
 
         assertThat(written).isEqualTo(1);
         assertThat(outboxCount()).isZero();
@@ -233,10 +233,10 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
                 Timestamp.from(oldDownloadedAt), oldId);
 
         ByteArrayOutputStream archive = new ByteArrayOutputStream();
-        int written = rejectedExports.writeZip(null, null, true, archive, ADMIN);
+        int written = rejectedExports.writeZip(null, null, true, archive, ADMIN, null, false);
 
         assertThat(written).isEqualTo(2);
-        assertThat(readZipEntries(archive.toByteArray()).keySet())
+        assertThat(readZipImages(archive.toByteArray()).keySet())
                 .containsExactlyInAnyOrder("old.png", "new.png");
         assertThat(downloadedAt(oldId)).isEqualTo(oldDownloadedAt);
         assertThat(downloadedAt(newId)).isEqualTo(EXPORTED_AT);
@@ -255,7 +255,7 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
                 .enqueueArchive(any(UUID.class), eq(EXPORTED_AT), anyString(), eq(true));
 
         assertThatThrownBy(() -> rejectedExports.writeZip(null, null, false,
-                new ByteArrayOutputStream(), ADMIN))
+                new ByteArrayOutputStream(), ADMIN, null, false))
                 .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
 
         assertThat(downloadedAt(imageId)).isNull();
@@ -270,7 +270,7 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
         doReturn(false).when(slackProperties).enabled();
         String imageId = insertRejectedExportImage(411, "disabled-active.png", new byte[]{1});
 
-        rejectedExports.writeZip(null, null, false, new ByteArrayOutputStream(), ADMIN);
+        rejectedExports.writeZip(null, null, false, new ByteArrayOutputStream(), ADMIN, null, false);
 
         assertThat(downloadedAt(imageId)).isEqualTo(EXPORTED_AT);
         assertThat(archiveCount()).isEqualTo(1);
@@ -286,7 +286,7 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
         doReturn(false).when(slackProperties).enabled();
         String imageId = insertRejectedExportImage(412, "disabled-untracked.png", new byte[]{1});
 
-        rejectedExports.writeZip(null, null, false, new ByteArrayOutputStream(), ADMIN);
+        rejectedExports.writeZip(null, null, false, new ByteArrayOutputStream(), ADMIN, null, false);
 
         assertThat(downloadedAt(imageId)).isEqualTo(EXPORTED_AT);
         assertThat(outboxCount()).isZero();

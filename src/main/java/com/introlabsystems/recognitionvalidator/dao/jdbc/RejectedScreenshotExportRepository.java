@@ -33,19 +33,24 @@ public class RejectedScreenshotExportRepository {
     public List<ExportCandidate> findCandidates(
             Instant processedFrom,
             Instant processedTo,
-            boolean includePreviouslyDownloaded
+            boolean includePreviouslyDownloaded,
+            String sessionId,
+            boolean aiMismatch
     ) {
         StringBuilder sql = new StringBuilder("""
-                SELECT rt.image_id
-                FROM review_task rt
-                JOIN image_asset ia ON ia.id = rt.image_id
-                WHERE rt.status = 'COMPLETED'
-                  AND rt.decision = 'REJECTED'
-                  AND %s
+                SELECT ia.id AS image_id, ia.session_id, ai.verdict, ai.confidence, ai.message,
+                       rt.decision
+                FROM image_asset ia
+                LEFT JOIN ai_review_task ai ON ai.image_id = ia.id
+                LEFT JOIN review_task rt ON rt.image_id = ia.id
+                WHERE %s
                 """.formatted(AVAILABLE_IMAGE_PREDICATE));
         MapSqlParameterSource parameters = new MapSqlParameterSource();
-        if (!includePreviouslyDownloaded) {
-            sql.append(" AND rt.rejected_downloaded_at IS NULL");
+        if (aiMismatch) {
+            sql.append(" AND ai.status = 'COMPLETED' AND ai.verdict = 'MISMATCH'");
+        } else {
+            sql.append(" AND rt.status = 'COMPLETED' AND rt.decision = 'REJECTED'");
+            if (!includePreviouslyDownloaded) sql.append(" AND rt.rejected_downloaded_at IS NULL");
         }
         if (processedFrom != null) {
             sql.append(" AND ia.processed_at >= :processedFrom");
@@ -55,12 +60,19 @@ public class RejectedScreenshotExportRepository {
             sql.append(" AND ia.processed_at < :processedTo");
             parameters.addValue("processedTo", Timestamp.from(processedTo));
         }
-        sql.append(" ORDER BY ia.processed_at, rt.image_id");
+        if (sessionId != null && !sessionId.isBlank()) {
+            sql.append(" AND ia.session_id = :sessionId");
+            parameters.addValue("sessionId", sessionId.trim());
+        }
+        sql.append(" ORDER BY ia.processed_at, ia.id");
 
         return jdbc.query(
                 sql.toString(),
                 parameters,
-                (resultSet, rowNumber) -> new ExportCandidate(resultSet.getString("image_id"))
+                (resultSet, rowNumber) -> new ExportCandidate(resultSet.getString("image_id"),
+                        resultSet.getString("session_id"), resultSet.getString("verdict"),
+                        resultSet.getObject("confidence", Integer.class), resultSet.getString("message"),
+                        resultSet.getString("decision"))
         );
     }
 
@@ -80,6 +92,7 @@ public class RejectedScreenshotExportRepository {
         ));
     }
 
-    public record ExportCandidate(String imageId) {
+    public record ExportCandidate(String imageId, String sessionId, String aiVerdict,
+                                  Integer aiConfidence, String aiMessage, String operatorDecision) {
     }
 }

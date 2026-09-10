@@ -45,7 +45,7 @@
             <div>
                 <span class="section-kicker">Recognition output</span>
                 <h1>Rejected screenshots</h1>
-                <p>Download images whose recognition result was rejected.</p>
+                <p>Download images whose recognition result was rejected. Each ZIP includes results.csv with AI and operator results.</p>
             </div>
         </header>
 
@@ -63,6 +63,14 @@
                   data-utc-date-range
                   method="post"
                   th:action="@{/admin/rejected-screenshots.zip}">
+                <label>
+                    Export source
+                    <select name="aiMismatch" aria-describedby="export-source-help">
+                        <option value="false">Operator — Rejected</option>
+                        <option value="true">AI — MISMATCH</option>
+                    </select>
+                </label>
+                <p id="export-source-help" class="admin-form-help">AI export includes all available MISMATCH images, regardless of operator review or previous downloads.</p>
                 <label>
                     <span>Recognition completed from (UTC)</span>
                     <span class="utc-datetime-control" data-utc-boundary>
@@ -145,11 +153,16 @@
                 </label>
                 <p class="utc-date-error" id="rejected-export-date-error"
                    role="alert" hidden></p>
+                <label>
+                    Session ID
+                    <input type="search" name="sessionId" maxlength="128"
+                           placeholder="All sessions" autocomplete="off">
+                </label>
                 <label class="rejected-export-checkbox secondary-option">
                     <input type="checkbox"
                            name="includePreviouslyDownloaded"
                            value="true">
-                    Include previously downloaded
+                    Include previously downloaded operator rejects
                 </label>
                 <button class="button primary" type="submit">Download ZIP</button>
             </form>

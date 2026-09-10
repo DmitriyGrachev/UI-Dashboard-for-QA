@@ -11,7 +11,9 @@ public interface RejectedScreenshotExportService {
             Instant processedTo,
             boolean includePreviouslyDownloaded,
             OutputStream output,
-            String administrator
+            String administrator,
+            String sessionId,
+            boolean aiMismatch
     ) throws IOException;
 
 }

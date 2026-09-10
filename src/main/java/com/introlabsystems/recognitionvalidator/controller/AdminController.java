@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.security.Principal;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 
 @Controller
@@ -102,6 +103,8 @@ public class AdminController {
             @DateTimeFormat(pattern = "yyyy-MM-dd'T'HH:mm")
             LocalDateTime processedTo,
             @RequestParam(defaultValue = "false") boolean includePreviouslyDownloaded,
+            @RequestParam(required = false) String sessionId,
+            @RequestParam(defaultValue = "false") boolean aiMismatch,
             HttpServletResponse response,
             Principal principal
     ) throws IOException {
@@ -115,10 +118,16 @@ public class AdminController {
             return;
         }
         response.setContentType("application/zip");
+        DateTimeFormatter archiveDate = DateTimeFormatter.ofPattern("uuuu-MM-dd_HH-mm");
+        String archiveName = "%s_%s_to_%s_UTC.zip".formatted(
+                aiMismatch ? "ai-mismatch-screenshots" : "rejected-screenshots",
+                processedFrom == null ? "start" : processedFrom.format(archiveDate),
+                processedTo == null ? "latest" : processedTo.format(archiveDate)
+        );
         response.setHeader(
                 HttpHeaders.CONTENT_DISPOSITION,
                 ContentDisposition.attachment()
-                        .filename("rejected-screenshots.zip")
+                        .filename(archiveName)
                         .build()
                         .toString()
         );
@@ -128,7 +137,9 @@ public class AdminController {
                 processedTo == null ? null : processedTo.toInstant(ZoneOffset.UTC),
                 includePreviouslyDownloaded,
                 response.getOutputStream(),
-                principal.getName()
+                principal.getName(),
+                sessionId,
+                aiMismatch
         );
     }
 

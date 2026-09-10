@@ -37,6 +37,98 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
     private CloudObjectStorage cloudStorage;
 
     @Test
+    void manifestContainsOnlyExportedImagesAndEscapesSpreadsheetText() throws Exception {
+        String id = insertRejectedExportImage(390, "manifest.png", new byte[]{1});
+        String missing = insertRejectedExportImage(391, "missing.png", new byte[]{2});
+        Files.delete(imageRoot.resolve("missing.png"));
+        jdbc.update("UPDATE image_asset SET session_id = ? WHERE id = ?", "=1+1", id);
+        jdbc.update("""
+                INSERT INTO ai_review_task(image_id,status,file_created_at,game_code,session_id,
+                    is_notification,has_user_hand,attempt_count,file_available,verdict,confidence,message)
+                SELECT id,'COMPLETED',file_created_at,game_code,session_id,false,true,0,true,'MISMATCH',0,?
+                FROM image_asset WHERE id = ?
+                """, "Карта, \"дилер\"\nдругая", id);
+        byte[] archive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        var entries = readZipEntries(archive);
+        assertThat(entries.keySet()).containsExactly("manifest.png", "results.csv");
+        String csv = new String(entries.get("results.csv"), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(csv).startsWith("\uFEFFfile_name,image_id,")
+                .contains("\"'=1+1\"", "\"MISMATCH\",\"0\"", "Карта, \"\"дилер\"\"\nдругая", "\"REJECTED\"")
+                .doesNotContain(missing);
+    }
+
+    @Test
+    void aiMismatchExportIsIndependentRepeatableAndRespectsFilters() throws Exception {
+        String[] verdicts = {"MISMATCH", "MISMATCH", "MATCH", "LOW_CONFIDENCE", "HAND_COUNT_MISMATCH", "NO_HANDS_FOUND", "MISMATCH", "MISMATCH"};
+        for (int i = 0; i < verdicts.length; i++) {
+            String imageId = insertRejectedExportImage(350 + i, "ai-" + i + ".png", new byte[]{(byte) i});
+            jdbc.update("UPDATE image_asset SET session_id = ? WHERE id = ?", i == 6 ? "other-session" : "ai-session", imageId);
+            jdbc.update("""
+                    INSERT INTO ai_review_task(image_id, status, file_created_at, game_code,
+                        session_id, is_notification, has_user_hand, attempt_count, file_available, verdict)
+                    SELECT id, 'COMPLETED', file_created_at, game_code, session_id, false, true, 0, true, ?
+                    FROM image_asset WHERE id = ?
+                    """, verdicts[i], imageId);
+            if (i == 0) jdbc.update("UPDATE review_task SET decision = 'ACCEPTED' WHERE image_id = ?", imageId);
+            if (i == 1) jdbc.update("UPDATE review_task SET status = 'PENDING', decision = NULL, reviewed_at = NULL WHERE image_id = ?", imageId);
+            if (i == 7) jdbc.update("UPDATE image_asset SET processed_at = '2026-07-31T10:00:00Z' WHERE id = ?", imageId);
+        }
+        for (int attempt = 0; attempt < 2; attempt++) {
+            byte[] archive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
+                            .param("aiMismatch", "true").param("sessionId", "ai-session")
+                            .param("processedFrom", "2026-07-30T00:00").param("processedTo", "2026-07-31T00:00")
+                            .with(user("admin").roles("ADMIN")).with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Content-Disposition", containsString("ai-mismatch-screenshots_")))
+                    .andReturn().getResponse().getContentAsByteArray();
+            assertThat(readZipImages(archive).keySet()).containsExactlyInAnyOrder("ai-0.png", "ai-1.png");
+        }
+        assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM review_task WHERE rejected_downloaded_at IS NOT NULL", Integer.class)).isZero();
+    }
+
+    @Test
+    void exportSessionFilterIsExactAndOnlyMarksMatchingImagesDownloaded() throws Exception {
+        String selected = insertRejectedExportImage(330, "session-selected.png", new byte[]{1});
+        String other = insertRejectedExportImage(331, "session-other.png", new byte[]{2});
+        jdbc.update("UPDATE image_asset SET session_id = ? WHERE id = ?", "session-1", selected);
+        jdbc.update("UPDATE image_asset SET session_id = ? WHERE id = ?", "session-10", other);
+
+        byte[] archive = mockMvc.perform(post("/admin/rejected-screenshots.zip")
+                        .param("sessionId", " session-1 ")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        assertThat(readZipImages(archive).keySet()).containsExactly("session-selected.png");
+        assertThat(jdbc.queryForObject(
+                "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
+                Boolean.class, other)).isTrue();
+
+        byte[] remaining = mockMvc.perform(post("/admin/rejected-screenshots.zip")
+                        .param("sessionId", " ")
+                        .with(user("admin").roles("ADMIN")).with(csrf()))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsByteArray();
+        assertThat(readZipImages(remaining).keySet()).containsExactly("session-other.png");
+    }
+
+    @Test
+    void archiveNameDescribesUtcPeriodIncludingOpenBounds() throws Exception {
+        for (String[] period : new String[][]{
+                {"2026-08-03T11:00", "2026-08-03T12:00", "2026-08-03_11-00_to_2026-08-03_12-00"},
+                {"2026-08-03T11:00", "", "2026-08-03_11-00_to_latest"},
+                {"", "2026-08-03T12:00", "start_to_2026-08-03_12-00"},
+                {"", "", "start_to_latest"}
+        }) {
+            mockMvc.perform(post("/admin/rejected-screenshots.zip")
+                            .param("processedFrom", period[0]).param("processedTo", period[1])
+                            .with(user("admin").roles("ADMIN")).with(csrf()))
+                    .andExpect(status().isOk())
+                    .andExpect(header().string("Content-Disposition", containsString(
+                            "rejected-screenshots_" + period[2] + "_UTC.zip")));
+        }
+    }
+
+    @Test
     void adminDownloadsNewRejectedScreenshotsAndMarksThemDownloaded() throws Exception {
         byte[] rejectedBytes = new byte[]{1, 2, 3, 4};
         byte[] acceptedBytes = new byte[]{5, 6, 7, 8};
@@ -72,7 +164,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 ))
                 .andReturn();
 
-        assertThat(readZipEntries(result.getResponse().getContentAsByteArray()))
+        assertThat(readZipImages(result.getResponse().getContentAsByteArray()))
                 .containsExactlyEntriesOf(Map.of("rejected.png", rejectedBytes));
         assertThat(jdbc.queryForObject(
                 "SELECT rejected_downloaded_at IS NOT NULL FROM review_task WHERE image_id = ?",
@@ -123,10 +215,10 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(firstArchive))
+        assertThat(readZipImages(firstArchive))
                 .containsExactlyEntriesOf(Map.of("repeatable-rejected.png", bytes));
-        assertThat(readZipEntries(defaultRepeat)).isEmpty();
-        assertThat(readZipEntries(explicitRepeat))
+        assertThat(readZipImages(defaultRepeat)).isEmpty();
+        assertThat(readZipImages(explicitRepeat))
                 .containsExactlyEntriesOf(Map.of("repeatable-rejected.png", bytes));
     }
 
@@ -165,7 +257,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(archive).keySet()).containsExactly("inside-window.png");
+        assertThat(readZipImages(archive).keySet()).containsExactly("inside-window.png");
     }
 
     @Test
@@ -200,7 +292,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(archive))
+        assertThat(readZipImages(archive))
                 .containsExactlyEntriesOf(Map.of("available-rejected.png", availableBytes));
         assertThat(jdbc.queryForObject(
                 "SELECT file_available FROM image_asset WHERE id = ?",
@@ -236,7 +328,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                failingOutput, "test-admin"
+                failingOutput, "test-admin", null, false
         )).isInstanceOf(IOException.class);
         assertThat(jdbc.queryForObject(
                 "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
@@ -271,7 +363,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(archive)).isEmpty();
+        assertThat(readZipImages(archive)).isEmpty();
         org.mockito.Mockito.verifyNoInteractions(cloudStorage);
     }
 
@@ -303,7 +395,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(archive))
+        assertThat(readZipImages(archive))
                 .containsExactlyEntriesOf(Map.of("cloud-rejected.png", bytes));
         assertThat(jdbc.queryForObject(
                 "SELECT rejected_downloaded_at IS NOT NULL FROM review_task WHERE image_id = ?",
@@ -337,7 +429,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(archive)).isEmpty();
+        assertThat(readZipImages(archive)).isEmpty();
         assertThat(jdbc.queryForObject(
                 "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
                 Boolean.class,
@@ -381,7 +473,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 .getResponse()
                 .getContentAsByteArray();
 
-        assertThat(readZipEntries(archive)).isEmpty();
+        assertThat(readZipImages(archive)).isEmpty();
         assertThat(jdbc.queryForObject(
                 "SELECT rejected_downloaded_at IS NULL FROM review_task WHERE image_id = ?",
                 Boolean.class,
@@ -424,7 +516,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                failingOutput, "test-admin"
+                failingOutput, "test-admin", null, false
         )).isInstanceOf(IOException.class);
         assertThat(stream.closed).isTrue();
         assertThat(jdbc.queryForObject(
@@ -455,7 +547,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                new ByteArrayOutputStream(), "test-admin"
+                new ByteArrayOutputStream(), "test-admin", null, false
         )).isInstanceOf(ImageStorageUnavailableException.class);
 
         assertThat(jdbc.queryForObject(
@@ -489,7 +581,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                new ByteArrayOutputStream(), "test-admin"
+                new ByteArrayOutputStream(), "test-admin", null, false
         )).isInstanceOf(ImageStorageUnavailableException.class);
         assertThat(stream.closed).isTrue();
         assertThat(jdbc.queryForObject(
@@ -527,7 +619,7 @@ class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
                 null,
                 null,
                 false,
-                archive, "test-admin"
+                archive, "test-admin", null, false
         )).isInstanceOf(ImageStorageUnavailableException.class);
 
         assertThat(archive.size()).isPositive();

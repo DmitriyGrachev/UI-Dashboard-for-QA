@@ -84,7 +84,7 @@ class SlackCycleRaceTest extends AbstractWebIntegrationTest {
             assertThat(TransactionSynchronizationManager.isActualTransactionActive()).isFalse();
             if (posts.getAndIncrement() == 0) {
                 assertThat(rejectedExports.writeZip(
-                        FILTER_FROM, FILTER_TO, false, partialExport, ADMIN)).isEqualTo(1);
+                        FILTER_FROM, FILTER_TO, false, partialExport, ADMIN, null, false)).isEqualTo(1);
                 return "A";
             }
             return "B";
@@ -95,7 +95,7 @@ class SlackCycleRaceTest extends AbstractWebIntegrationTest {
         actualScheduler.drainOnce();
         actualScheduler.drainOnce();
 
-        assertThat(readZipEntries(partialExport.toByteArray()).keySet())
+        assertThat(readZipImages(partialExport.toByteArray()).keySet())
                 .containsExactly("first.png");
         String archive = archivePayload();
         assertThat(archive).contains(
@@ -141,7 +141,7 @@ class SlackCycleRaceTest extends AbstractWebIntegrationTest {
             }
             if (posts.getAndIncrement() == 0) {
                 assertThat(rejectedExports.writeZip(
-                        FILTER_FROM, FILTER_TO, false, partialExport, ADMIN)).isEqualTo(1);
+                        FILTER_FROM, FILTER_TO, false, partialExport, ADMIN, null, false)).isEqualTo(1);
                 return "replacement";
             }
             return "B";
@@ -152,7 +152,7 @@ class SlackCycleRaceTest extends AbstractWebIntegrationTest {
         actualScheduler.drainOnce();
         actualScheduler.drainOnce();
 
-        assertThat(readZipEntries(partialExport.toByteArray()).keySet())
+        assertThat(readZipImages(partialExport.toByteArray()).keySet())
                 .containsExactly("first.png");
         String archive = archivePayload();
         assertThat(archive).contains(

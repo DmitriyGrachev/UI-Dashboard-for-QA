@@ -95,7 +95,7 @@ class CoreOperationalLoggingTest {
     @Test
     void rejectedExportLogsUnexpectedFailureWithOperationContext(CapturedOutput output) {
         RejectedScreenshotExportRepository exports = mock(RejectedScreenshotExportRepository.class);
-        when(exports.findCandidates(null, null, false))
+        when(exports.findCandidates(null, null, false, null, false))
                 .thenThrow(new IllegalStateException("database down"));
         RejectedScreenshotExportServiceImpl service = new RejectedScreenshotExportServiceImpl(
                 exports,
@@ -105,7 +105,7 @@ class CoreOperationalLoggingTest {
         );
 
         assertThatThrownBy(() -> service.writeZip(
-                null, null, false, new ByteArrayOutputStream(), "admin"
+                null, null, false, new ByteArrayOutputStream(), "admin", null, false
         )).isInstanceOf(IllegalStateException.class);
 
         assertThat(output)

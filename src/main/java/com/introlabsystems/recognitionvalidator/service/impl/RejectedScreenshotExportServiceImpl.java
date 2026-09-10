@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.time.Clock;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,13 +33,22 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
     private final RejectedScreenshotExportCompletion completion;
     private final Lock exportLock = new ReentrantLock();
 
+    static String csvCell(Object value) {
+        String text = value == null ? "" : value.toString();
+        // Spreadsheet programs must treat exported explanations and names as text, never formulas.
+        if (text.stripLeading().matches("(?s)^[=+@-].*")) text = "'" + text;
+        return "\"" + text.replace("\"", "\"\"") + "\"";
+    }
+
     @Override
     public int writeZip(
             Instant processedFrom,
             Instant processedTo,
             boolean includePreviouslyDownloaded,
             OutputStream output,
-            String administrator
+            String administrator,
+            String sessionId,
+            boolean aiMismatch
     ) throws IOException {
         exportLock.lock();
         UUID exportId = UUID.randomUUID();
@@ -47,10 +57,14 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
         int skipped = 0;
         try {
             ZipOutputStream zip = new ZipOutputStream(output);
+            // ponytail: buffer the CSV in memory; use a temporary file if large manifests become a problem.
+            StringBuilder csv = new StringBuilder("\uFEFFfile_name,image_id,session_id,ai_verdict,ai_confidence,ai_message,operator_decision\r\n");
             for (var candidate : exports.findCandidates(
                     processedFrom,
                     processedTo,
-                    includePreviouslyDownloaded
+                    includePreviouslyDownloaded,
+                    sessionId,
+                    aiMismatch
             )) {
                 try {
                     var content = storage.open(candidate.imageId());
@@ -65,6 +79,10 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
                         }
                     }
                     writtenIds.add(candidate.imageId());
+                    csv.append(csvCell(content.fileName())).append(',').append(csvCell(candidate.imageId())).append(',')
+                            .append(csvCell(candidate.sessionId())).append(',').append(csvCell(candidate.aiVerdict())).append(',')
+                            .append(csvCell(candidate.aiConfidence())).append(',').append(csvCell(candidate.aiMessage())).append(',')
+                            .append(csvCell(candidate.operatorDecision())).append("\r\n");
                 } catch (ImageNotFoundException exception) {
                     // The storage service marks the stale database row unavailable.
                     skipped++;
@@ -75,9 +93,12 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
                     );
                 }
             }
+            zip.putNextEntry(new ZipEntry("results.csv"));
+            zip.write(csv.toString().getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
             zip.finish();
             zip.flush();
-            if (!writtenIds.isEmpty()) {
+            if (!aiMismatch && !writtenIds.isEmpty()) {
                 completion.complete(exportId, administrator, writtenIds, clock.instant());
             }
             log.info(

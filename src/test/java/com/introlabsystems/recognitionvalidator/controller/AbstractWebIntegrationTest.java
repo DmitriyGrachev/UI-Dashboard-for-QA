@@ -174,6 +174,12 @@ abstract class AbstractWebIntegrationTest {
         return text.split(java.util.regex.Pattern.quote(fragment), -1).length - 1;
     }
 
+    protected Map<String, byte[]> readZipImages(byte[] archive) throws IOException {
+        Map<String, byte[]> entries = readZipEntries(archive);
+        entries.remove("results.csv");
+        return entries;
+    }
+
     protected Map<String, byte[]> readZipEntries(byte[] archive) throws IOException {
         Map<String, byte[]> entries = new LinkedHashMap<>();
         try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive))) {
