@@ -44,8 +44,9 @@
         <header class="admin-heading">
             <div>
                 <span class="section-kicker">Recognition output</span>
-                <h1>Rejected screenshots</h1>
-                <p>Download images whose recognition result was rejected. Each ZIP includes results.csv with AI and operator results.</p>
+                <h1>Export rejected screenshots</h1>
+                <p>Each ZIP includes images and results.csv with AI and operator results.</p>
+                <a th:href="@{/admin/screenshots(reviewState=CHECKED,decision=REJECTED)}">View operator rejects</a>
             </div>
         </header>
 
@@ -67,7 +68,7 @@
                     Export source
                     <select name="aiMismatch" aria-describedby="export-source-help">
                         <option value="false">Operator — Rejected</option>
-                        <option value="true">AI — MISMATCH</option>
+                        <option value="true">AI — Mismatch</option>
                     </select>
                 </label>
                 <p id="export-source-help" class="admin-form-help">AI export includes all available MISMATCH images, regardless of operator review or previous downloads.</p>

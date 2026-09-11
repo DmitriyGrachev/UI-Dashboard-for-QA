@@ -241,16 +241,17 @@
                     <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
                     <button type="button" id="zoom-reset">Reset</button>
                     <button type="button" id="fullscreen">Fullscreen</button>
+                    <button type="button" id="review-retry" hidden>Refresh queue</button>
                 </div>
             </div>
 
-            <div class="image-stage" id="image-stage">
+            <div class="image-stage" id="image-stage" tabindex="0" aria-label="Screenshot. Shift and arrow keys pan the image.">
                 <img id="review-image" alt="Screenshot to review" draggable="false" hidden>
                 <div class="viewer-message" id="viewer-message" role="status" aria-live="polite">
                     Loading the first assignment…
                 </div>
             </div>
-            <p class="viewer-hint">Wheel — zoom · drag — pan · 0 — reset</p>
+            <p class="viewer-hint">Wheel — zoom · drag or Shift + arrows in image — pan · 0 — reset</p>
         </section>
 
         <aside class="transcript-panel" aria-labelledby="transcript-title">

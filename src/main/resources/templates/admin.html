@@ -45,25 +45,25 @@
             </div>
         </header>
 
-        <p class="admin-notice success" th:if="${param.created}">
+        <p class="admin-notice success" role="status" th:if="${param.created}">
             Operator created. Share the temporary password securely.
         </p>
-        <p class="admin-notice success" th:if="${param.deactivated}">
+        <p class="admin-notice success" role="status" th:if="${param.deactivated}">
             Operator deactivated and unfinished work returned to the queue.
         </p>
-        <p class="admin-notice success" th:if="${param.restored}">
+        <p class="admin-notice success" role="status" th:if="${param.restored}">
             Operator access restored.
         </p>
-        <p class="admin-notice success" th:if="${param.passwordChanged}">
+        <p class="admin-notice success" role="status" th:if="${param.passwordChanged}">
             Password changed. Existing operator sessions were closed.
         </p>
-        <p class="admin-notice error" th:if="${param.error != null and param.error[0] == 'username'}">
+        <p class="admin-notice error" role="alert" th:if="${param.error != null and param.error[0] == 'username'}">
             Enter a unique username.
         </p>
-        <p class="admin-notice error" th:if="${param.error != null and param.error[0] == 'password'}">
+        <p class="admin-notice error" role="alert" th:if="${param.error != null and param.error[0] == 'password'}">
             Password must contain at least 8 characters.
         </p>
-        <p class="admin-notice error" th:if="${param.error != null and param.error[0] == 'operator'}">
+        <p class="admin-notice error" role="alert" th:if="${param.error != null and param.error[0] == 'operator'}">
             The selected operator is no longer available.
         </p>
 
@@ -167,11 +167,13 @@
                                                        autocomplete="new-password"
                                                        required>
                                             </label>
+                                            <p class="admin-form-help">Saving a new password signs this operator out of existing sessions.</p>
                                             <button class="button secondary" type="submit">Save password</button>
                                         </form>
                                         <form th:if="${operator.enabled()}"
                                               method="post"
-                                              th:action="@{/admin/operators/{id}/deactivate(id=${operator.operatorId()})}">
+                                              th:action="@{/admin/operators/{id}/deactivate(id=${operator.operatorId()})}"
+                                              th:attr="data-deactivate-operator=${operator.username()}">
                                             <button class="action-button danger" type="submit">Deactivate</button>
                                         </form>
                                         <form th:unless="${operator.enabled()}"

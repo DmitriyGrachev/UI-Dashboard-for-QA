@@ -296,15 +296,15 @@
                 </div>
             </div>
         </form>
+        <section class="saved-filter-bar" aria-label="Saved filters">
+            <label>Saved filters <select id="saved-filter-select"><option value="">Choose saved filters…</option></select></label>
+            <label>Filter name <input id="saved-filter-name" type="text" maxlength="60" placeholder="e.g. IGT mismatches"></label>
+            <button type="button" class="button secondary" id="save-filter">Save / replace</button>
+            <button type="button" class="button secondary" id="delete-filter">Delete selected</button>
+            <p id="saved-filter-message" role="status">Stored in this browser. Dates are saved exactly as selected.</p>
+        </section>
     </details>
 
-    <section class="saved-filter-bar" aria-label="Saved filters">
-        <label>Saved filters <select id="saved-filter-select"><option value="">Choose saved filters…</option></select></label>
-        <label>Filter name <input id="saved-filter-name" type="text" maxlength="60" placeholder="e.g. IGT mismatches"></label>
-        <button type="button" class="button secondary" id="save-filter">Save / replace</button>
-        <button type="button" class="button secondary" id="delete-filter">Delete selected</button>
-        <p id="saved-filter-message" role="status">Stored in this browser. Dates are saved exactly as selected.</p>
-    </section>
     <main class="screenshot-explorer">
         <aside class="explorer-sidebar" aria-labelledby="results-title">
             <section class="explorer-results-panel" aria-labelledby="results-title">
@@ -317,7 +317,7 @@
                 </header>
                 <label class="results-view-control">View <select id="results-view"><option value="list">List</option><option value="grid">Grid</option></select></label>
                 <div class="screenshot-results" id="screenshot-results"
-                     role="listbox" aria-label="Matching screenshots"></div>
+                     role="group" aria-label="Matching screenshots"></div>
                 <button class="load-more-results" type="button" id="load-more-results" hidden>
                     Load more
                 </button>
@@ -337,7 +337,21 @@
                     <button type="button" id="explorer-fullscreen">Fullscreen</button>
                 </div>
             </header>
-            <div class="image-stage" id="explorer-image-stage">
+            <footer class="explorer-actions">
+                <button type="button" id="previous-screenshot" disabled>← Previous</button>
+                <button type="button" id="next-screenshot" disabled>Next →</button>
+                <a class="button primary" id="download-screenshot" href="#"
+                   aria-disabled="true">Download PNG <kbd>D</kbd></a>
+                <details class="explorer-more-actions">
+                    <summary>More actions</summary>
+                    <div>
+                        <button type="button" id="open-temporary-link" disabled>Open B2 link</button>
+                        <button type="button" id="copy-screenshot-link" disabled>Copy link</button>
+                        <button type="button" id="copy-technical-report" disabled>Copy report</button>
+                    </div>
+                </details>
+            </footer>
+            <div class="image-stage" id="explorer-image-stage" tabindex="0" aria-label="Screenshot. Shift and arrow keys pan the image.">
                 <img id="explorer-image" alt="Selected screenshot" draggable="false" hidden>
                 <div class="viewer-message" id="explorer-viewer-message"
                      role="status" aria-live="polite">
@@ -345,17 +359,9 @@
                 </div>
             </div>
             <p class="viewer-hint">
-                ←/→ — navigate · D — download · wheel — zoom · drag — pan · 0 — reset
+                ←/→ — navigate · D — download · wheel — zoom · drag or Shift + arrows in image — pan · 0 — reset
             </p>
-            <footer class="explorer-actions">
-                <button type="button" id="previous-screenshot" disabled>← Previous</button>
-                <button type="button" id="next-screenshot" disabled>Next →</button>
-                <a class="button primary" id="download-screenshot" href="#"
-                   aria-disabled="true">Download PNG <kbd>D</kbd></a>
-                <button type="button" id="open-temporary-link" disabled>Open B2 link</button>
-                <button type="button" id="copy-screenshot-link" disabled>Copy link</button>
-                <button type="button" id="copy-technical-report" disabled>Copy report</button>
-            </footer>
+
         </section>
 
         <aside class="explorer-details" aria-labelledby="explorer-details-title">

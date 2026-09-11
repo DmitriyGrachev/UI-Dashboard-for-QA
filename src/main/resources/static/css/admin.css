@@ -1,18 +1,18 @@
 /* Admin-only layout: operator review keeps its existing dense workspace. */
 .admin-page {
-    --ink-950: #1f2937;
-    --ink-900: #111827;
-    --ink-850: #374151;
-    --ink-800: #4b5563;
+    --ink-950: #0c1016;
+    --ink-900: #121821;
+    --ink-850: #17202b;
+    --ink-800: #1d2835;
     --line: #374151;
     --line-strong: #4b5563;
-    --text: #e5e7eb;
-    --muted: #9ca3af;
-    --signal: #60a5fa;
+    --text: #edf1f5;
+    --muted: #93a2b4;
+    --signal: #71b7d4;
     --focus: #93c5fd;
     --grid-line: transparent;
     --primary-border: #3b82f6;
-    --primary-background: #2563eb;
+    --primary-background: #176886;
     --primary-text: #ffffff;
     --row-tint: rgba(255, 255, 255, 0.04);
     --accept: #34d399;
@@ -34,19 +34,19 @@
 }
 
 :root[data-theme="light"] .admin-page {
-    --ink-950: #f9fafb;
+    --ink-950: #eef3f6;
     --ink-900: #ffffff;
-    --ink-850: #f3f4f6;
+    --ink-850: #f5f8fa;
     --ink-800: #e5e7eb;
     --line: #e5e7eb;
     --line-strong: #d1d5db;
     --text: #111827;
-    --muted: #6b7280;
-    --signal: #2563eb;
+    --muted: #5c6b78;
+    --signal: #126f92;
     --focus: #1d4ed8;
     --grid-line: transparent;
-    --primary-border: #2563eb;
-    --primary-background: #2563eb;
+    --primary-border: #176886;
+    --primary-background: #176886;
     --primary-text: #ffffff;
     --row-tint: rgba(17, 24, 39, 0.03);
     --accept: #15803d;
@@ -237,7 +237,7 @@
 .admin-page .operator-count { font-size: 13px; text-transform: none; letter-spacing: 0; }
 .admin-page .operator-table { min-width: 780px; }
 .admin-page .operator-table :is(th, td) { padding: 14px 16px; vertical-align: top; }
-.admin-page .operator-table thead th { font-size: 12px; text-transform: none; letter-spacing: 0; background: var(--ink-850); }
+.admin-page .operator-table thead th { font-size: 12px; text-transform: none; letter-spacing: 0; background: var(--ink-850); color: var(--text); }
 .admin-page .operator-identity strong { font-size: 14px; overflow-wrap: anywhere; }
 .admin-page .number-cell { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 14px; }
 .admin-page .total-cell { font-size: 14px; font-weight: 650; color: var(--text); }
@@ -340,7 +340,7 @@
 .admin-page :is(.explorer-sidebar, .explorer-viewer, .explorer-details) { border-radius: 7px; overflow: hidden; min-height: 0; }
 .admin-page :is(.explorer-sidebar, .explorer-details) { contain: size; }
 .admin-page .explorer-viewer { grid-template-rows: auto auto auto auto; }
-.admin-page .explorer-viewer .image-stage { height: max(560px, calc(100dvh - 280px)); }
+.admin-page .explorer-viewer .image-stage { height: clamp(280px, calc(100dvh - 400px), 620px); }
 .admin-page .explorer-sidebar { display: block; }
 .admin-page .explorer-results-panel { height: 100%; grid-template-rows: auto auto minmax(0, 1fr) auto; }
 .admin-page .explorer-results-panel > header { align-items: start; flex-wrap: wrap; padding: 16px; }
@@ -363,7 +363,7 @@
 .admin-page .viewer-tools { flex-wrap: wrap; }
 .admin-page .viewer-tools :is(button, output) { font-size: 12px; min-height: 32px; border-radius: 4px; }
 .admin-page .image-stage { background: var(--ink-950); }
-.admin-page .viewer-message { border: 0; border-radius: 6px; background: var(--ink-900); font-size: 14px; }
+.admin-page .viewer-message { color: var(--muted); border: 0; border-radius: 6px; background: var(--ink-900); font-size: 14px; }
 .admin-page .viewer-hint { font: 11px/1.5 "Segoe UI", sans-serif; text-transform: none; padding: 6px 10px; }
 .admin-page .explorer-actions { flex-wrap: wrap; padding: 12px; gap: 8px; }
 .admin-page .explorer-actions :is(button, .button) { font-size: 13px; border-radius: 5px; }
@@ -458,3 +458,39 @@
 .admin-page .result-thumbnail { width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: contain; background: var(--ink-900); border-radius: 4px; }
 @media (min-width: 1200px) { .admin-page .screenshot-explorer.grid-view { grid-template-columns: 440px minmax(0, 1fr) 290px; } }
 @media (max-width: 600px) { .admin-page .saved-filter-bar label { width: 100%; } .admin-page .grid-view .explorer-sidebar { height: 440px; } }
+
+.admin-page .ai-operations-grid {
+    max-width: none; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px 24px;
+}
+.admin-page .ai-operations-grid > div { display: block; min-width: 0; }
+.admin-page .ai-operations-grid dt { font-size: .875rem; color: var(--muted); }
+.admin-page .ai-operations-grid dd { margin: 6px 0 0; font-size: 1.375rem; overflow-wrap: anywhere; }
+.admin-page #ai-operations-last-result { font-size: .875rem; }
+.admin-page [data-error="true"] { color: var(--reject); }
+.admin-page .screenshot-result[aria-pressed="true"] :is(.screenshot-result-top, .screenshot-result-bottom) { color: var(--text); }
+.admin-page .viewer-tools :is(button, output) { min-height: 38px; }
+.admin-page .ai-result-details { padding: 16px; }
+.admin-page .explorer-viewer:fullscreen {
+    grid-template-rows: auto auto minmax(0,1fr) auto;
+}
+.admin-page .explorer-viewer:fullscreen .image-stage { height: auto; min-height: 0; }
+.admin-page .rejected-export-form :is(input:not([type="checkbox"]):not([type="hidden"]), select) { min-height: 40px; }
+.admin-page .operator-table :is(th, td):first-child {
+    position: sticky; left: 0; z-index: 1; background: var(--ink-900);
+}
+.admin-page .operator-table th:first-child { background: var(--ink-850); }
+@media (max-width: 820px) {
+    .admin-page .ai-operations-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+
+.admin-page .explorer-viewer .viewer-bar { flex-direction: row; flex-wrap: wrap; align-items: center; }
+.admin-page .explorer-actions { justify-content: flex-start; align-items: start; padding: 8px 12px; }
+.admin-page .explorer-more-actions summary {
+    padding: 9px 12px; border: 1px solid var(--line); border-radius: 5px; cursor: pointer;
+}
+.admin-page .explorer-more-actions > div { display: flex; flex-wrap: wrap; gap: 8px; padding-top: 8px; }
+.admin-page .ai-operations-grid { margin-block: 16px; }
+.admin-page .ai-operations-grid > div { padding: 0; }
+.admin-page a:not(.button):not(.brand) { color: var(--signal); }
+.admin-page .admin-navigation a { color: var(--muted); }
+.admin-page .admin-navigation a.is-current { color: var(--text); }

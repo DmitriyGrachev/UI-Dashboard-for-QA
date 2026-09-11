@@ -40,7 +40,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
     void loginPageIsPublic() throws Exception {
         mockMvc.perform(get("/login"))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Operator sign in")));
+                .andExpect(content().string(containsString("Sign in")));
     }
 
     @Test
