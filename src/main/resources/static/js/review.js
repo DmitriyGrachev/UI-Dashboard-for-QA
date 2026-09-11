@@ -330,9 +330,10 @@ if (typeof document !== "undefined") {
 
     function setFiltersCollapsed(collapsed, persist = true) {
         elements.workspace.dataset.filtersCollapsed = String(collapsed);
+        document.getElementById('review-filters').hidden = collapsed;
         elements.filterToggle.setAttribute("aria-expanded", String(!collapsed));
         elements.filterToggle.title = collapsed ? "Show filters" : "Hide filters";
-        elements.filterToggleLabel.textContent = collapsed ? "Show" : "Hide";
+        elements.filterToggleLabel.textContent = collapsed ? "Filters" : "Hide filters";
         if (persist) {
             try {
                 window.localStorage.setItem(filtersCollapsedKey, String(collapsed));
@@ -738,6 +739,10 @@ if (typeof document !== "undefined") {
 
     elements.filterToggle.addEventListener("click", () => {
         setFiltersCollapsed(!isFiltersCollapsed());
+    });
+    document.getElementById('filter-close').addEventListener('click', () => {
+        setFiltersCollapsed(true);
+        elements.filterToggle.focus();
     });
 
     elements.faqOpen.addEventListener("click", () => {

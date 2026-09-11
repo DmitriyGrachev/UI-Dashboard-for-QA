@@ -31,7 +31,7 @@
         <nav class="topbar-actions" aria-label="Navigation">
             <button class="topbar-help" id="faq-open" type="button"
                     aria-haspopup="dialog" aria-controls="faq-dialog">
-                FAQ
+                Help
             </button>
             <button class="theme-toggle" type="button" data-theme-toggle
                     aria-label="Switch to light theme" title="Switch to light theme">
@@ -45,8 +45,22 @@
         </nav>
     </header>
 
+    <div class="review-toolbar" aria-label="Review queue controls">
+        <h1>Review</h1>
+                <button class="filter-toggle" id="filter-toggle" type="button"
+                        aria-expanded="false" aria-controls="review-filters"
+                        title="Show filters">
+                    <span class="filter-toggle-glyph" aria-hidden="true"><svg aria-hidden="true" viewBox="0 0 20 20"><path d="M3 5h14M6 10h8M8 15h4"/></svg></span>
+                    <span class="filter-toggle-label" data-filter-toggle-label>Filters</span>
+                    <span class="active-filter-count" id="active-filter-count" hidden>0</span>
+                </button>
+        <span class="review-remaining" th:if="${countRemainingScreenshots}" title="Matching screenshots, including the current screenshot">
+            <output id="remaining-count" aria-live="polite">—</output> remaining
+        </span>
+    </div>
+
     <main class="review-workspace" data-filters-collapsed="true">
-        <aside class="filter-sidebar" aria-labelledby="filter-title">
+        <aside class="filter-sidebar" id="review-filters" aria-labelledby="filter-title" hidden>
             <div class="filter-sidebar-header">
                 <div class="filter-sidebar-heading">
                     <span>
@@ -55,13 +69,7 @@
                     </span>
                     <small>Changes apply automatically</small>
                 </div>
-                <button class="filter-toggle" id="filter-toggle" type="button"
-                        aria-expanded="false" aria-controls="filter-panel"
-                        title="Show filters">
-                    <span class="filter-toggle-glyph" aria-hidden="true">&#9776;</span>
-                    <span class="filter-toggle-label" data-filter-toggle-label>Show</span>
-                    <span class="active-filter-count" id="active-filter-count" hidden>0</span>
-                </button>
+                <button class="filter-toggle" id="filter-close" type="button">Close filters</button>
             </div>
             <div class="filter-sidebar-content" id="filter-panel">
                 <form id="filter-form" class="filters" data-utc-date-range>
@@ -193,11 +201,11 @@
                 <label>AI verdict
                     <select id="ai-verdict">
                         <option value="">All verdicts</option>
-                        <option value="MATCH">MATCH</option>
-                        <option value="MISMATCH">MISMATCH</option>
-                        <option value="LOW_CONFIDENCE">LOW_CONFIDENCE</option>
-                        <option value="HAND_COUNT_MISMATCH">HAND_COUNT_MISMATCH</option>
-                        <option value="NO_HANDS_FOUND">NO_HANDS_FOUND</option>
+                        <option value="MATCH">Matches</option>
+                        <option value="MISMATCH">Mismatch</option>
+                        <option value="LOW_CONFIDENCE">Not enough confidence</option>
+                        <option value="HAND_COUNT_MISMATCH">Hand count differs</option>
+                        <option value="NO_HANDS_FOUND">No hands found</option>
                     </select>
                 </label>
                 <label>AI confidence from (%)
@@ -212,9 +220,7 @@
                 </form>
                 <div class="queue-remaining" aria-live="polite"
                      th:if="${countRemainingScreenshots}">
-                    <span>Matching screenshots</span>
-                    <output id="remaining-count">—</output>
-                    <small>including the current screenshot</small>
+                    <span>Matching screenshot dates</span>
                     <dl class="queue-date-range" aria-label="Matching screenshot date range in UTC">
                         <div>
                             <dt>Oldest, UTC</dt>
@@ -231,7 +237,7 @@
 
         <section class="viewer-panel" aria-label="Screenshot under review">
             <div class="viewer-bar">
-                <div>
+                <div class="viewer-caption">
                     <span class="section-kicker">Screenshot</span>
                     <strong id="game-summary">Waiting for assignment</strong>
                 </div>
@@ -239,7 +245,7 @@
                     <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
                     <output id="zoom-value">100%</output>
                     <button type="button" id="zoom-in" aria-label="Zoom in">+</button>
-                    <button type="button" id="zoom-reset">Reset</button>
+                    <button type="button" id="zoom-reset" title="Fit image to viewer">Fit</button>
                     <button type="button" id="fullscreen">Fullscreen</button>
                     <button type="button" id="review-retry" hidden>Refresh queue</button>
                 </div>
@@ -256,8 +262,8 @@
 
         <aside class="transcript-panel" aria-labelledby="transcript-title">
             <div class="panel-heading">
-                <span class="section-kicker">Recognition result</span>
-                <h2 id="transcript-title">What to verify</h2>
+                <h2 id="transcript-title">Recognition</h2>
+                <p>Compare with the screenshot</p>
             </div>
 
             <dl class="primary-context">
