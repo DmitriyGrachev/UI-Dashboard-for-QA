@@ -15,7 +15,6 @@
             <span class="brand-mark" aria-hidden="true">RV</span>
             <span>
                 <strong>Recognition Validator</strong>
-                <small>Recognition review desk</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Navigation">
@@ -34,17 +33,13 @@
     <main class="statistics-main">
         <section class="statistics-heading">
             <div>
-                <span class="section-kicker">Personal performance</span>
                 <h1>Operator statistics</h1>
                 <p>
                     <span th:text="${operatorName}">operator</span>
                     · daily boundaries are calculated in UTC
                 </p>
             </div>
-            <div class="retention-badge">
-                <span>Daily trend</span>
-                <strong>Last 7 days</strong>
-            </div>
+            <p class="statistics-period">Last 7 days · UTC</p>
         </section>
 
         <section class="metric-grid statistics-kpis" aria-label="Review totals">
@@ -68,7 +63,6 @@
         <section class="daily-performance" aria-labelledby="daily-performance-title">
             <header>
                 <div>
-                    <span class="section-kicker">Daily output</span>
                     <h2 id="daily-performance-title">Reviews by day</h2>
                 </div>
                 <div class="chart-legend" aria-label="Chart legend">

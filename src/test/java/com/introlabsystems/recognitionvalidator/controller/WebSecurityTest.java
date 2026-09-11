@@ -901,7 +901,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("Review filters")))
                 .andExpect(content().string(containsString("Has user hand")))
-                .andExpect(content().string(containsString("Recognition review desk")))
+                .andExpect(content().string(containsString("Compare with the screenshot")))
+                .andExpect(content().string(containsString("Show cards")))
                 .andExpect(content().string(containsString("Matches")))
                 .andExpect(content().string(containsString("Does not match")))
                 .andExpect(content().string(org.hamcrest.Matchers.not(

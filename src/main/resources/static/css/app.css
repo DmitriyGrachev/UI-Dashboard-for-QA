@@ -1209,7 +1209,7 @@ summary:focus-visible {
 }
 
 .statistics-main {
-    padding: 48px 0;
+    padding: 28px 0;
 }
 
 .statistics-heading {
@@ -1217,8 +1217,7 @@ summary:focus-visible {
     align-items: end;
     justify-content: space-between;
     gap: 32px;
-    padding-bottom: 28px;
-    border-bottom: 1px solid var(--line);
+    padding-bottom: 4px;
 }
 
 .statistics-heading h1,
@@ -1229,7 +1228,7 @@ summary:focus-visible {
 }
 
 .statistics-heading h1 {
-    font-size: clamp(28px, 4vw, 46px);
+    font-size: 1.5rem;
     letter-spacing: -0.025em;
 }
 
@@ -1269,8 +1268,10 @@ summary:focus-visible {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1px;
-    margin-top: 28px;
+    margin-top: 20px;
     border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
     background: var(--line);
 }
 
@@ -1279,13 +1280,13 @@ summary:focus-visible {
 }
 
 .metric-card {
-    min-height: 128px;
+    min-height: 116px;
     padding: 20px;
     background: var(--ink-900);
 }
 
 .metric-card.signal-card {
-    box-shadow: inset 3px 0 var(--signal);
+    box-shadow: none;
 }
 
 .metric-card span,
@@ -1297,20 +1298,19 @@ summary:focus-visible {
 .metric-card span {
     color: var(--muted);
     font-size: 0.75rem;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
 }
 
 .metric-card strong {
-    margin-top: 20px;
+    margin-top: 10px;
     font-family: var(--font-ui);
-    font-size: clamp(2.5rem, 4vw, 3rem);
+    font-size: 2rem;
+    font-variant-numeric: tabular-nums;
     font-weight: 600;
-    line-height: 0.9;
+    line-height: 1.1;
 }
 
 .metric-card small {
-    margin-top: 18px;
+    margin-top: 8px;
     color: var(--muted);
     font-size: 0.75rem;
 }
@@ -2242,8 +2242,9 @@ span.flatpickr-weekday {
 
 .daily-performance {
     margin-top: 24px;
-    padding: 28px;
+    padding: 20px;
     border: 1px solid var(--line);
+    border-radius: 8px;
     background: var(--ink-900);
 }
 
@@ -2334,7 +2335,6 @@ span.flatpickr-weekday {
     display: flex;
     align-items: end;
     justify-content: center;
-    background: linear-gradient(to top, var(--row-tint), transparent 60%);
 }
 
 .daily-bar-stack {
