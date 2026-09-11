@@ -1,73 +1,15 @@
-/* Admin-only layout: operator review keeps its existing dense workspace. */
+/* Admin layout shares the app's semantic palette and typography. */
 .admin-page {
-    --ink-950: #0c1016;
-    --ink-900: #121821;
-    --ink-850: #17202b;
-    --ink-800: #1d2835;
-    --line: #374151;
-    --line-strong: #4b5563;
-    --text: #edf1f5;
-    --muted: #93a2b4;
-    --signal: #71b7d4;
-    --focus: #93c5fd;
-    --grid-line: transparent;
-    --primary-border: #3b82f6;
-    --primary-background: #176886;
-    --primary-text: #ffffff;
-    --row-tint: rgba(255, 255, 255, 0.04);
-    --accept: #34d399;
-    --accept-dark: #064e3b;
-    --accept-ring: transparent;
-    --reject: #f87171;
-    --reject-dark: #7f1d1d;
-    --warning: #fbbf24;
-    --floating-shadow: rgba(0, 0, 0, 0.18);
-    --workload-secondary: #93c5fd;
-    --stage-muted: #9ca3af;
-    --admin-segment-background: #111827;
-    --admin-segment-active: #1f2937;
-    --admin-segment-active-border: #374151;
-    --admin-segment-muted: #9ca3af;
-    background: var(--ink-950);
-    color: var(--text);
-    font: 400 14px/1.45 "Segoe UI", sans-serif;
-}
-
-:root[data-theme="light"] .admin-page {
-    --ink-950: #eef3f6;
-    --ink-900: #ffffff;
-    --ink-850: #f5f8fa;
-    --ink-800: #e5e7eb;
-    --line: #e5e7eb;
-    --line-strong: #d1d5db;
-    --text: #111827;
-    --muted: #5c6b78;
-    --signal: #126f92;
-    --focus: #1d4ed8;
-    --grid-line: transparent;
-    --primary-border: #176886;
-    --primary-background: #176886;
-    --primary-text: #ffffff;
-    --row-tint: rgba(17, 24, 39, 0.03);
-    --accept: #15803d;
-    --accept-dark: #dcfce7;
-    --accept-ring: transparent;
-    --reject: #dc2626;
-    --reject-dark: #fee2e2;
-    --warning: #b45309;
-    --floating-shadow: rgba(17, 24, 39, 0.12);
-    --workload-secondary: #93c5fd;
-    --stage-muted: #6b7280;
-    --admin-segment-background: #f9fafb;
-    --admin-segment-active: #ffffff;
-    --admin-segment-active-border: #e5e7eb;
-    --admin-segment-muted: #6b7280;
+    --admin-segment-background: var(--ink-850);
+    --admin-segment-active: var(--ink-900);
+    --admin-segment-active-border: var(--line-strong);
+    --admin-segment-muted: var(--muted);
 }
 
 .admin-page [hidden] { display: none !important; }
-.admin-page .app-shell { padding-inline: 28px; }
-.admin-page .topbar { min-height: 66px; gap: 16px; }
-.admin-page .brand strong { font: 650 16px/1.3 "Segoe UI", sans-serif; letter-spacing: 0; }
+.admin-page .app-shell { padding-inline: 20px; }
+.admin-page .topbar { min-height: 60px; gap: 16px; }
+.admin-page .brand strong { font: 650 16px/1.3 var(--font-ui); letter-spacing: 0; }
 .admin-page .brand small { font-size: 12px; letter-spacing: 0; text-transform: none; }
 .admin-page .brand-mark { width: 34px; height: 34px; border-radius: 6px; }
 .admin-page .signed-in-user { color: var(--muted); font: inherit; }
@@ -87,7 +29,7 @@
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--admin-segment-background);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+    box-shadow: none;
     overflow-x: auto;
 }
 .admin-page .admin-navigation a {
@@ -112,8 +54,8 @@
 .admin-page .section-kicker { display: none; }
 .admin-page .admin-main { padding: 28px 0 40px; }
 .admin-page .admin-heading { align-items: center; padding-bottom: 22px; gap: 18px; border: 0; }
-.admin-page h1 { font: 650 28px/1.2 "Segoe UI", sans-serif; letter-spacing: -0.025em; margin: 0; }
-.admin-page h2 { font: 600 18px/1.35 "Segoe UI", sans-serif; letter-spacing: 0; margin: 0; }
+.admin-page h1 { font: 650 1.5rem/1.2 var(--font-ui); letter-spacing: -0.025em; margin: 0; }
+.admin-page h2 { font: 600 1.125rem/1.35 var(--font-ui); letter-spacing: 0; margin: 0; }
 .admin-page p { line-height: 1.5; }
 .admin-page .admin-heading p,
 .admin-page .admin-create-panel p,
@@ -121,7 +63,7 @@
 .admin-page .workload-panel > header p { font-size: 14px; }
 .admin-page .retention-badge { border: 0; background: transparent; padding: 0; min-width: auto; }
 .admin-page .retention-badge span { font-size: 12px; text-transform: none; letter-spacing: 0; }
-.admin-page .retention-badge strong { font: 600 14px/1.5 "Segoe UI", sans-serif; margin-top: 2px; }
+.admin-page .retention-badge strong { font: 600 14px/1.5 var(--font-ui); margin-top: 2px; }
 .admin-page .button,
 .admin-page .compact-button,
 .admin-page .theme-toggle {
@@ -139,7 +81,7 @@
 .admin-page .button:hover:not(:disabled),
 .admin-page .compact-button:hover:not(:disabled),
 .admin-page .theme-toggle:hover { border-color: var(--line-strong); background: var(--ink-850); }
-.admin-page .button.primary:hover:not(:disabled) { border-color: var(--primary-border); background: #1d4ed8; }
+.admin-page .button.primary:hover:not(:disabled) { border-color: var(--primary-border); background: var(--primary-hover); }
 .admin-page :is(input:not([type="radio"]):not([type="checkbox"]):not([type="hidden"]), select, textarea) {
     border: 1px solid var(--line);
     border-radius: 6px;
@@ -173,7 +115,7 @@
     border: 1px solid var(--line);
     border-radius: 8px;
     background: var(--admin-segment-background);
-    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.12);
+    box-shadow: none;
 }
 .admin-page .admin-segmented label {
     position: relative;
@@ -227,7 +169,7 @@
 }
 .admin-page .admin-create-disclosure { margin: 0 0 20px; border-radius: 6px; }
 .admin-page .admin-create-disclosure > summary { min-height: 44px; padding: 10px 16px; }
-.admin-page .admin-create-disclosure > summary strong { margin: 0; font: 600 14px/1.45 "Segoe UI", sans-serif; }
+.admin-page .admin-create-disclosure > summary strong { margin: 0; font: 600 14px/1.45 var(--font-ui); }
 .admin-page .admin-create-disclosure > summary small { font-size: 13px; }
 .admin-page .admin-create-disclosure .admin-create-panel { grid-template-columns: minmax(180px, .7fr) minmax(350px, 1.3fr); padding: 20px; }
 .admin-page .admin-create-form label,
@@ -236,7 +178,7 @@
 .admin-page .roster-heading { padding: 18px 20px; }
 .admin-page .operator-count { font-size: 13px; text-transform: none; letter-spacing: 0; }
 .admin-page .operator-table { min-width: 780px; }
-.admin-page .operator-table :is(th, td) { padding: 14px 16px; vertical-align: top; }
+.admin-page .operator-table :is(th, td) { padding: 12px 16px; vertical-align: top; }
 .admin-page .operator-table thead th { font-size: 12px; text-transform: none; letter-spacing: 0; background: var(--ink-850); color: var(--text); }
 .admin-page .operator-identity strong { font-size: 14px; overflow-wrap: anywhere; }
 .admin-page .number-cell { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 14px; }
@@ -248,8 +190,8 @@
     background: var(--ink-850);
     font-size: 13px;
 }
-.admin-page .status-pill.active { border-color: var(--accept); color: var(--accept); }
-.admin-page .status-pill.inactive { border-color: var(--reject); color: var(--reject); }
+.admin-page .status-pill.active { border-color: var(--line); color: var(--accept); }
+.admin-page .status-pill.inactive { border-color: var(--line); color: var(--reject); }
 .admin-page .status-pill.active::before { box-shadow: none; }
 .admin-page .operator-avatar { border: 0; border-radius: 50%; background: var(--ink-800); }
 .admin-page :is(.operator-detail, .operator-manage, .operator-details, .operator-management) > summary {
@@ -362,9 +304,9 @@
 .admin-page .viewer-bar strong { max-width: 100%; font-family: inherit; font-size: 13px; margin: 0; }
 .admin-page .viewer-tools { flex-wrap: wrap; }
 .admin-page .viewer-tools :is(button, output) { font-size: 12px; min-height: 32px; border-radius: 4px; }
-.admin-page .image-stage { background: var(--ink-950); }
+.admin-page .image-stage { background: var(--stage-background); }
 .admin-page .viewer-message { color: var(--muted); border: 0; border-radius: 6px; background: var(--ink-900); font-size: 14px; }
-.admin-page .viewer-hint { font: 11px/1.5 "Segoe UI", sans-serif; text-transform: none; padding: 6px 10px; }
+.admin-page .viewer-hint { font: 11px/1.5 var(--font-ui); text-transform: none; padding: 6px 10px; }
 .admin-page .explorer-actions { flex-wrap: wrap; padding: 12px; gap: 8px; }
 .admin-page .explorer-actions :is(button, .button) { font-size: 13px; border-radius: 5px; }
 .admin-page .explorer-details { overflow-y: auto; }
