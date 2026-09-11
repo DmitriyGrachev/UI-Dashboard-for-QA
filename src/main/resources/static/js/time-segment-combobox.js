@@ -9,6 +9,8 @@
 })(typeof window !== "undefined" ? window : globalThis, () => {
     "use strict";
 
+    let nextListId = 0;
+
     function normalize(value, min, max) {
         const text = String(value ?? "").trim();
         if (!/^\d{1,2}$/.test(text)) return null;
@@ -50,7 +52,9 @@
         input.setAttribute("aria-autocomplete", "list");
         input.setAttribute("aria-haspopup", "listbox");
         input.setAttribute("aria-expanded", "false");
-        if (listbox.id) input.setAttribute("aria-controls", listbox.id);
+        if (!listbox.id) listbox.id = "utc-time-options-" + (++nextListId);
+        input.setAttribute("aria-controls", listbox.id);
+        toggle.setAttribute("aria-controls", listbox.id);
         listbox.setAttribute("role", "listbox");
         listbox.hidden = true;
 
@@ -66,7 +70,7 @@
             Array.from(listbox.children).forEach(option => {
                 const selected = option.getAttribute("data-value") === value;
                 option.setAttribute("aria-selected", String(selected));
-                if (selected && option.id) {
+                if (selected && option.id && !listbox.hidden) {
                     input.setAttribute("aria-activedescendant", option.id);
                 }
             });
@@ -74,6 +78,7 @@
 
         function close() {
             listbox.hidden = true;
+            input.removeAttribute("aria-activedescendant");
             input.setAttribute("aria-expanded", "false");
             toggle.setAttribute("aria-expanded", "false");
         }
@@ -106,6 +111,11 @@
         }
 
         function onKeyDown(event) {
+            if (event.altKey && event.key === "ArrowDown") {
+                event.preventDefault();
+                open();
+                return;
+            }
             if (event.key === "ArrowUp" || event.key === "ArrowDown") {
                 event.preventDefault();
                 const current = Number(normalize(input.value, min, max) || acceptedValue);
@@ -149,6 +159,7 @@
             } else {
                 close();
             }
+            input.focus();
         }
 
         function onOutsidePointer(event) {
@@ -158,6 +169,7 @@
         const options = values.map((value, index) => {
             const option = documentObject.createElement("button");
             option.type = "button";
+            option.tabIndex = -1;
             option.id = listbox.id ? `${listbox.id}-option-${index}` : "";
             option.textContent = value;
             option.setAttribute("role", "option");

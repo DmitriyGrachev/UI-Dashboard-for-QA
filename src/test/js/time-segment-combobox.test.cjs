@@ -158,6 +158,11 @@ test("combobox supports typing, list selection and keyboard commits", {
 
     assert.equal(fixture.listbox.children.length, 24);
     assert.equal(fixture.input.getAttribute("aria-expanded"), "false");
+    fixture.input.dispatch("keydown", {key: "ArrowDown", altKey: true});
+    assert.equal(fixture.listbox.hidden, false);
+    fixture.input.dispatch("keydown", {key: "Escape"});
+    assert.equal(fixture.listbox.hidden, true);
+    assert.equal(fixture.input.getAttribute("aria-activedescendant"), null);
 
     fixture.input.value = "2";
     fixture.input.dispatch("keydown", {key: "Tab"});

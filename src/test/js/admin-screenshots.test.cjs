@@ -16,7 +16,7 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
-test("shared links search by the selected ID even beyond the first page", () => {
+test("restoring selection keeps the original search scope", () => {
     const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
     const restore = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function storageLabel('));
     const elements = new Proxy({}, {get: (target, name) => target[name] ||= {value: ''}});
@@ -29,7 +29,7 @@ test("shared links search by the selected ID even beyond the first page", () => 
     });
     assert.equal(restoreFromUrl(), 'image-51');
     const params = buildSearchParams({imageId: elements.imageId.value, sessionId: elements.sessionId.value});
-    assert.equal(params.get('imageId'), 'image-51');
+    assert.equal(params.get('imageId'), null);
     assert.equal(params.get('sessionId'), 'session-a');
 });
 
@@ -311,7 +311,7 @@ test("loaded count distinguishes browser rows from the matching total", () => {
     assert.equal(formatLoadedCount(50, 1_500_000), "Loaded 50 of 1,500,000");
 });
 
-test("copy link writes the exact current explorer URL", async () => {
+test("copy link explicitly targets its screenshot without changing the current search", async () => {
     const copied = [];
     await copyShareLink(
         {writeText: async value => copied.push(value)},
@@ -319,7 +319,7 @@ test("copy link writes the exact current explorer URL", async () => {
     );
 
     assert.deepEqual(copied, [
-        "https://validator.example/admin/screenshots?reviewState=CHECKED&selected=abc"
+        "https://validator.example/admin/screenshots?reviewState=CHECKED&selected=abc&imageId=abc"
     ]);
 });
 

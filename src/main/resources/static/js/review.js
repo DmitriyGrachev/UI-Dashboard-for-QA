@@ -191,6 +191,7 @@ if (typeof document !== "undefined") {
         stage: document.getElementById("image-stage"),
         image: document.getElementById("review-image"),
         viewerMessage: document.getElementById("viewer-message"),
+        retry: document.getElementById("review-retry"),
         decisionMessage: document.getElementById("decision-message"),
         accept: document.getElementById("accept-button"),
         reject: document.getElementById("reject-button"),
@@ -379,7 +380,7 @@ if (typeof document !== "undefined") {
             }
             elements.decisionMessage.textContent = error.message;
             if (!state.item) {
-                showEmpty("Could not load an assignment. Refresh the page or change the filters.");
+                showEmpty(error.message || "Could not load an assignment.", true);
             }
             return false;
         } finally {
@@ -433,7 +434,7 @@ if (typeof document !== "undefined") {
     }
 
     async function decide(decision) {
-        if (!state.item || state.busy) {
+        if (reviewActionsDisabled(state)) {
             return;
         }
         cancelQueueSummary();
@@ -522,14 +523,16 @@ if (typeof document !== "undefined") {
         setText(elements.buttons, item.notification ? null : item.buttonsRaw);
         setText(elements.flags, actionFlags(item));
         setParseStatus(item.parseStatus);
-        elements.viewerMessage.hidden = true;
+        elements.viewerMessage.hidden = false;
+        elements.viewerMessage.textContent = "Loading screenshot…";
+        elements.retry.hidden = true;
         elements.image.hidden = false;
         elements.image.src = item.imageUrl;
-        elements.decisionMessage.textContent = "Compare the screenshot with the recognition result";
+        elements.decisionMessage.textContent = "Loading screenshot…";
         updateActions();
     }
 
-    function showEmpty(message) {
+    function showEmpty(message, error = false) {
         clearTimeout(state.imageRetryTimer);
         state.item = null;
         state.imageReady = false;
@@ -542,8 +545,10 @@ if (typeof document !== "undefined") {
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = message;
         clearMetadata();
-        elements.gameSummary.textContent = "Queue is empty";
-        elements.decisionMessage.textContent = "Change the filters or wait for new files";
+        elements.gameSummary.textContent = error ? "Assignment unavailable" : "Queue is empty";
+        elements.decisionMessage.textContent = error ? "Select Refresh queue to try again" : "Change filters or refresh the queue for new files";
+        elements.retry.textContent = "Refresh queue";
+        elements.retry.hidden = false;
         updateActions();
     }
 
@@ -635,6 +640,7 @@ if (typeof document !== "undefined") {
     }
 
     function updateActions() {
+        elements.retry.disabled = state.busy;
         const disabled = reviewActionsDisabled(state);
         elements.accept.disabled = disabled;
         elements.reject.disabled = disabled;
@@ -742,6 +748,11 @@ if (typeof document !== "undefined") {
         }
     });
 
+    elements.retry.addEventListener("click", () => {
+        if (state.busy) return;
+        if (state.item) renderItem(state.item);
+        else loadQueue();
+    });
     elements.accept.addEventListener("click", () => decide("ACCEPTED"));
     elements.reject.addEventListener("click", () => decide("REJECTED"));
     elements.zoomIn.addEventListener("click", () => zoom(0.25));
@@ -751,8 +762,11 @@ if (typeof document !== "undefined") {
         if (document.fullscreenElement) {
             document.exitFullscreen();
         } else {
-            elements.stage.requestFullscreen();
+            elements.stage.closest(".viewer-panel").requestFullscreen();
         }
+    });
+    document.addEventListener('fullscreenchange', () => {
+        elements.fullscreen.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
     });
 
     elements.stage.addEventListener("wheel", event => {
@@ -794,6 +808,9 @@ if (typeof document !== "undefined") {
     elements.image.addEventListener("load", () => {
         if (!state.item) return;
         state.imageReady = true;
+        elements.viewerMessage.hidden = true;
+        elements.retry.hidden = true;
+        elements.decisionMessage.textContent = "Compare the screenshot with the recognition result";
         updateActions();
     });
 
@@ -803,7 +820,9 @@ if (typeof document !== "undefined") {
         elements.image.hidden = true;
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = message;
-        elements.decisionMessage.textContent = "The assignment is kept. Try again later.";
+        elements.decisionMessage.textContent = "The assignment is kept. Select Retry image to try again.";
+        elements.retry.textContent = "Retry image";
+        elements.retry.hidden = false;
         updateActions();
     }
 
@@ -874,8 +893,20 @@ if (typeof document !== "undefined") {
     });
 
     document.addEventListener("keydown", event => {
+        if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented
+                || event.target.isContentEditable || document.querySelector('dialog[open]')) return;
+        if (event.shiftKey && event.target === elements.stage && event.key.startsWith('Arrow')) {
+            event.preventDefault();
+            if (event.key === 'ArrowLeft') state.x -= 40;
+            if (event.key === 'ArrowRight') state.x += 40;
+            if (event.key === 'ArrowUp') state.y -= 40;
+            if (event.key === 'ArrowDown') state.y += 40;
+            applyTransform();
+            return;
+        }
+        if (event.shiftKey && event.key !== '+') return;
         const tag = event.target.tagName;
-        if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") {
+        if (["INPUT", "SELECT", "TEXTAREA", "BUTTON", "A", "SUMMARY"].includes(tag)) {
             return;
         }
         if (event.key === "ArrowRight" || event.key.toLowerCase() === "a") {

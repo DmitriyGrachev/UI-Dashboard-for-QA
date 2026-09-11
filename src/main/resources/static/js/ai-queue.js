@@ -95,23 +95,33 @@ function initializeAiOperations(doc) {
     const state = byId('ai-operations-state');
     const message = byId('ai-operations-message');
     if (!refreshButton || !state || !message) return null;
+    let lastUpdated = null;
 
     async function refresh() {
         refreshButton.disabled = true;
         message.textContent = 'Refreshing…';
         try {
             const response = await fetch('/admin/api/ai-queue/operations', {cache: 'no-store'});
+            if (response.status === 401 || (response.redirected && response.url.includes('/login'))) {
+                const link = byId('ai-operations-sign-in');
+                if (link) link.hidden = false;
+                throw new Error('Your session has expired. Sign in again.');
+            }
             const data = await response.json();
-            if (!response.ok) throw new Error(data.message || `Request failed (${response.status})`);
-            state.textContent = data.enabled ? 'ACTIVE' : 'STOPPED';
+            if (!response.ok) throw new Error(data.detail || data.message || `Request failed (${response.status})`);
+            state.textContent = data.enabled ? 'Allowed' : 'Paused';
             byId('ai-operations-eligible').textContent = data.hasEligiblePending ? 'Yes' : 'No';
             byId('ai-operations-processing').textContent = String(data.processing);
             byId('ai-operations-failed').textContent = String(data.failed);
             byId('ai-operations-expired').textContent = String(data.expired);
-            byId('ai-operations-last-result').textContent = data.lastResult || '—';
-            message.textContent = 'Updated.';
+            byId('ai-operations-last-result').textContent = data.lastResult ? formatAiTime(data.lastResult) : '—';
+            lastUpdated = formatAiTime(new Date());
+            message.textContent = `Updated ${lastUpdated}.`;
+            message.dataset.error = 'false';
         } catch (error) {
-            message.textContent = error.message || 'Could not load AI operations.';
+            message.dataset.error = 'true';
+            message.textContent = `${error.message || 'Could not load AI operations.'}${lastUpdated ? ` Displayed values may be out of date; last updated ${lastUpdated}.` : ''}`;
+            if (!lastUpdated) state.textContent = 'Unavailable';
         } finally {
             refreshButton.disabled = false;
         }
@@ -120,6 +130,11 @@ function initializeAiOperations(doc) {
     refreshButton.addEventListener('click', refresh);
     refresh();
     return {refresh};
+}
+
+function formatAiTime(value) {
+    return new Intl.DateTimeFormat('en-GB', {timeZone: 'UTC', dateStyle: 'short', timeStyle: 'medium'})
+        .format(new Date(value)) + ' UTC';
 }
 
 function initializeAiQueue(form, operations) {
@@ -207,9 +222,9 @@ function initializeAiQueue(form, operations) {
 
     function updateQueueSummary() {
         if (!current) return;
-        const issuing = current.enabled ? 'Issuing enabled' : 'Issuing paused';
-        const lease = current.leaseSeconds == null ? '' : ` · lease ${current.leaseSeconds}s`;
-        summary.textContent = `${issuing}${lease} · revision ${current.revision}`;
+        const issuing = current.enabled ? 'New assignments allowed' : 'New assignments paused';
+        const lease = current.leaseSeconds == null ? '' : ` · response deadline ${current.leaseSeconds / 60} minutes`;
+        summary.textContent = `${issuing}${lease}`;
     }
 
     function updateRuleSummary(node) {
@@ -311,6 +326,11 @@ function initializeAiQueue(form, operations) {
             headers,
             ...(body ? {body: JSON.stringify(body)} : {})
         });
+        if (response.status === 401 || (response.redirected && response.url.includes('/login'))) {
+            const link = byId('ai-queue-sign-in');
+            if (link) link.hidden = false;
+            throw new Error('Your session has expired. Sign in again.');
+        }
         let data = {};
         try { data = await response.json(); } catch (_) {
             if (response.ok) throw new Error('Could not read AI settings. Sign in again or reload the page.');
@@ -319,7 +339,7 @@ function initializeAiQueue(form, operations) {
         if (!response.ok) {
             const error = new Error(response.status === 409
                 ? 'Settings changed in another session. Draft kept; latest revision loaded.'
-                : data.message || `Request failed (${response.status})`);
+                : data.detail || data.message || `Request failed (${response.status})`);
             error.status = response.status;
             throw error;
         }
@@ -354,6 +374,7 @@ function initializeAiQueue(form, operations) {
             setMessage(success);
             return data;
         } catch (error) {
+            if (!current) summary.textContent = 'Settings unavailable. Select Reload saved settings to retry.';
             let conflictRefreshed = false;
             if (error.status === 409) {
                 try { await refreshSavedState(); conflictRefreshed = true; } catch (_) { /* retain the previous revision if refresh fails */ }

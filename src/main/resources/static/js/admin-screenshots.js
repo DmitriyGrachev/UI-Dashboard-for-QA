@@ -73,7 +73,9 @@ function presetRange(now, {hours = 0, days = 0, day} = {}) {
     return {from: canonicalUtcMinute(from), to: canonicalUtcMinute(to)};
 }
 
-function keyboardAction({key, tagName = "", isContentEditable = false}) {
+function keyboardAction({key, tagName = "", isContentEditable = false,
+    ctrlKey, metaKey, altKey, shiftKey, repeat, defaultPrevented}) {
+    if (ctrlKey || metaKey || altKey || repeat || defaultPrevented || (shiftKey && key !== '+')) return null;
     const interactive = ["INPUT", "SELECT", "TEXTAREA", "BUTTON", "A", "SUMMARY"]
         .includes(String(tagName).toUpperCase());
     if (interactive || isContentEditable) return null;
@@ -128,7 +130,10 @@ function formatLoadedCount(loaded, total) {
 }
 
 async function copyShareLink(clipboard, url) {
-    await clipboard.writeText(url);
+    const link = new URL(url);
+    const selected = link.searchParams.get('selected');
+    if (selected) link.searchParams.set('imageId', selected);
+    await clipboard.writeText(link.href);
 }
 
 async function loadPageThenSummary(loadPage, startSummary, renderPage = () => {}) {
@@ -337,6 +342,22 @@ if (typeof document !== "undefined") {
             button.disabled = busy;
         });
         elements.filterStatus.textContent = filterStatus(currentFilters(), state.appliedFilters, busy);
+        if (elements.filterStatus.textContent === 'Filters applied.') {
+            const labels = {gameCode: 'Game', imageId: 'Image ID', sessionId: 'Session', tokenId: 'Token',
+                createdFrom: 'Created from', createdTo: 'Created to', reviewedFrom: 'Reviewed from',
+                reviewedTo: 'Reviewed to', decision: 'Decision', reviewState: 'Review', aiResult: 'AI result',
+                aiVerdict: 'AI verdict', confidenceFrom: 'Confidence from', confidenceTo: 'Confidence to'};
+            const conditions = Array.from(buildSearchParams(state.appliedFilters))
+                .filter(([key, value]) => key !== 'limit' && !(key === 'reviewState' && value === 'ALL'))
+                .map(([key, value]) => (labels[key] || key) + ': ' + value);
+            elements.filterStatus.textContent = conditions.join(' · ') || 'All screenshots';
+        }
+        for (const input of [elements.createdFrom, elements.createdTo]) {
+            input.closest('[data-utc-boundary]').querySelectorAll('[aria-label]').forEach(control => {
+                control.setAttribute('aria-label', control.getAttribute('aria-label')
+                    .replace(/Created|Operator reviewed/g, elements.dateField.value === 'reviewed' ? 'Operator reviewed' : 'Created'));
+            });
+        }
     }
 
     function showResultsMessage(message) {
@@ -420,7 +441,6 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.confidenceFrom, params, "confidenceFrom");
         setInputFromQuery(elements.confidenceTo, params, "confidenceTo");
         setInputFromQuery(elements.imageId, params, "imageId");
-        if (params.get("selected")) elements.imageId.value = params.get("selected");
         setInputFromQuery(elements.fileName, params, "fileName");
         updateCheckedOnlyControls();
         return params.get("selected");
@@ -440,6 +460,7 @@ if (typeof document !== "undefined") {
     }
 
     function renderResults() {
+        const focusedIndex = document.activeElement?.closest?.(".screenshot-result")?.dataset.index;
         elements.results.replaceChildren();
         if (state.items.length === 0) {
             showResultsMessage("No screenshots match these filters.");
@@ -449,8 +470,7 @@ if (typeof document !== "undefined") {
             const button = document.createElement("button");
             button.type = "button";
             button.className = "screenshot-result";
-            button.setAttribute("role", "option");
-            button.setAttribute("aria-selected", String(index === state.selectedIndex));
+            button.setAttribute("aria-pressed", String(index === state.selectedIndex));
             button.dataset.index = String(index);
 
             const top = document.createElement("span");
@@ -486,6 +506,7 @@ if (typeof document !== "undefined") {
             button.append(top, file, bottom);
             button.addEventListener("click", () => selectResult(index));
             elements.results.append(button);
+            if (focusedIndex === String(index)) button.focus({preventScroll: true});
         });
     }
 
@@ -600,7 +621,7 @@ if (typeof document !== "undefined") {
     }
 
     function renderDetails(details) {
-        elements.aiDetails.textContent = aiResultText(details.ai);
+        renderAiResult(elements.aiDetails, details.ai);
         elements.detailPlaceholder.hidden = true;
         elements.detailContent.hidden = false;
         elements.detailReviewState.textContent = reviewLabel(details.reviewState);
@@ -711,6 +732,11 @@ if (typeof document !== "undefined") {
 
     function previousResult() {
         if (state.selectedIndex > 0) selectResult(state.selectedIndex - 1);
+    }
+
+    function toggleFullscreen() {
+        if (document.fullscreenElement) document.exitFullscreen();
+        else elements.stage.closest(".explorer-viewer").requestFullscreen?.();
     }
 
     function clampScale(scale) {
@@ -865,7 +891,10 @@ if (typeof document !== "undefined") {
     elements.zoomOut.addEventListener("click", () => setScale(state.scale - 0.1));
     elements.zoomIn.addEventListener("click", () => setScale(state.scale + 0.1));
     elements.zoomReset.addEventListener("click", resetZoom);
-    elements.fullscreen.addEventListener("click", () => elements.stage.requestFullscreen?.());
+    elements.fullscreen.addEventListener("click", () => toggleFullscreen());
+    document.addEventListener('fullscreenchange', () => {
+        elements.fullscreen.textContent = document.fullscreenElement ? 'Exit fullscreen' : 'Fullscreen';
+    });
     elements.temporaryLink.addEventListener("click", openTemporaryLink);
     elements.copyLink.addEventListener("click", copyCurrentLink);
     elements.copyReport.addEventListener("click", copyReport);
@@ -902,8 +931,21 @@ if (typeof document !== "undefined") {
     elements.stage.addEventListener("pointercancel", stopDragging);
 
     document.addEventListener("keydown", event => {
+        if (document.querySelector('dialog[open]')) return;
+        if (event.shiftKey && !event.ctrlKey && !event.metaKey && !event.altKey
+                && event.target === elements.stage && event.key.startsWith('Arrow')) {
+            event.preventDefault();
+            if (event.key === 'ArrowLeft') state.x -= 40;
+            if (event.key === 'ArrowRight') state.x += 40;
+            if (event.key === 'ArrowUp') state.y -= 40;
+            if (event.key === 'ArrowDown') state.y += 40;
+            renderTransform();
+            return;
+        }
         const action = keyboardAction({
             key: event.key,
+            ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey,
+            shiftKey: event.shiftKey, repeat: event.repeat, defaultPrevented: event.defaultPrevented,
             tagName: event.target?.tagName,
             isContentEditable: event.target?.isContentEditable
         });
@@ -914,7 +956,7 @@ if (typeof document !== "undefined") {
         if (action === "download" && elements.download.getAttribute("aria-disabled") !== "true") {
             elements.download.click();
         }
-        if (action === "fullscreen") elements.stage.requestFullscreen?.();
+        if (action === "fullscreen") toggleFullscreen();
         if (action === "resetZoom") resetZoom();
         if (action === "zoomIn") setScale(state.scale + 0.1);
         if (action === "zoomOut") setScale(state.scale - 0.1);

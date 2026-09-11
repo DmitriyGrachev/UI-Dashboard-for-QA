@@ -40,4 +40,25 @@ if (typeof document !== "undefined") {
     const destination = legacyAdminDestination(window.location.pathname, window.location.hash);
     if (destination) window.location.replace(destination);
     initializeRejectedExportDateRange(document, window.UtcDateTimePicker);
+    document.querySelectorAll('[data-deactivate-operator]').forEach(form => {
+        form.addEventListener('submit', event => {
+            if (!window.confirm('Deactivate ' + form.dataset.deactivateOperator
+                    + '? Their sessions will end and unfinished work will return to the queue.')) event.preventDefault();
+        });
+    });
+    const source = document.querySelector('[name="aiMismatch"]');
+    const previous = document.querySelector('[name="includePreviouslyDownloaded"]');
+    const help = document.getElementById('export-source-help');
+    if (source && previous && help) {
+        const updateSource = () => {
+            const ai = source.value === 'true';
+            previous.disabled = ai;
+            previous.closest('label').hidden = ai;
+            help.textContent = ai
+                ? 'Includes AI mismatches regardless of operator decisions or previous downloads.'
+                : 'Includes operator rejects. Previously exported images are excluded unless selected below.';
+        };
+        source.addEventListener('change', updateSource);
+        updateSource();
+    }
 }

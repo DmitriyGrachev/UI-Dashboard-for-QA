@@ -354,11 +354,11 @@ test('AI operations load and refresh on demand', async () => {
     try {
         initializeAiOperations(document);
         await new Promise(resolve => setTimeout(resolve, 0));
-        assert.equal(document.getElementById('ai-operations-state').textContent, 'STOPPED');
+        assert.equal(document.getElementById('ai-operations-state').textContent, 'Paused');
         assert.equal(document.getElementById('ai-operations-failed').textContent, '2');
         refresh.dispatchEvent({type: 'click'});
         await new Promise(resolve => setTimeout(resolve, 0));
-        assert.equal(document.getElementById('ai-operations-state').textContent, 'ACTIVE');
+        assert.equal(document.getElementById('ai-operations-state').textContent, 'Allowed');
         assert.equal(calls, 2);
     } finally {
         global.fetch = previousFetch;
@@ -375,6 +375,21 @@ test('an expired session HTML response never becomes editable empty settings', a
         assert.equal(save.disabled, true);
         assert.equal(document.getElementById('ai-rule-add').disabled, true);
         assert.equal(document.getElementById('ai-queue-message').dataset.error, 'true');
+        assert.doesNotMatch(document.getElementById('ai-queue-state').textContent, /Loading/);
+    } finally {
+        global.fetch = previousFetch;
+    }
+});
+
+test('AI settings preserve the server explanation on failure', async () => {
+    const {form, document} = fakeQueueDom();
+    const previousFetch = global.fetch;
+    global.fetch = async () => ({ok: false, status: 503, json: async () => ({detail: 'Temporarily unavailable. Try again.'})});
+    try {
+        initializeAiQueue(form);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        assert.equal(document.getElementById('ai-queue-message').textContent, 'Temporarily unavailable. Try again.');
+        assert.doesNotMatch(document.getElementById('ai-queue-state').textContent, /Loading/);
     } finally {
         global.fetch = previousFetch;
     }

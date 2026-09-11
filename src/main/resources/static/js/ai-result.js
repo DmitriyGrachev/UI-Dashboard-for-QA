@@ -57,17 +57,19 @@ function renderAiResult(container, ai) {
     container.append(header);
     if (ai?.status === 'COMPLETED') {
         const metrics = node('dl', 'ai-metrics', '');
-        for (const [label, value] of [['Confidence', result.confidence], ['Certainty', result.certainty]]) {
+        for (const [label, value] of [['Confidence', result.confidence]]) {
             const metric = node('div', '', '');
             metric.append(node('dt', '', label), node('dd', '', value == null ? '—' : `${value}%`));
             metrics.append(metric);
         }
         container.append(metrics);
     }
+    if (ai?.status === 'COMPLETED') container.append(node('p', 'ai-explanation', 'AI suggestion. The operator makes the final decision.'));
     if (result.message) container.append(node('p', 'ai-explanation', result.message));
-    if (ai?.checkedAt || ai?.lastErrorCode) {
+    if (ai?.checkedAt || ai?.lastErrorCode || ai?.status === 'COMPLETED') {
         const details = node('details', 'ai-diagnostics', '');
         details.append(node('summary', '', 'Check details'));
+        if (ai.status === 'COMPLETED') details.append(node('p', '', 'Certainty: ' + (result.certainty == null ? '—' : result.certainty + '%')));
         if (ai.checkedAt) details.append(node('p', '', `Checked: ${ai.checkedAt}`));
         if (ai.lastErrorCode) details.append(node('p', '', `Error: ${ai.lastErrorCode}`));
         container.append(details);
