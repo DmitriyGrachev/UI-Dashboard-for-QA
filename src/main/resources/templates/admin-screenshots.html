@@ -25,7 +25,6 @@
             <span class="brand-mark" aria-hidden="true">RV</span>
             <span>
                 <strong>Recognition Validator</strong>
-                <small>Screenshot explorer</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Account actions">
@@ -203,11 +202,11 @@
                 <label>AI verdict
                     <select id="explorer-ai-verdict">
                         <option value="">All verdicts</option>
-                        <option value="MATCH">MATCH</option>
-                        <option value="MISMATCH">MISMATCH</option>
-                        <option value="LOW_CONFIDENCE">LOW_CONFIDENCE</option>
-                        <option value="HAND_COUNT_MISMATCH">HAND_COUNT_MISMATCH</option>
-                        <option value="NO_HANDS_FOUND">NO_HANDS_FOUND</option>
+                        <option value="MATCH">Matches</option>
+                        <option value="MISMATCH">Mismatch</option>
+                        <option value="LOW_CONFIDENCE">Not enough confidence</option>
+                        <option value="HAND_COUNT_MISMATCH">Hand count differs</option>
+                        <option value="NO_HANDS_FOUND">No hands found</option>
                     </select>
                 </label>
                 <label>AI confidence from (%)
@@ -334,7 +333,7 @@
                     <button type="button" id="explorer-zoom-out" aria-label="Zoom out">−</button>
                     <output id="explorer-zoom-value">100%</output>
                     <button type="button" id="explorer-zoom-in" aria-label="Zoom in">+</button>
-                    <button type="button" id="explorer-zoom-reset">Reset</button>
+                    <button type="button" id="explorer-zoom-reset" title="Fit image to viewer">Fit</button>
                     <button type="button" id="explorer-fullscreen">Fullscreen</button>
                 </div>
             </header>
@@ -376,7 +375,6 @@
                 Select a screenshot to see parsed data and review information.
             </div>
             <div class="detail-content" id="detail-content" hidden>
-                <p id="explorer-ai-details" class="ai-result-details">AI: Unchecked</p>
                 <label th:replace="~{fragments/card-presentation :: control}"></label>
                 <dl class="detail-primary">
                     <div><dt>Game</dt><dd id="detail-game">—</dd></div>
@@ -384,12 +382,13 @@
                     <div><dt>Dealer</dt><dd id="detail-dealer" data-recognized-cards>—</dd></div>
                     <div><dt>Active hand</dt><dd id="detail-active-hand" data-recognized-cards>—</dd></div>
                     <div><dt>Other hands</dt><dd id="detail-other-hands" data-recognized-cards>—</dd></div>
-                    <div><dt>Buttons</dt><dd id="detail-buttons">—</dd></div>
                     <div><dt>Available actions</dt><dd id="detail-actions">—</dd></div>
                 </dl>
+                <section id="explorer-ai-details" class="ai-review-card" aria-label="AI review">AI: Unchecked</section>
                 <details class="explorer-technical-disclosure">
                     <summary>Technical details</summary>
                 <dl class="detail-technical">
+                    <div><dt>Raw buttons</dt><dd id="detail-buttons">—</dd></div>
                     <div><dt>Image ID</dt><dd id="detail-image-id">—</dd></div>
                     <div><dt>File name</dt><dd id="detail-file-name">—</dd></div>
                     <div><dt>Token ID</dt><dd id="detail-token-id">—</dd></div>

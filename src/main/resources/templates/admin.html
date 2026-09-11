@@ -19,7 +19,6 @@
             <span class="brand-mark" aria-hidden="true">RV</span>
             <span>
                 <strong>Recognition Validator</strong>
-                <small>Admin control desk</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Account actions">
@@ -158,6 +157,7 @@
                                         <summary>Manage</summary>
                                         <form method="post"
                                               th:action="@{/admin/operators/{id}/password(id=${operator.operatorId()})}">
+                                            <input type="text" name="username" th:value="${operator.username()}" autocomplete="username" hidden>
                                             <label>
                                                 New password
                                                 <input type="password"
