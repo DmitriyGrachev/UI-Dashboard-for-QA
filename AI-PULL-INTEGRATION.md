@@ -129,6 +129,20 @@ counts and individual download via button / D shortcut.
 
 ## Deployment (one-time additive migration)
 
+Multi-game upgrade: existing installations must rerun `scripts/ai-pull-integration.sql`
+before starting the multi-game application. It adds `ai_selection_rule.game_code`,
+sets legacy rules to `bj_single_deck_ags` (the previous queue only issued Single Deck),
+normalizes their priority to `1..N` in the previous `(priority, id)` order, and enforces
+required game codes and unique priorities. It also creates missing AI tasks for other
+games without resetting existing pull results. The obsolete `notification` column is
+retained, but is no longer an active AI rule filter; review rules before resuming workers.
+
+An AI Queue page showing **Unavailable** with a server log mentioning a missing
+`game_code` needs this migration, not a browser refresh. `DATABASE_SCHEMA_ERROR`
+instructs an administrator to check migrations and logs; it does not expose SQL.
+For a temporary `DATABASE_UNAVAILABLE` error, retry later. Result submissions must
+reuse the same `claimId` to preserve idempotency.
+
 September 8 update: the migration now also creates `ai_task_rejection` for technical
 failure history. Existing installations must create this table before using `/tasks/reject`
 when automatic schema updates are disabled; rerunning the script is supported. Rejection
