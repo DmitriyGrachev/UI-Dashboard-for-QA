@@ -15,6 +15,7 @@
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
     <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
     <script defer th:src="@{/js/ai-result.js}"></script>
+    <script defer th:src="@{/js/recognized-cards.js}"></script>
     <script defer th:src="@{/js/admin-screenshots.js}"></script>
 </head>
 <body class="admin-page">
@@ -376,12 +377,13 @@
             </div>
             <div class="detail-content" id="detail-content" hidden>
                 <p id="explorer-ai-details" class="ai-result-details">AI: Unchecked</p>
+                <label th:replace="~{fragments/card-presentation :: control}"></label>
                 <dl class="detail-primary">
                     <div><dt>Game</dt><dd id="detail-game">—</dd></div>
                     <div><dt>Operator decision</dt><dd id="detail-decision">—</dd></div>
-                    <div><dt>Dealer</dt><dd id="detail-dealer">—</dd></div>
-                    <div><dt>Active hand</dt><dd id="detail-active-hand">—</dd></div>
-                    <div><dt>Other hands</dt><dd id="detail-other-hands">—</dd></div>
+                    <div><dt>Dealer</dt><dd id="detail-dealer" data-recognized-cards>—</dd></div>
+                    <div><dt>Active hand</dt><dd id="detail-active-hand" data-recognized-cards>—</dd></div>
+                    <div><dt>Other hands</dt><dd id="detail-other-hands" data-recognized-cards>—</dd></div>
                     <div><dt>Buttons</dt><dd id="detail-buttons">—</dd></div>
                     <div><dt>Available actions</dt><dd id="detail-actions">—</dd></div>
                 </dl>

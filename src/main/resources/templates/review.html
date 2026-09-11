@@ -16,6 +16,7 @@
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
     <script defer th:src="@{/js/utc-datetime-picker.js}"></script>
     <script defer th:src="@{/js/ai-result.js}"></script>
+    <script defer th:src="@{/js/recognized-cards.js}"></script>
     <script defer th:src="@{/js/review.js}"></script>
 </head>
 <body>
@@ -25,7 +26,6 @@
             <span class="brand-mark" aria-hidden="true">RV</span>
             <span>
                 <strong>Recognition Validator</strong>
-                <small>Recognition review desk</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Navigation">
@@ -272,17 +272,18 @@
             </dl>
 
             <section class="cards-block" aria-label="Recognized cards">
+                <label th:replace="~{fragments/card-presentation :: control}"></label>
                 <article>
                     <span>Dealer</span>
-                    <strong id="dealer-cards">—</strong>
+                    <strong id="dealer-cards" data-recognized-cards>—</strong>
                 </article>
                 <article class="active-hand">
                     <span>Active hand</span>
-                    <strong id="active-cards">—</strong>
+                    <strong id="active-cards" data-recognized-cards>—</strong>
                 </article>
                 <article>
                     <span>Other hands</span>
-                    <strong id="inactive-cards">—</strong>
+                    <strong id="inactive-cards" data-recognized-cards>—</strong>
                 </article>
             </section>
 

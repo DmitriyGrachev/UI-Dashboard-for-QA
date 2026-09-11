@@ -617,6 +617,10 @@ if (typeof document !== "undefined") {
     }
 
     function setText(element, value) {
+        if (element.hasAttribute('data-recognized-cards')) {
+            renderRecognizedCards(element, value);
+            return;
+        }
         element.textContent = value === null || value === undefined || value === "" ? "—" : value;
     }
 
