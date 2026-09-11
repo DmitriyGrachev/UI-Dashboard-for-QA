@@ -149,8 +149,11 @@ summary:focus-visible {
 }
 
 .brand-mark {
-    width: 34px;
-    height: 34px;
+    width: 2.125rem;
+    height: 2.125rem;
+    flex-shrink: 0;
+    font-size: .875rem;
+    line-height: 1;
     display: grid;
     place-items: center;
     border: 1px solid var(--line-strong);
@@ -206,12 +209,12 @@ summary:focus-visible {
 }
 
 .theme-toggle {
-    height: 34px;
+    min-height: 36px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 7px;
-    padding: 0 10px;
+    padding: 6px 10px;
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     background: var(--ink-850);
@@ -238,8 +241,8 @@ summary:focus-visible {
 }
 
 .topbar-help {
-    height: 34px;
-    padding: 0 10px;
+    min-height: 36px;
+    padding: 6px 10px;
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     background: transparent;
@@ -468,12 +471,12 @@ summary:focus-visible {
 .filter-toggle {
     position: relative;
     min-width: 42px;
-    height: 34px;
+    min-height: 36px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 6px;
-    padding: 0 8px;
+    padding: 6px 8px;
     border: 1px solid var(--line-strong);
     border-radius: 6px;
     background: var(--ink-850);
@@ -549,10 +552,10 @@ summary:focus-visible {
 }
 
 .button {
-    height: 40px;
-    padding: 0 15px;
+    min-height: 40px;
+    padding: 8px 15px;
     border: 1px solid var(--line-strong);
-    border-radius: 3px;
+    border-radius: 6px;
     color: var(--text);
     cursor: pointer;
 }
@@ -785,7 +788,7 @@ summary:focus-visible {
 
 .primary-context {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7rem), 1fr));
     gap: 12px;
     margin: 18px 0 0;
 }
@@ -1038,7 +1041,7 @@ summary:focus-visible {
 
 .review-shell .panel-heading h2 {
     margin-top: 4px;
-    font-size: 19px;
+    font-size: 1.1875rem;
 }
 
 .review-shell .primary-context {
