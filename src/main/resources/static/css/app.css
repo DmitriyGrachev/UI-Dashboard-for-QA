@@ -124,6 +124,7 @@ summary:focus-visible {
 .review-toolbar .active-filter-count { background: var(--ink-800); color: var(--signal); font-size: .75rem; }
 .review-remaining { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
 .review-remaining output { color: var(--text); }
+.review-remaining small { display: block; font-size: .75rem; text-align: right; }
 .filter-toggle-glyph svg { display: block; width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
 .panel-heading p { color: var(--muted); margin: 6px 0 0; font-size: .8125rem; }
 

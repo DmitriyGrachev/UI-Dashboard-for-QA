@@ -134,8 +134,19 @@ function scheduleLatestTimer(timerApi, currentTimer, action, delayMs) {
     return timerApi.setTimeout(action, delayMs);
 }
 
+function startSharedCountPolling(refresh, doc, timers) {
+    const update = () => { if (!doc.hidden) void refresh(); };
+    const interval = timers.setInterval(update, 5000);
+    doc.addEventListener('visibilitychange', update);
+    return () => {
+        timers.clearInterval(interval);
+        doc.removeEventListener('visibilitychange', update);
+    };
+}
+
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        startSharedCountPolling,
         createImageAvailabilityRetryUrl,
         createImageAvailabilityUrl,
         createImageRetryPlan,
@@ -184,6 +195,7 @@ if (typeof document !== "undefined") {
         confidenceTo: document.getElementById("confidence-to"),
         aiDetails: document.getElementById("ai-result-details"),
         remainingCount: document.getElementById("remaining-count"),
+        remainingStatus: document.getElementById("remaining-status"),
         queueOldestDate: document.getElementById("queue-oldest-date"),
         queueNewestDate: document.getElementById("queue-newest-date"),
         gameSummary: document.getElementById("game-summary"),
@@ -400,7 +412,7 @@ if (typeof document !== "undefined") {
     }
 
     async function refreshQueueSummary() {
-        cancelQueueSummary();
+        if (!remainingCountEnabled || document.hidden || state.summaryController) return;
         const controller = new AbortController();
         state.summaryController = controller;
         try {
@@ -411,12 +423,15 @@ if (typeof document !== "undefined") {
                 signal: controller.signal
             });
             const payload = await responsePayload(response);
-            if (payload) {
+            if (payload && state.summaryController === controller) {
                 updateQueueSummary(payload);
             }
         } catch (error) {
             if (error.name !== "AbortError") {
                 console.warn("Could not refresh the review queue summary.", error);
+                if (state.summaryController === controller && elements.remainingStatus) {
+                    elements.remainingStatus.textContent = 'Count unavailable; retrying…';
+                }
             }
         } finally {
             if (state.summaryController === controller) {
@@ -427,6 +442,13 @@ if (typeof document !== "undefined") {
 
     async function loadQueue({replaceCurrent = false} = {}) {
         cancelQueueSummary();
+        if (replaceCurrent && remainingCountEnabled) {
+            state.remaining = null;
+            elements.remainingCount.textContent = '—';
+            if (elements.remainingStatus) elements.remainingStatus.textContent = 'Counting…';
+            updateQueueDate(elements.queueOldestDate, null);
+            updateQueueDate(elements.queueNewestDate, null);
+        }
         return loadClaimThenSummary(
             () => claim({replaceCurrent}),
             refreshQueueSummary,
@@ -456,11 +478,7 @@ if (typeof document !== "undefined") {
             }
             const payload = await responsePayload(response);
             if (!payload) return;
-            if (payload.remaining != null) {
-                updateQueueSummary(payload);
-            } else {
-                decrementRemaining(Boolean(payload.item));
-            }
+            void refreshQueueSummary();
             if (payload.item) {
                 renderItem(payload.item);
             } else {
@@ -563,6 +581,14 @@ if (typeof document !== "undefined") {
     }
 
     function updateQueueSummary(payload) {
+        if (elements.remainingStatus) {
+            elements.remainingStatus.textContent = payload.failed ? 'Count unavailable; retrying…'
+                : payload.refreshing ? 'Updating…' : 'Shared count';
+        }
+        if (elements.remainingCount && payload.asOf) {
+            elements.remainingCount.title = `All operators · counted ${formatUtcDate(payload.asOf)}`;
+        }
+        if (payload.remaining == null) return;
         updateRemaining(payload.remaining);
         updateQueueDate(elements.queueOldestDate, payload.oldestCreatedAt);
         updateQueueDate(elements.queueNewestDate, payload.newestCreatedAt);
@@ -575,17 +601,6 @@ if (typeof document !== "undefined") {
             element.dateTime = value;
         } else {
             element.removeAttribute("datetime");
-        }
-    }
-
-    function decrementRemaining(hasNextItem) {
-        if (!remainingCountEnabled) {
-            return;
-        }
-        if (!hasNextItem) {
-            updateRemaining(0);
-        } else if (state.remaining != null) {
-            updateRemaining(Math.max(1, state.remaining - 1));
         }
     }
 
@@ -934,6 +949,7 @@ if (typeof document !== "undefined") {
     });
 
     setFiltersCollapsed(storedFiltersCollapsed(), false);
+    if (remainingCountEnabled) startSharedCountPolling(refreshQueueSummary, document, window);
     loadQueue();
 })();
 }

@@ -35,4 +35,14 @@ public record ReviewFilters(
     public static ReviewFilters none() {
         return new ReviewFilters(null, null, null, null, null, null, null);
     }
+
+    public ReviewFilters normalized() {
+        return new ReviewFilters(createdFrom, createdTo, tokenId, text(sessionId), text(gameCode),
+                notification, hasUserHand, aiResult == AiResultState.ALL ? null : aiResult,
+                aiVerdict == AiVerdict.ALL ? null : aiVerdict, confidenceFrom, confidenceTo);
+    }
+
+    private static String text(String value) {
+        return value == null || value.isBlank() ? null : value.trim();
+    }
 }

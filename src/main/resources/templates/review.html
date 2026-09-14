@@ -54,8 +54,9 @@
                     <span class="filter-toggle-label" data-filter-toggle-label>Filters</span>
                     <span class="active-filter-count" id="active-filter-count" hidden>0</span>
                 </button>
-        <span class="review-remaining" th:if="${countRemainingScreenshots}" title="Matching screenshots, including the current screenshot">
-            <output id="remaining-count" aria-live="polite">—</output> remaining
+        <span class="review-remaining" th:if="${countRemainingScreenshots}" title="Matching screenshots still to review, including assignments held by all operators">
+            <output id="remaining-count">—</output> left to review
+            <small id="remaining-status">Counting…</small>
         </span>
     </div>
 
@@ -372,7 +373,9 @@
                     <p>Filters apply automatically and remain active when you visit Statistics.
                         Date inputs and the oldest/newest matching screenshot dates use UTC.
                         Has user hand matches either active or other recognized user cards.
-                        The counter includes the screenshot currently assigned to you. Reset
+                        The shared counter includes assignments held by all operators and refreshes
+                        approximately every 5–10 seconds while this tab is visible. Hover over the count
+                        to see when it was calculated. Reset
                         the filters or refresh the page when the queue is empty and you want
                         to check for newly arrived files.</p>
                 </section>

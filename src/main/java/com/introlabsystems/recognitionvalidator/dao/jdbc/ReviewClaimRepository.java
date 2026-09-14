@@ -128,18 +128,16 @@ public class ReviewClaimRepository {
         return items.stream().findFirst();
     }
 
+    @Transactional(readOnly = true, timeout = 15)
     public ReviewQueueSummary summarize(UUID operatorId, ReviewFilters filters) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource("operatorId", operatorId);
+        MapSqlParameterSource parameters = new MapSqlParameterSource();
         StringBuilder sql = new StringBuilder("""
                 SELECT COUNT(*) AS remaining,
                        MIN(rt.file_created_at) AS oldest_created_at,
                        MAX(rt.file_created_at) AS newest_created_at
                 FROM review_task rt
                 JOIN image_asset ia ON ia.id = rt.image_id
-                WHERE (
-                    rt.status = 'PENDING'
-                    OR (rt.status = 'ASSIGNED' AND rt.assigned_to = :operatorId)
-                )
+                WHERE rt.status IN ('PENDING', 'ASSIGNED')
                   AND %s
                 """.formatted(availableImagePredicate));
         appendFilters(sql, filters, parameters);

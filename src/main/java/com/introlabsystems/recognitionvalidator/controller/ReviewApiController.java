@@ -7,6 +7,7 @@ import com.introlabsystems.recognitionvalidator.security.OperatorPrincipal;
 import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import com.introlabsystems.recognitionvalidator.service.ReviewQueueService;
 import com.introlabsystems.recognitionvalidator.service.ReviewWorkflowService;
+import com.introlabsystems.recognitionvalidator.service.ReviewSummaryCache;
 import com.introlabsystems.recognitionvalidator.dto.request.DecisionRequest;
 import com.introlabsystems.recognitionvalidator.dto.request.ReviewClaimRequest;
 import com.introlabsystems.recognitionvalidator.dto.request.ReviewFilterRequest;
@@ -30,6 +31,7 @@ public class ReviewApiController {
     private final ReviewQueueService queueService;
     private final ReviewWorkflowService workflowService;
     private final AiQueueService aiQueue;
+    private final ReviewSummaryCache summaries;
 
     private ReviewQueueResponse response(ReviewQueueResult result) {
         return ReviewQueueResponse.from(result, result.item().map(item -> aiQueue.details(item.imageId())).orElse(null));
@@ -57,9 +59,10 @@ public class ReviewApiController {
             @Valid @RequestBody(required = false) ReviewFilterRequest request
     ) {
         ReviewFilters filters = request == null ? ReviewFilters.none() : request.toFilters();
-        return ResponseEntity.ok(ReviewQueueSummaryResponse.from(
-                queueService.summarize(principal.id(), filters)
-        ));
+        var snapshot = summaries.read(filters);
+        return ResponseEntity.status(snapshot.value() != null ? 200 : snapshot.failed() ? 503 : 202)
+                .cacheControl(org.springframework.http.CacheControl.noStore())
+                .body(ReviewQueueSummaryResponse.from(snapshot));
     }
 
     @PostMapping("/{imageId}/decision")

@@ -39,7 +39,7 @@ public class ReviewQueueServiceImpl implements ReviewQueueService {
         long started = System.nanoTime();
         ReviewQueueResult result = claimRepository.claim(
                 operatorId,
-                filters == null ? ReviewFilters.none() : filters,
+                (filters == null ? ReviewFilters.none() : filters).normalized(),
                 clock.instant(),
                 properties.leaseDuration(),
                 replaceCurrent,

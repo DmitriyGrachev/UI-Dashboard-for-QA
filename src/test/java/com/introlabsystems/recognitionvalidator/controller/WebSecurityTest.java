@@ -778,6 +778,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                         .content("{}"))
                 .andExpect(status().isOk());
 
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() ->
         mockMvc.perform(post("/api/review-tasks/summary")
                         .with(user(principal))
                         .with(csrf())
@@ -788,7 +789,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.oldestCreatedAt")
                         .value("2026-07-30T10:00:00Z"))
                 .andExpect(jsonPath("$.newestCreatedAt")
-                        .value("2026-07-30T10:00:00Z"));
+                        .value("2026-07-30T10:00:00Z")));
     }
 
     @Test
