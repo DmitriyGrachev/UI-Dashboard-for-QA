@@ -74,4 +74,45 @@ class ReviewSummaryCacheTest {
         verify(queue).summarize(null, first);
         verify(queue).summarize(null, second);
     }
+
+    @Test
+    void ttlStartsAfterQueryCompletionAndAsOfDescribesQueryStart() {
+        var queue = mock(ReviewQueueService.class);
+        var clock = mock(Clock.class);
+        var start = Instant.parse("2026-09-14T10:00:00Z");
+        when(clock.instant()).thenReturn(start);
+        var tasks = new ArrayDeque<Runnable>();
+        var cache = new ReviewSummaryCache(queue, clock, tasks::add);
+        when(queue.summarize(null, ReviewFilters.none())).thenAnswer(call -> {
+            when(clock.instant()).thenReturn(start.plusSeconds(10));
+            return new ReviewQueueSummary(5, null, null);
+        });
+        cache.read(null);
+        tasks.remove().run();
+        when(clock.instant()).thenReturn(start.plusMillis(14999));
+        assertThat(cache.read(null).asOf()).isEqualTo(start);
+        assertThat(cache.read(null).refreshing()).isFalse();
+        assertThat(tasks).isEmpty();
+        when(clock.instant()).thenReturn(start.plusSeconds(15));
+        assertThat(cache.read(null).refreshing()).isTrue();
+        assertThat(cache.read(null).value().remaining()).isEqualTo(5);
+        assertThat(tasks).hasSize(1);
+    }
+
+    @Test
+    void capacityEvictsLeastRecentlyUsedCompletedCountButKeepsRecentOne() {
+        var queue = mock(ReviewQueueService.class);
+        var clock = Clock.fixed(Instant.parse("2026-09-14T10:00:00Z"), java.time.ZoneOffset.UTC);
+        var tasks = new ArrayDeque<Runnable>();
+        var cache = new ReviewSummaryCache(queue, clock, tasks::add);
+        when(queue.summarize(any(), any())).thenReturn(new ReviewQueueSummary(1, null, null));
+        var filters = java.util.stream.IntStream.range(0, 129)
+                .mapToObj(i -> new ReviewFilters(null, null, (long)i, null, null, null, null)).toList();
+        for (int i = 0; i < 128; i++) { cache.read(filters.get(i)); tasks.remove().run(); }
+        cache.read(filters.get(0));
+        cache.read(filters.get(128));
+        assertThat(cache.read(filters.get(0)).value().remaining()).isEqualTo(1);
+        assertThat(cache.read(filters.get(1)).value()).isNull();
+        assertThat(tasks).hasSize(2);
+    }
 }

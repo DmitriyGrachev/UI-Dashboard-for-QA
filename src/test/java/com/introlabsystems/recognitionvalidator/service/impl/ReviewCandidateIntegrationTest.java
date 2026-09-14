@@ -30,8 +30,9 @@ class ReviewCandidateIntegrationTest extends AbstractReviewIntegrationTest {
     @Autowired ReviewCandidateBuffer buffer;
     @Autowired PlatformTransactionManager transactions;
     @MockitoSpyBean NamedParameterJdbcTemplate observedJdbc;
+    @MockitoSpyBean java.time.Clock bufferClock;
     private final Instant now = Instant.parse("2026-09-14T10:00:00Z");
-    @BeforeEach void resetBuffer() { buffer.clear(); }
+    @BeforeEach void resetBuffer() { buffer.clear(); doReturn(now).when(bufferClock).instant(); }
 
     @Test
     void thirtyDatabaseAssignmentsUseOneFullCandidateSearch() {
@@ -140,5 +141,42 @@ class ReviewCandidateIntegrationTest extends AbstractReviewIntegrationTest {
 
     private static ReviewFilters session(String value) {
         return new ReviewFilters(null, null, null, value, null, null, null);
+    }
+
+    @Test
+    void newOlderImageEntersTheNextBatchAtExpiryEvenWhenCachedCandidatesRemain() {
+        for (int i = 1; i <= 3; i++) insertImage(i, now.plusSeconds(i), "bj_igt", "a", false, true);
+        assertThat(claims.claim(insertOperator("first"), session("a"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo("%064x".formatted(1));
+        String arrived = insertImage(4, now.minusSeconds(1), "bj_igt", "a", false, true);
+        doReturn(now.plusMillis(4999)).when(bufferClock).instant();
+        assertThat(claims.claim(insertOperator("before-expiry"), session("a"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo("%064x".formatted(2));
+        doReturn(now.plusSeconds(5)).when(bufferClock).instant();
+        assertThat(claims.claim(insertOperator("after-expiry"), session("a"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo(arrived);
+    }
+
+    @Test
+    void anEmptyQueueImmediatelySeesNewWorkWithoutWaitingForExpiry() {
+        var operator = insertOperator("new-work");
+        assertThat(claims.claim(operator, session("a"), now, Duration.ofMinutes(30), false, false).item()).isEmpty();
+        String arrived = insertImage(1, now, "bj_igt", "a", false, true);
+        assertThat(claims.claim(operator, session("a"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo(arrived);
+    }
+
+    @Test
+    void deletedAndChangedCandidatesCannotLeakThroughTheOriginalFilter() {
+        for (int i = 1; i <= 4; i++) insertImage(i, now.plusSeconds(i), "bj_igt", "a", false, true);
+        claims.claim(insertOperator("warm"), session("a"), now, Duration.ofMinutes(30), false, false);
+        String changed = "%064x".formatted(2);
+        jdbc.update("UPDATE image_asset SET session_id='b' WHERE id=?", changed);
+        jdbc.update("UPDATE review_task SET session_id='b' WHERE image_id=?", changed);
+        jdbc.update("DELETE FROM image_asset WHERE id=?", "%064x".formatted(3));
+        assertThat(claims.claim(insertOperator("a"), session("a"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo("%064x".formatted(4));
+        assertThat(claims.claim(insertOperator("b"), session("b"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo(changed);
     }
 }
