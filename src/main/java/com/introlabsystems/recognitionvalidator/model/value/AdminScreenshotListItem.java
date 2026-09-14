@@ -12,6 +12,7 @@ public record AdminScreenshotListItem(
         String gameCode,
         String sessionId,
         AdminReviewState reviewState,
-        ImageStorageState storageState
+        ImageStorageState storageState,
+        String aiStatus
 ) {
 }

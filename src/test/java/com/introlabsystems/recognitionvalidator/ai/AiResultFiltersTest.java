@@ -26,6 +26,39 @@ class AiResultFiltersTest extends AiTestSupport {
     @Autowired RetentionCleanupService cleanup;
     @Autowired ObjectMapper json;
 
+    @Test
+    void screenshotListExposesAiStateIndependentlyOfOperatorReview() throws Exception {
+        String pending = image(1, 53);
+        String absent = image(2, 53);
+        String processing = image(3, 53);
+        String failed = image(4, 53);
+        String mismatch = image(5, 53);
+        String match = image(6, 53);
+        jdbc.update("DELETE FROM ai_review_task WHERE image_id=?", absent);
+        jdbc.update("UPDATE ai_review_task SET status='PROCESSING',attempt_count=2 WHERE image_id=?", processing);
+        jdbc.update("UPDATE ai_review_task SET status='FAILED',attempt_count=3 WHERE image_id=?", failed);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=false,verdict='MISMATCH',checked_at=now() WHERE image_id=?", mismatch);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=true,verdict='MATCH',checked_at=now() WHERE image_id=?", match);
+        jdbc.update("UPDATE review_task SET status='COMPLETED',decision='ACCEPTED',reviewed_at=now() WHERE image_id=?", pending);
+
+        var response = mvc.perform(get("/admin/api/screenshots").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andReturn();
+        var rows = json.readTree(response.getResponse().getContentAsString()).get("items");
+        assertThat(rows.size()).isEqualTo(6);
+        String[] expected = {"COMPLETED", "COMPLETED", "FAILED", "PROCESSING", null, "PENDING"};
+        for (int i = 0; i < expected.length; i++) {
+            assertThat(rows.get(i).has("aiStatus")).isTrue();
+            assertThat(rows.get(i).get("aiStatus").asText(null)).isEqualTo(expected[i]);
+            assertThat(rows.get(i).get("reviewState").asText()).isEqualTo(i == 5 ? "CHECKED" : "UNCHECKED");
+        }
+        mvc.perform(get("/admin/api/screenshots").param("aiResult", "CHECKED").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].aiStatus").value("COMPLETED"))
+                .andExpect(jsonPath("$.items[1].aiStatus").value("COMPLETED"));
+        mvc.perform(get("/admin/api/screenshots/" + processing).with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.ai.attemptCount").value(2));
+    }
+
     @ParameterizedTest
     @CsvSource({"MATCHED", "CHECKED"})
     void completedAiPagesKeepTieBreakCursorAndOperatorClaimsOldestIndependently(String state) throws Exception {

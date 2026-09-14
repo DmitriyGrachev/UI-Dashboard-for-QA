@@ -31,7 +31,6 @@ public class AdminScreenshotRepository {
             FROM review_task rt
             JOIN image_asset ia ON ia.id = rt.image_id
             LEFT JOIN app_user reviewer ON reviewer.id = rt.assigned_to
-            WHERE TRUE
             """;
     private static final String SUMMARY_FROM = """
             FROM review_task rt
@@ -43,7 +42,6 @@ public class AdminScreenshotRepository {
             JOIN review_task rt ON rt.image_id=ai.image_id
             JOIN image_asset ia ON ia.id=rt.image_id
             LEFT JOIN app_user reviewer ON reviewer.id=rt.assigned_to
-            WHERE TRUE
             """;
     private static final String DETAILS_FROM = """
             FROM image_asset ia
@@ -69,8 +67,10 @@ public class AdminScreenshotRepository {
         String order = aiOrdered ? "ai" : "rt";
         String baseConditions = conditions(filters, parameters, aiOrdered);
         String listConditions = baseConditions + cursorCondition(filters, parameters, order);
+        String listFrom = aiOrdered ? AI_SEARCH_FROM
+                : SEARCH_FROM + "LEFT JOIN ai_review_task ai ON ai.image_id = rt.image_id\n";
         List<AdminScreenshotListItem> items = jdbc.query("""
-                SELECT ia.id, ia.file_name, rt.file_created_at, ia.game_code, ia.session_id,
+                SELECT ia.id, ia.file_name, rt.file_created_at, ia.game_code, ia.session_id, ai.status AS ai_status,
                        CASE WHEN rt.status = 'COMPLETED' THEN 'CHECKED' ELSE 'UNCHECKED' END
                            AS review_state,
                        CASE
@@ -80,10 +80,11 @@ public class AdminScreenshotRepository {
                            ELSE 'MISSING'
                        END AS storage_state
                 %s
+                WHERE TRUE
                 %s
                 ORDER BY %s.file_created_at DESC, %s.image_id DESC
                 LIMIT :fetchLimit
-                """.formatted(VALID_CLOUD, VALID_CLOUD, aiOrdered ? AI_SEARCH_FROM : SEARCH_FROM, listConditions, order, order),
+                """.formatted(VALID_CLOUD, VALID_CLOUD, listFrom, listConditions, order, order),
                 parameters,
                 AdminScreenshotRepository::mapItem
         );
@@ -106,7 +107,7 @@ public class AdminScreenshotRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
         String baseConditions = conditions(filters, parameters);
-        String summaryFrom = requiresImageAsset(filters) ? SEARCH_FROM : SUMMARY_FROM;
+        String summaryFrom = requiresImageAsset(filters) ? SEARCH_FROM + "WHERE TRUE\n" : SUMMARY_FROM;
         return jdbc.queryForObject("""
                 SELECT COUNT(*) AS total_count,
                        MIN(rt.file_created_at) AS oldest_created_at,
@@ -282,7 +283,8 @@ public class AdminScreenshotRepository {
                 resultSet.getString("game_code"),
                 resultSet.getString("session_id"),
                 AdminReviewState.valueOf(resultSet.getString("review_state")),
-                ImageStorageState.valueOf(resultSet.getString("storage_state"))
+                ImageStorageState.valueOf(resultSet.getString("storage_state")),
+                resultSet.getString("ai_status")
         );
     }
 
