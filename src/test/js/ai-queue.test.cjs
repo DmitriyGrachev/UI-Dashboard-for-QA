@@ -369,6 +369,82 @@ test('reordering preserves focus, draft fields, and saved order across reload', 
     } finally { global.fetch = previousFetch; }
 });
 
+test('a failed save preserves reordered rules and ignores further moves while saving', async () => {
+    const {form, rules, save, document} = fakeQueueDom();
+    let saved = {revision: 1, enabled: true, games: ['bj_igt'], rules: [1, 2].map(i => ({
+        id: `r${i}`, name: `Rule ${i}`, enabled: true, priority: i, gameCode: 'bj_igt'
+    }))};
+    const writes = [];
+    let finish;
+    const previousFetch = global.fetch;
+    global.fetch = async (_url, options) => {
+        if (!options.body) return {ok: true, status: 200, json: async () => saved};
+        writes.push(JSON.parse(options.body));
+        return new Promise(resolve => { finish = resolve; });
+    };
+    const settled = () => new Promise(resolve => setTimeout(resolve, 0));
+    try {
+        const queue = initializeAiQueue(form);
+        await settled();
+        rules.children[1].querySelector('[data-move-rule="up"]').dispatchEvent({type: 'click'});
+        form.dispatchEvent({type: 'submit'});
+        form.dispatchEvent({type: 'submit'});
+        rules.children[0].querySelector('[data-move-rule="down"]').dispatchEvent({type: 'click'});
+        assert.equal(writes.length, 1);
+        assert.equal(save.disabled, true);
+        assert.deepEqual(queue.draftSettings().rules.map(r => r.id), ['r2', 'r1']);
+        finish({ok: false, status: 503, json: async () => ({detail: 'Try again later'})});
+        await settled();
+        assert.equal(queue.dirty(), true);
+        assert.equal(save.disabled, false);
+        assert.equal(document.getElementById('ai-queue-message').textContent, 'Try again later');
+        form.dispatchEvent({type: 'submit'});
+        assert.equal(writes[1].revision, 1);
+        assert.deepEqual(writes[1].rules.map(r => r.id), ['r2', 'r1']);
+        saved = {...saved, ...writes[1], revision: 2};
+        finish({ok: true, status: 200, json: async () => saved});
+        await settled();
+        assert.equal(queue.dirty(), false);
+        assert.equal(save.disabled, true);
+    } finally { global.fetch = previousFetch; }
+});
+
+test('a concurrent admin conflict preserves the draft until a confirmed reload', async () => {
+    const {form, rules, reload, document} = fakeQueueDom();
+    const initial = {revision: 1, enabled: true, games: ['bj_igt'], rules: [1, 2].map(i => ({
+        id: `r${i}`, name: `Rule ${i}`, enabled: true, priority: i, gameCode: 'bj_igt'
+    }))};
+    const latest = {...initial, revision: 2, rules: initial.rules.map(r => ({...r, name: 'Updated by another admin'}))};
+    let reads = 0;
+    const previousFetch = global.fetch;
+    global.fetch = async (_url, options) => options.body
+        ? {ok: false, status: 409, json: async () => ({})}
+        : {ok: true, status: 200, json: async () => ++reads === 1 ? initial : latest};
+    const settled = () => new Promise(resolve => setTimeout(resolve, 0));
+    try {
+        const queue = initializeAiQueue(form);
+        await settled();
+        rules.children[1].querySelector('[data-move-rule="up"]').dispatchEvent({type: 'click'});
+        form.dispatchEvent({type: 'submit'});
+        await settled();
+        assert.equal(reads, 2);
+        assert.equal(queue.dirty(), true);
+        assert.deepEqual(queue.draftSettings().rules.map(r => r.id), ['r2', 'r1']);
+        assert.match(document.getElementById('ai-queue-message').textContent, /Draft kept; latest revision loaded/);
+        document.defaultView.confirm = () => false;
+        reload.dispatchEvent({type: 'click'});
+        await settled();
+        assert.equal(reads, 2);
+        document.defaultView.confirm = () => true;
+        reload.dispatchEvent({type: 'click'});
+        await settled();
+        assert.equal(reads, 3);
+        assert.equal(queue.dirty(), false);
+        assert.deepEqual(queue.draftSettings().rules.map(r => r.id), ['r1', 'r2']);
+        assert.equal(queue.draftSettings().rules[0].name, 'Updated by another admin');
+    } finally { global.fetch = previousFetch; }
+});
+
 test('new rules default to Single Deck', async () => {
     const {form, rules, document} = fakeQueueDom();
     const initial = {revision: 1, enabled: false, rules: [], leaseSeconds: 120,

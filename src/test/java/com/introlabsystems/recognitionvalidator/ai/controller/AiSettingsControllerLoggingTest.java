@@ -58,4 +58,16 @@ class AiSettingsControllerLoggingTest {
                 .withMessageContaining("Unknown game code");
         verify(repository, never()).save(any());
     }
+
+    @Test
+    void failedSaveDoesNotLogACommittedConfiguration(CapturedOutput output) {
+        var repository = mock(AiSettingsRepository.class);
+        var validator = mock(ValidatorProperties.class);
+        var request = new AiSettings(3, false, List.of());
+        when(repository.save(request)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("offline"));
+        var controller = new AiSettingsController(repository, new AiQueueProperties(Duration.ofMinutes(2)), validator);
+        assertThatThrownBy(() -> controller.save(request, () -> "admin"))
+                .isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
+        assertThat(output).doesNotContain("AI queue settings saved:");
+    }
 }

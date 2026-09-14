@@ -51,6 +51,13 @@ seconds plus query time; under load or errors it can be longer. The output toolt
 shows `asOf`, and the page marks loading/failure. Decisions do not decrement a private
 browser counter. Claim/decision requests do not wait for these background counts.
 
+Five seconds is the snapshot's freshness period, not a permanent cached count or
+an automatic deletion timer. The next request after expiry starts another COUNT,
+including newly inserted matching images. No requests means no background polling
+for that filter. An old snapshot may remain in the bounded cache until it is used
+again or evicted; during a database outage it remains marked failed with its old
+`asOf`. The browser resumes refreshing when its tab becomes visible again.
+
 Candidate buffering uses at most 128 filters × `REVIEW_CANDIDATE_BATCH_SIZE` IDs
 (default 30, range 1–100; 1 disables buffering). It holds no image bytes and reserves
 no work. IDs expire after five seconds; assignment rechecks all predicates and locks
@@ -117,3 +124,25 @@ is claimed for these changes.
 
 After the rule-order and mixed-filter checks, the full isolated-database suite passed
 398 Java tests and 75 JavaScript tests (2026-09-14, no failures or skips).
+
+## Regression coverage
+
+The standard `mvn test` suite (against the disposable test database) and
+`node --test src/test/js/*.test.cjs` include:
+
+| Behavior | Tests |
+| --- | --- |
+| Cached zero, new matching images, deletion, 202/200/503 responses, retry, claims during a slow count | `ReviewSummaryRefreshTest` |
+| TTL from query completion, snapshot timestamp, deduplication, separate filters, bounded cache and eviction | `ReviewSummaryCacheTest` |
+| New work after an empty queue, new older candidates at expiry, deleted/changed candidates, overlapping concurrent claims | `ReviewCandidateIntegrationTest`, `ReviewCandidateBufferTest` |
+| Late responses from replaced filters, loading/error/recovery, hidden tabs, expired sessions | `shared-count.test.cjs` |
+| UTC midnight regardless of server timezone, invalid dates, fresh daily results, retained confidence coverage, transient DB errors | `DailyStatisticsApiTest` |
+| Separate statistics authority and security-context cleanup on success/error | `StatisticsApiKeyFilterTest` |
+| Reorder/save/reload, blocked edits while saving, failed saves and concurrent-admin conflicts, committed-save logging | `ai-queue.test.cjs`, `AiTaskHttpTest`, `AiSettingsControllerLoggingTest` |
+
+Time-sensitive cache tests control the clock instead of sleeping for the TTL.
+These are behavioral regression checks, not a production load benchmark or a
+claim of 100% line/branch coverage.
+
+Coverage expansion verified on 2026-09-14: 411 Java tests and 80 JavaScript tests
+passed, with no failures or skips (18 additional cases plus stronger existing checks).
