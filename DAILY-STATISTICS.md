@@ -82,3 +82,38 @@ before attributing a measured latency improvement to buffering.
 
 These checks demonstrate query reuse and correctness, not a production latency
 benchmark. Shared counts remain eventually consistent as described above.
+
+## Different and overlapping filters
+
+Each distinct normalized filter has its own candidate buffer and count snapshot.
+Two operators with the same filter share them; different filters do not share their
+results. A slow candidate refill does not hold the buffer lock for another filter
+(database connections and database resources are still shared).
+
+Overlapping filters can contain the same candidate ID. It is only a hint: the claim
+query repeats the current filter and PENDING/availability checks and locks the task.
+An assignment through one filter therefore cannot also be assigned through another.
+After completion, each matching filter's count changes on its next successful
+refresh. Non-matching counts stay unchanged; overlapping counts must not be summed.
+
+Additional isolated-database checks on 2026-09-14:
+
+- 60 sequential assignments alternating between two disjoint filters used two full
+  candidate searches and 60 ID-constrained validation queries within the cache TTL.
+- Eight simultaneous claims against warmed, overlapping buffers returned distinct
+  matching images. Along with three warm-up claims, 11 tasks were assigned and the
+  other 21 remained PENDING, not reserved by a batch.
+- Completing one image changed broad/session-A/session-B counts from 32/16/16 to
+  31/15/16. Cache tests also check normalization and independent count snapshots.
+
+This does **not** mean 30 times faster requests or 30 times fewer total SQL queries.
+The cold path adds a buffer-fill query; assignments still require database ownership
+checks and updates. With infrequent claims, frequent filter changes, five-second
+expiry, or many stale overlapping hints, buffering may provide little benefit or
+extra overhead. The exact COUNT still costs a database query on refresh; caching
+shares that work and takes it off the browser's claim/decision path. Millisecond
+latency, throughput and CPU/RAM/SQL profiling remain deferred; no speedup percentage
+is claimed for these changes.
+
+After the rule-order and mixed-filter checks, the full isolated-database suite passed
+398 Java tests and 75 JavaScript tests (2026-09-14, no failures or skips).

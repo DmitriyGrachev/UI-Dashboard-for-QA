@@ -50,4 +50,28 @@ class ReviewSummaryCacheTest {
         assertThat(tasks).hasSize(128);
         verifyNoInteractions(queue);
     }
+
+    @Test
+    void equivalentFiltersShareCountsWhileDifferentFiltersStayIndependent() {
+        var queue = mock(ReviewQueueService.class);
+        var tasks = new ArrayDeque<Runnable>();
+        var cache = new ReviewSummaryCache(queue, Clock.systemUTC(), tasks::add);
+        var first = new ReviewFilters(null, null, null, "a", null, null, null);
+        var spaced = new ReviewFilters(null, null, null, " a ", "", null, null);
+        var second = new ReviewFilters(null, null, null, "b", null, null, null);
+        when(queue.summarize(null, first)).thenReturn(new ReviewQueueSummary(10, null, null));
+        when(queue.summarize(null, second)).thenReturn(new ReviewQueueSummary(20, null, null));
+        cache.read(first);
+        cache.read(spaced);
+        cache.read(second);
+        assertThat(tasks).hasSize(2);
+        tasks.remove().run();
+        assertThat(cache.read(spaced).value().remaining()).isEqualTo(10);
+        assertThat(cache.read(second).value()).isNull();
+        tasks.remove().run();
+        assertThat(cache.read(second).value().remaining()).isEqualTo(20);
+        assertThat(cache.read(first).value().remaining()).isEqualTo(10);
+        verify(queue).summarize(null, first);
+        verify(queue).summarize(null, second);
+    }
 }

@@ -7,6 +7,8 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.Executors;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.IntStream;
@@ -54,5 +56,27 @@ class ReviewCandidateBufferTest {
         for (int i = 0; i < 128; i++) buffer.read(new ReviewFilters(null, null, (long)i, null, null, null, null), () -> List.of("other"));
         buffer.read(ReviewFilters.none(), () -> { searches.incrementAndGet(); return List.of("new"); });
         assertThat(searches.get()).isEqualTo(2);
+    }
+
+    @Test
+    void slowRefillDoesNotHoldTheBufferLockForAnotherFilter() throws Exception {
+        var buffer = new ReviewCandidateBuffer(Clock.systemUTC(), 30);
+        var entered = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var other = new ReviewFilters(null, null, 53L, null, null, null, null);
+        try (var pool = Executors.newFixedThreadPool(2)) {
+            var slow = pool.submit(() -> buffer.read(ReviewFilters.none(), () -> {
+                entered.countDown();
+                try { release.await(); }
+                catch (InterruptedException e) { Thread.currentThread().interrupt(); throw new AssertionError(e); }
+                return List.of("slow");
+            }));
+            try {
+                assertThat(entered.await(2, TimeUnit.SECONDS)).isTrue();
+                assertThat(pool.submit(() -> buffer.read(other, () -> List.of("other"))).get(2, TimeUnit.SECONDS))
+                        .containsExactly("other");
+            } finally { release.countDown(); }
+            assertThat(slow.get(2, TimeUnit.SECONDS)).containsExactly("slow");
+        }
     }
 }

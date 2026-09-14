@@ -15,6 +15,8 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
@@ -84,5 +86,59 @@ class ReviewCandidateIntegrationTest extends AbstractReviewIntegrationTest {
         });
         assertThat(claims.claim(first, ReviewFilters.none(), now, Duration.ofMinutes(30), false, false)
                 .item().orElseThrow().imageId()).isEqualTo(image);
+    }
+
+    @Test
+    void distinctFiltersReuseTheirOwnBatchesWithoutMixingImages() {
+        var filters = List.of(session("a"), session("b"));
+        for (int i = 1; i <= 60; i++) insertImage(i, now.plusSeconds(i), "bj_igt", i % 2 == 0 ? "a" : "b", false, true);
+        for (int i = 0; i < 60; i++) {
+            var filter = filters.get(i % 2);
+            var item = claims.claim(insertOperator("distinct-" + i), filter,
+                    now, Duration.ofMinutes(30), false, false).item().orElseThrow();
+            assertThat(item.sessionId()).isEqualTo(filter.sessionId());
+        }
+        verify(observedJdbc, times(2)).query(argThat(sql -> sql.contains("LIMIT 30")),
+                any(SqlParameterSource.class), org.mockito.ArgumentMatchers.<RowMapper<String>>any());
+        verify(observedJdbc, times(60)).query(argThat(sql -> sql.contains("IN (:candidateIds)")),
+                any(SqlParameterSource.class), org.mockito.ArgumentMatchers.<RowMapper<String>>any());
+    }
+
+    @Test
+    void concurrentOverlappingFiltersRevalidateSharedIdsAndKeepIndependentCounts() throws Exception {
+        var filters = List.of(ReviewFilters.none(), session("a"), session("b"));
+        for (int i = 1; i <= 32; i++) insertImage(i, now.plusSeconds(i), "bj_igt", i % 2 == 0 ? "a" : "b", false, true);
+        var assigned = new java.util.HashSet<String>();
+        // Real claims warm overlapping buffers; subsequent claims encounter each other's stale hints.
+        for (int i = 0; i < filters.size(); i++) assigned.add(claims.claim(insertOperator("warm-" + i), filters.get(i),
+                now, Duration.ofMinutes(30), false, false).item().orElseThrow().imageId());
+        var operators = IntStream.range(0, 8).mapToObj(i -> insertOperator("overlap-" + i)).toList();
+        CountDownLatch start = new CountDownLatch(1);
+        try (var pool = Executors.newFixedThreadPool(8)) {
+            var futures = IntStream.range(0, 8).mapToObj(i -> pool.submit(() -> {
+                start.await();
+                var filter = filters.get(i % filters.size());
+                var item = claims.claim(operators.get(i), filter, now, Duration.ofMinutes(30), false, false).item().orElseThrow();
+                if (filter.sessionId() != null) assertThat(item.sessionId()).isEqualTo(filter.sessionId());
+                return item.imageId();
+            })).toList();
+            start.countDown();
+            for (var future : futures) assertThat(assigned.add(future.get(10, TimeUnit.SECONDS))).isTrue();
+        }
+        assertThat(assigned).hasSize(11);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM review_task WHERE status='PENDING'", Long.class)).isEqualTo(21);
+        assertThat(claims.summarize(null, filters.get(0)).remaining()).isEqualTo(32);
+        assertThat(claims.summarize(null, filters.get(1)).remaining()).isEqualTo(16);
+        assertThat(claims.summarize(null, filters.get(2)).remaining()).isEqualTo(16);
+        String completed = jdbc.queryForObject("SELECT image_id FROM review_task WHERE status='ASSIGNED' AND session_id='a' LIMIT 1", String.class);
+        var owner = jdbc.queryForObject("SELECT assigned_to FROM review_task WHERE image_id=?", java.util.UUID.class, completed);
+        completeReview(completed, owner, com.introlabsystems.recognitionvalidator.model.enums.Decision.ACCEPTED, now);
+        assertThat(claims.summarize(null, filters.get(0)).remaining()).isEqualTo(31);
+        assertThat(claims.summarize(null, filters.get(1)).remaining()).isEqualTo(15);
+        assertThat(claims.summarize(null, filters.get(2)).remaining()).isEqualTo(16);
+    }
+
+    private static ReviewFilters session(String value) {
+        return new ReviewFilters(null, null, null, value, null, null, null);
     }
 }
