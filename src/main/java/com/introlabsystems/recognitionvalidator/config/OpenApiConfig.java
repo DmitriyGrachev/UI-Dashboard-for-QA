@@ -15,6 +15,9 @@ import org.springframework.context.annotation.Configuration;
 ))
 @SecurityScheme(name = OpenApiConfig.INTEGRATION_API_KEY, type = SecuritySchemeType.APIKEY,
         in = SecuritySchemeIn.HEADER, paramName = "X-API-Key")
+@SecurityScheme(name = OpenApiConfig.STATISTICS_API_KEY, type = SecuritySchemeType.APIKEY,
+        in = SecuritySchemeIn.HEADER, paramName = "X-API-Key")
 public class OpenApiConfig {
     public static final String INTEGRATION_API_KEY = "IntegrationApiKey";
+    public static final String STATISTICS_API_KEY = "StatisticsApiKey";
 }

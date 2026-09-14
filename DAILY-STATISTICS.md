@@ -1,0 +1,66 @@
+# Daily statistics API
+
+Set a separate random `STATISTICS_API_KEY` in `.env` and restart the application.
+Compose passes it to Spring; an empty value disables this integration. Do not put
+the key in a URL, browser JavaScript, source control or logs. Use HTTPS outside localhost.
+
+```http
+GET /api/integration/statistics/daily?date=2026-09-14
+X-API-Key: <STATISTICS_API_KEY>
+```
+
+Omitting `date` selects today in UTC. Invalid dates return 400; a missing/wrong key
+returns 401; unconfigured access or an unavailable database returns 503. Only GET
+on this endpoint is authorized by the statistics key. Image/AI integration keys
+and logged-in admin sessions do not grant access to it.
+
+The response has `date`, `timezone: "UTC"`, `generatedAt`, and:
+
+- `operators`: `total`, `accepted`, `rejected`, `byOperator` with ID, username and
+  the same three counts. Includes inactive operators with statistics for the day;
+  operators without a daily row are omitted. An empty day has zero counts and an empty list.
+- `ai`: `total`, `matched`, `mismatched`, `confidence`. Matched/mismatched use
+  `valid=true/false`; mismatched includes every non-MATCH verdict.
+- `ai.confidence`: `below50` (0–49), `from50To79`, `from80To94`, `from95To100`,
+  `unknown` (NULL confidence), `retainedResults`, `completeCoverage`.
+
+Operator/AI totals use existing persistent daily aggregates. Confidence describes
+only completed AI task rows still retained for that day, based on `checked_at` in
+the half-open UTC interval `[day start, next day start)`. `completeCoverage=false`
+means retained rows do not match the aggregated AI total; deleted results are not
+misrepresented as unknown confidence or zero-confidence results. The values are
+reported AI confidence, not a measured probability of correctness.
+
+The queries share one read-only repeatable-read transaction, limited to 15 seconds.
+Responses are `Cache-Control: no-store`. Swagger exposes a separate `StatisticsApiKey`
+security scheme. No database migration is required for this endpoint.
+
+# Shared operator queue reads
+
+The review page's **left to review** count includes matching PENDING and ASSIGNED
+tasks across all operators. `/api/review-tasks/summary` now returns `asOf`,
+`refreshing`, and `failed` in addition to the count/date range. A cold cache returns
+202 with null counts while loading; an initial failure returns 503. A previous
+snapshot remains available with HTTP 200 during refresh or failure. All calls still
+require operator session authorization and CSRF.
+
+Visible tabs poll every five seconds. The server keeps up to 128 normalized filter
+keys, refreshes each at most once concurrently, and uses two count workers. Snapshots
+live for five seconds after the query completes. Typical display lag is up to ten
+seconds plus query time; under load or errors it can be longer. The output tooltip
+shows `asOf`, and the page marks loading/failure. Decisions do not decrement a private
+browser counter. Claim/decision requests do not wait for these background counts.
+
+Candidate buffering uses at most 128 filters × `REVIEW_CANDIDATE_BATCH_SIZE` IDs
+(default 30, range 1–100; 1 disables buffering). It holds no image bytes and reserves
+no work. IDs expire after five seconds; assignment rechecks all predicates and locks
+the selected review row in PostgreSQL. Stale/exhausted candidates fall back to a live
+search. Concurrent claims remain distinct even with overlapping filters or multiple
+application instances. Newly arrived older work may wait for the current buffer to
+expire or drain; the buffer is not a strict global FIFO snapshot.
+
+Both caches are per application process. Multiple instances can briefly serve
+different timestamps and each performs its own bounded refreshes; database locking,
+not the cache, enforces assignment ownership. Memory is bounded and unused keys are
+evicted as new filters arrive. Compare batch size 1 and 30 under the same workload
+before attributing a measured latency improvement to buffering.

@@ -58,6 +58,24 @@ public class SecurityConfig {
     }
 
     @Bean
+    @Order(0)
+    SecurityFilterChain statisticsSecurityFilterChain(HttpSecurity http, SecurityFailureHandler failureHandler,
+            @Value("${validator.integration.statistics-api-key:}") String key) throws Exception {
+        return http.securityMatcher("/api/integration/statistics/**")
+                .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .requestCache(AbstractHttpConfigurer::disable)
+                .csrf(AbstractHttpConfigurer::disable)
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(HttpMethod.GET, "/api/integration/statistics/daily")
+                        .hasAuthority(StatisticsApiKeyFilter.AUTHORITY)
+                        .anyRequest().denyAll())
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(failureHandler)
+                        .accessDeniedHandler(failureHandler))
+                .addFilterBefore(new StatisticsApiKeyFilter(key), AnonymousAuthenticationFilter.class)
+                .build();
+    }
+
+    @Bean
     @Order(1)
     SecurityFilterChain integrationImageSecurityFilterChain(
             HttpSecurity http,
