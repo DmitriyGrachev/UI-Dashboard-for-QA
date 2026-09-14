@@ -31,7 +31,7 @@ if (typeof module !== 'undefined' && module.exports) module.exports = {aiFilterV
 function aiPresentation(ai) {
     if (!ai || ai.status !== 'COMPLETED') {
         const failed = ai?.status === 'FAILED';
-        return {label: failed ? 'Check failed' : ai?.status === 'PROCESSING' ? 'Checking…' : 'Not checked',
+        return {label: failed ? 'Check failed' : ai?.status === 'PROCESSING' ? 'Assigned to AI' : 'Not checked',
             tone: failed ? 'warning' : 'neutral',
             message: ai?.lastErrorMessage || '', confidence: null, certainty: null};
     }
@@ -66,9 +66,10 @@ function renderAiResult(container, ai) {
     }
     if (ai?.status === 'COMPLETED') container.append(node('p', 'ai-explanation', 'AI suggestion. The operator makes the final decision.'));
     if (result.message) container.append(node('p', 'ai-explanation', result.message));
-    if (ai?.checkedAt || ai?.lastErrorCode || ai?.status === 'COMPLETED') {
+    if (ai?.checkedAt || ai?.lastErrorCode || ai?.status === 'COMPLETED' || ai?.attemptCount != null) {
         const details = node('details', 'ai-diagnostics', '');
         details.append(node('summary', '', 'Check details'));
+        if (ai.attemptCount != null) details.append(node('p', '', `Assignment attempts: ${ai.attemptCount}`));
         if (ai.status === 'COMPLETED') details.append(node('p', '', 'Certainty: ' + (result.certainty == null ? '—' : result.certainty + '%')));
         if (ai.checkedAt) details.append(node('p', '', `Checked: ${ai.checkedAt}`));
         if (ai.lastErrorCode) details.append(node('p', '', `Error: ${ai.lastErrorCode}`));

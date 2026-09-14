@@ -34,9 +34,68 @@ test('AI verdict and confidence filters are sent to the screenshot search', () =
 test('AI card distinguishes uncertainty, failure, mismatch and zero confidence', () => {
     const {aiPresentation} = require('../../main/resources/static/js/ai-result.js');
     assert.equal(aiPresentation(null).label, 'Not checked');
-    assert.equal(aiPresentation({status:'PROCESSING'}).label, 'Checking…');
+    assert.equal(aiPresentation({status:'PROCESSING'}).label, 'Assigned to AI');
     assert.equal(aiPresentation({status:'FAILED'}).label, 'Check failed');
     assert.equal(aiPresentation({status:'COMPLETED', verdict:'LOW_CONFIDENCE'}).tone, 'warning');
     assert.equal(aiPresentation({status:'COMPLETED', verdict:'MISMATCH'}).tone, 'danger');
     assert.equal(aiPresentation({status:'COMPLETED', verdict:'MATCH', confidence:0}).confidence, 0);
+});
+
+function testDocument() {
+    const doc = {activeElement: null, createElement: tag => ({tagName: tag, ownerDocument: doc,
+        children: [], dataset: {}, attributes: {}, textContent: '',
+        append(...children) { this.children.push(...children); },
+        replaceChildren(...children) { this.children = children; },
+        setAttribute(name, value) { this.attributes[name] = value; },
+        addEventListener() {}, focus() { doc.activeElement = this; }
+    })};
+    return doc;
+}
+
+test('AI diagnostics show assignment attempts even before a result or error exists', () => {
+    const {renderAiResult} = require('../../main/resources/static/js/ai-result.js');
+    const container = testDocument().createElement('section');
+    for (const [status, attemptCount] of [['PENDING', 0], ['PROCESSING', 2], ['FAILED', 3], ['COMPLETED', 1]]) {
+        renderAiResult(container, {status, attemptCount, verdict: 'MISMATCH', lastErrorMessage: '<img onerror=alert(1)>'});
+        const details = container.children.find(node => node.tagName === 'details');
+        assert.ok(details, status);
+        assert.ok(details.children.some(node => node.textContent === `Assignment attempts: ${attemptCount}`), status);
+        assert.equal(details.children[0].tagName, 'summary');
+        assert.equal(details.children[0].textContent, 'Check details');
+        assert.ok(container.children.every(node => node.tagName !== 'img'));
+    }
+    renderAiResult(container, null);
+    assert.equal(container.children.some(node => node.tagName === 'details'), false);
+});
+
+test('screenshot list and grid distinguish operator and AI states without extra requests', () => {
+    const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
+    const code = source.slice(source.indexOf('    function storageLabel('), source.indexOf('    function updateNavigation('));
+    for (const view of ['list', 'grid']) {
+        const document = testDocument();
+        const results = document.createElement('div');
+        const items = [null, 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'].map((aiStatus, i) => ({
+            imageId: String(i), aiStatus, reviewState: i === 1 ? 'CHECKED' : 'UNCHECKED',
+            fileName: 'screenshot.png', gameCode: 'bj_igt', storageState: 'LOCAL_ONLY'
+        }));
+        const state = {items, selectedIndex: 2};
+        const focused = document.createElement('button');
+        focused.dataset.index = '2';
+        focused.closest = () => focused;
+        document.activeElement = focused;
+        require('node:vm').runInNewContext(code + '\nrenderResults();', {
+            document, state, elements: {results}, byId: () => ({value: view}),
+            formatUtcDate: () => '14/09/2026 UTC', selectResult() {}
+        });
+        assert.equal(results.children.length, 5);
+        for (const [i, row] of results.children.entries()) {
+            const statuses = row.children.find(node => node.className === 'screenshot-result-statuses');
+            assert.ok(statuses, view);
+            assert.equal(statuses.children[0].textContent, i === 1 ? 'Operator: Checked' : 'Operator: Unchecked');
+            assert.equal(statuses.children[1].textContent, ['AI: Not checked', 'AI: Not checked', 'AI: Assigned', 'AI: Checked', 'AI: Failed'][i]);
+            assert.equal(row.attributes['aria-pressed'], String(i === 2));
+            assert.equal(row.children.filter(node => node.tagName === 'img').length, view === 'grid' ? 1 : 0);
+        }
+        assert.equal(document.activeElement, results.children[2]);
+    }
 });

@@ -289,6 +289,10 @@
 .admin-page .screenshot-result { padding: 14px; gap: 8px; }
 .admin-page :is(.screenshot-result-top, .screenshot-result-bottom) { font-size: 11px; flex-wrap: wrap; }
 .admin-page .screenshot-result strong { font-family: inherit; font-size: 0.8125rem; }
+.admin-page .screenshot-result-statuses { display: flex; flex-wrap: wrap; gap: 6px; }
+.admin-page .screenshot-result-statuses .result-badge { font-size: 0.75rem; overflow-wrap: anywhere; }
+.admin-page .result-badge[data-ai-status="PROCESSING"] { color: var(--signal); border-color: currentColor; }
+.admin-page .result-badge[data-ai-status="FAILED"] { color: var(--warning); border-color: currentColor; }
 .admin-page :is(.result-badge, .detail-status) {
     padding: 4px 8px;
     border-radius: 999px;

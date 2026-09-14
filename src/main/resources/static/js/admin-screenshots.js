@@ -456,7 +456,7 @@ if (typeof document !== "undefined") {
     }
 
     function reviewLabel(value) {
-        return value === "CHECKED" ? "Checked" : "Unchecked";
+        return value === "CHECKED" ? "Operator: Checked" : "Operator: Unchecked";
     }
 
     function renderResults() {
@@ -480,7 +480,15 @@ if (typeof document !== "undefined") {
             const review = document.createElement("span");
             review.className = `result-badge is-${item.reviewState.toLowerCase()}`;
             review.textContent = reviewLabel(item.reviewState);
-            top.append(time, review);
+            top.append(time);
+            const statuses = document.createElement("span");
+            statuses.className = "screenshot-result-statuses";
+            const ai = document.createElement("span");
+            ai.className = "result-badge";
+            ai.dataset.aiStatus = item.aiStatus || "PENDING";
+            ai.textContent = "AI: " + ({PENDING: "Not checked", PROCESSING: "Assigned",
+                COMPLETED: "Checked", FAILED: "Failed"}[item.aiStatus || "PENDING"] || "Unknown");
+            statuses.append(review, ai);
 
             const file = document.createElement("strong");
             file.textContent = item.fileName;
@@ -503,7 +511,7 @@ if (typeof document !== "undefined") {
                 preview.addEventListener("error", () => { preview.alt = "Preview unavailable"; });
                 button.append(preview);
             }
-            button.append(top, file, bottom);
+            button.append(top, file, statuses, bottom);
             button.addEventListener("click", () => selectResult(index));
             elements.results.append(button);
             if (focusedIndex === String(index)) button.focus({preventScroll: true});

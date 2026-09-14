@@ -73,6 +73,7 @@ class AdminUiRenderingWebTest {
         mockMvc.perform(get("/admin/ai-queue").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("id=\"ai-queue-form\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/screenshots?aiResult=CHECKED\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/ai-queue\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("/css/admin.css")));
 
