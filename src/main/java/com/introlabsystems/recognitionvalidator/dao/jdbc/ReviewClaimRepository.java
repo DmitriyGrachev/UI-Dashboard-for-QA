@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.ResultSet;
@@ -52,12 +53,20 @@ public class ReviewClaimRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final String availableImagePredicate;
+    private final ReviewCandidateBuffer candidateBuffer;
 
     public ReviewClaimRepository(
             NamedParameterJdbcTemplate jdbc,
             B2StorageProperties b2Properties
     ) {
+        this(jdbc, b2Properties, new ReviewCandidateBuffer(java.time.Clock.systemUTC(), 30));
+    }
+
+    @Autowired
+    public ReviewClaimRepository(NamedParameterJdbcTemplate jdbc, B2StorageProperties b2Properties,
+                                 ReviewCandidateBuffer candidateBuffer) {
         this.jdbc = jdbc;
+        this.candidateBuffer = candidateBuffer;
         this.availableImagePredicate = b2Properties.enabled()
                 ? LOCAL_OR_CLOUD_IMAGE_PREDICATE
                 : "ia.file_available = TRUE";
@@ -96,17 +105,24 @@ public class ReviewClaimRepository {
         ReviewQueueSummary summary = includeRemaining
                 ? summarizePending(filters, parameters)
                 : null;
-        String candidateSql = candidateSql(filters, parameters);
-        List<String> candidates = jdbc.query(
-                candidateSql,
-                parameters,
-                (resultSet, rowNumber) -> resultSet.getString("image_id")
-        );
+        List<String> hints = candidateBuffer.batchSize() == 1 ? List.of() : candidateBuffer.read(filters, () -> {
+            var search = new MapSqlParameterSource();
+            return jdbc.query(candidateSql(filters, search, null, false, candidateBuffer.batchSize()), search,
+                    (rs, row) -> rs.getString("image_id"));
+        });
+        List<String> candidates = hints.isEmpty() ? List.of() : jdbc.query(
+                candidateSql(filters, parameters, hints, true, 1), parameters, (rs, row) -> rs.getString("image_id"));
+        if (candidates.isEmpty()) {
+            candidateBuffer.discard(filters, hints);
+            candidates = jdbc.query(candidateSql(filters, parameters, null, true, 1), parameters,
+                    (rs, row) -> rs.getString("image_id"));
+        }
         if (candidates.isEmpty()) {
             return new ReviewQueueResult(Optional.empty(), summary);
         }
 
         String imageId = candidates.getFirst();
+        candidateBuffer.discard(filters, List.of(imageId));
         jdbc.update("""
                 UPDATE review_task
                 SET status = 'ASSIGNED',
@@ -231,10 +247,8 @@ public class ReviewClaimRepository {
         });
     }
 
-    private String candidateSql(
-            ReviewFilters filters,
-            MapSqlParameterSource parameters
-    ) {
+    private String candidateSql(ReviewFilters filters, MapSqlParameterSource parameters,
+                                List<String> ids, boolean lock, int limit) {
         boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
                 filters.confidenceFrom(), filters.confidenceTo());
         StringBuilder sql = aiOrdered ? new StringBuilder("""
@@ -244,12 +258,13 @@ public class ReviewClaimRepository {
                 WHERE rt.status='PENDING' AND %s
                 """.formatted(availableImagePredicate)) : pendingSql("rt.image_id");
         appendFilters(sql, filters, parameters, aiOrdered);
+        if (ids != null) {
+            sql.append(" AND rt.image_id IN (:candidateIds)");
+            parameters.addValue("candidateIds", ids);
+        }
         String order = aiOrdered ? "ai" : "rt";
-        sql.append("""
-                 ORDER BY %s.file_created_at ASC, %s.image_id ASC
-                 FOR UPDATE OF rt SKIP LOCKED
-                 LIMIT 1
-                """.formatted(order, order));
+        sql.append(" ORDER BY %s.file_created_at ASC, %s.image_id ASC LIMIT ".formatted(order, order)).append(limit);
+        if (lock) sql.append(" FOR UPDATE OF rt SKIP LOCKED");
         return sql.toString();
     }
 

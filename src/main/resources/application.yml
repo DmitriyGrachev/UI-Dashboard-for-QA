@@ -58,6 +58,7 @@ validator:
   watch-flush-interval: ${VALIDATOR_WATCH_FLUSH_INTERVAL:2s}
   watch-max-pending-events: ${VALIDATOR_WATCH_MAX_PENDING_EVENTS:50000}
   count-remaining-screenshots: ${COUNT_REMAINING_SCREENSHOTS:true}
+  review-candidate-batch-size: ${REVIEW_CANDIDATE_BATCH_SIZE:30}
   integration:
     image-api-key: ${INTEGRATION_IMAGE_API_KEY:}
   ai-queue:
