@@ -6,6 +6,10 @@ import com.introlabsystems.recognitionvalidator.model.value.ReviewFilters;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
+import org.springframework.jdbc.core.RowMapper;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
@@ -16,13 +20,30 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
 
 class ReviewCandidateIntegrationTest extends AbstractReviewIntegrationTest {
     @Autowired ReviewClaimRepository claims;
     @Autowired ReviewCandidateBuffer buffer;
     @Autowired PlatformTransactionManager transactions;
+    @MockitoSpyBean NamedParameterJdbcTemplate observedJdbc;
     private final Instant now = Instant.parse("2026-09-14T10:00:00Z");
     @BeforeEach void resetBuffer() { buffer.clear(); }
+
+    @Test
+    void thirtyDatabaseAssignmentsUseOneFullCandidateSearch() {
+        for (int i = 1; i <= 30; i++) insertImage(i, now.plusSeconds(i), "bj_igt", "session", false, true);
+        for (int i = 1; i <= 30; i++) {
+            var operator = insertOperator("operator-" + i);
+            assertThat(claims.claim(operator, ReviewFilters.none(), now, Duration.ofMinutes(30), false, false)
+                    .item().orElseThrow().imageId()).isEqualTo("%064x".formatted(i));
+        }
+        verify(observedJdbc, times(1)).query(argThat(sql -> sql.contains("LIMIT 30")),
+                any(SqlParameterSource.class), org.mockito.ArgumentMatchers.<RowMapper<String>>any());
+        verify(observedJdbc, times(30)).query(argThat(sql -> sql.contains("IN (:candidateIds)")),
+                any(SqlParameterSource.class), org.mockito.ArgumentMatchers.<RowMapper<String>>any());
+    }
 
     @Test
     void staleCandidatesAreRecheckedAndFallbackFindsNewWork() {

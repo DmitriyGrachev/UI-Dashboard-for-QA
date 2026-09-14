@@ -72,9 +72,10 @@ class AiResultFiltersTest extends AiTestSupport {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(2));
         UUID operator = UUID.randomUUID();
         jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-filter-op','hash',true,now())", operator);
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() ->
         mvc.perform(post("/api/review-tasks/summary").with(user(new OperatorPrincipal(operator, "ai-filter-op", "hash", true)))
                         .with(csrf()).contentType("application/json").content("{\"aiResult\":\"UNMATCHED\"}"))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(1)));
         mvc.perform(get("/admin/api/screenshots/" + matched).with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.ai.certainty").value(97));
     }
@@ -107,9 +108,10 @@ class AiResultFiltersTest extends AiTestSupport {
         jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-verdict-op','hash',true,now())", operator);
         var principal = new OperatorPrincipal(operator, "ai-verdict-op", "hash", true);
         String filter = "{\"aiVerdict\":\"LOW_CONFIDENCE\",\"confidenceFrom\":30,\"confidenceTo\":50}";
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() ->
         mvc.perform(post("/api/review-tasks/summary").with(user(principal)).with(csrf())
                         .contentType("application/json").content(filter))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(1));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(1)));
         mvc.perform(post("/api/review-tasks/claim").with(user(principal)).with(csrf())
                         .contentType("application/json").content("{\"filters\":" + filter + "}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.item.imageId").value(lowConfidence));
@@ -157,9 +159,10 @@ class AiResultFiltersTest extends AiTestSupport {
         // Old saved filters must not silently narrow the new state-only selection.
         String filter = "{\"certaintyFrom\":99,\"certaintyTo\":100"
                 + (state.isEmpty() ? "" : ",\"aiResult\":\"" + state + "\"") + "}";
+        org.awaitility.Awaitility.await().atMost(java.time.Duration.ofSeconds(5)).untilAsserted(() ->
         mvc.perform(post("/api/review-tasks/summary").with(user(principal)).with(csrf())
                         .contentType("application/json").content(filter))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(count));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.remaining").value(count)));
         mvc.perform(post("/api/review-tasks/claim").with(user(principal)).with(csrf())
                         .contentType("application/json").content("{\"filters\":" + filter + "}"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.item.imageId").value("%064x".formatted(oldest)));

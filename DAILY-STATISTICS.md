@@ -64,3 +64,21 @@ different timestamps and each performs its own bounded refreshes; database locki
 not the cache, enforces assignment ownership. Memory is bounded and unused keys are
 evicted as new filters arrive. Compare batch size 1 and 30 under the same workload
 before attributing a measured latency improvement to buffering.
+
+## Local verification (2026-09-14)
+
+- Full isolated-database suite: 393 Java tests passed; JavaScript suite: 74 passed.
+- Thirty sequential database assignments used one full candidate search and thirty
+  ID-constrained validation queries. Eight concurrent operators received distinct
+  images; unassigned batch candidates remained PENDING.
+- Two browser sessions on a disposable database showed the same remaining count:
+  completing one review updated both sessions from 12 to 11. A late response for
+  a previous filter did not overwrite the current count.
+- Review layouts checked at 1440, 1280, and 768 px widths, including light and dark
+  themes, with no horizontal page overflow.
+- The app on port 8080, connected to the existing local database, returned 200 for
+  the daily statistics request with its dedicated key and 401 without the header.
+  The database was only queried for this check; browser decisions used test data.
+
+These checks demonstrate query reuse and correctness, not a production latency
+benchmark. Shared counts remain eventually consistent as described above.

@@ -82,6 +82,8 @@ public class ReviewSummaryCache {
         if (executor instanceof ExecutorService service) service.shutdownNow();
     }
 
+    public synchronized void clear() { entries.clear(); }
+
     public record Snapshot(ReviewQueueSummary value, Instant asOf, boolean refreshing, boolean failed) {}
 
     private static class Entry {

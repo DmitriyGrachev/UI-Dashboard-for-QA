@@ -15,9 +15,13 @@ import java.time.Instant;
 abstract class AiTestSupport {
     @Autowired protected JdbcTemplate jdbc;
     @Autowired protected PlatformTransactionManager transactionManager;
+    @Autowired private com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewCandidateBuffer candidates;
+    @Autowired private com.introlabsystems.recognitionvalidator.service.ReviewSummaryCache summaries;
 
     @BeforeEach
     void cleanAi() {
+        candidates.clear();
+        summaries.clear();
         jdbc.execute("TRUNCATE ai_task_rejection, review_disagreement, operator_daily_statistics, review_task, image_asset, app_user, ai_selection_rule, ai_queue_settings, ai_daily_statistics CASCADE");
     }
 
