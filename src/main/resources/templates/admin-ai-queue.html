@@ -69,7 +69,8 @@
             <p>Pausing prevents new assignments. Already assigned screenshots can still return results.</p>
             <form id="ai-queue-form">
                 <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI assignments</label>
-                <p>Each rule must match all its conditions. Rules run from top to bottom; screenshots are issued oldest first. No enabled rules means no new assignments.</p>
+                <p>Each rule must match all its conditions. Enabled rules run from top to bottom; screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
+                <p>Move up/down changes the draft. Select Save AI settings to apply the new order to future assignments.</p>
                 <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
                 <div id="ai-rules"></div>
                 <div class="ai-queue-actions">

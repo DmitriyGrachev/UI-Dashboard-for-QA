@@ -35,10 +35,11 @@ class AiSettingsControllerLoggingTest {
         AiSettingsController controller = new AiSettingsController(repository,
                 new AiQueueProperties(Duration.ofMinutes(2)), validator);
 
-        controller.save(request);
+        controller.save(request, () -> "audit\nadmin");
 
         assertThat(output)
                 .contains("AI queue settings saved: revision=2, enabled=true, rules=1, enabledRules=1")
+                .contains("actor=audit_admin", "order=[1:" + privateRule.id() + ":enabled]")
                 .doesNotContain("private-session");
     }
 
@@ -53,7 +54,7 @@ class AiSettingsControllerLoggingTest {
                 UUID.randomUUID(), "Unknown", true, 1, "bj_unknown",
                 null, null, null, null, null)));
 
-        assertThatIllegalArgumentException().isThrownBy(() -> controller.save(request))
+        assertThatIllegalArgumentException().isThrownBy(() -> controller.save(request, () -> "admin"))
                 .withMessageContaining("Unknown game code");
         verify(repository, never()).save(any());
     }

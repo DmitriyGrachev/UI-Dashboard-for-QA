@@ -12,6 +12,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.security.Principal;
 
 @RestController
 @RequestMapping("/admin/api/ai-queue/settings")
@@ -26,17 +27,20 @@ public class AiSettingsController {
     public ResponseEntity<View> read() { return response(settings.read()); }
 
     @PutMapping
-    public ResponseEntity<View> save(@RequestBody AiSettings requested) {
+    public ResponseEntity<View> save(@RequestBody AiSettings requested, Principal principal) {
         if (requested.rules().stream().anyMatch(rule -> !validatorProperties.games().contains(rule.gameCode()))) {
             throw new IllegalArgumentException("Unknown game code");
         }
         AiSettings saved = settings.save(requested);
         log.info(
-                "AI queue settings saved: revision={}, enabled={}, rules={}, enabledRules={}",
+                "AI queue settings saved: revision={}, enabled={}, rules={}, enabledRules={}, actor={}, order={}",
                 saved.revision(),
                 saved.enabled(),
                 saved.rules().size(),
-                saved.rules().stream().filter(AiRule::enabled).count()
+                saved.rules().stream().filter(AiRule::enabled).count(),
+                principal.getName().replaceAll("[\\p{Cntrl}]", "_"),
+                saved.rules().stream().map(rule -> rule.priority() + ":" + rule.id()
+                        + ":" + (rule.enabled() ? "enabled" : "disabled")).toList()
         );
         return response(saved);
     }

@@ -52,7 +52,8 @@ public class AiQueueService {
         if (prepared.isEmpty() && transientFailure) {
             throw new AiQueueException(HttpStatus.SERVICE_UNAVAILABLE, "DELIVERY_UNAVAILABLE", "No image could be prepared; retry later");
         }
-        log.debug("AI claim completed: requested={}, issued={}, durationMs={}", size, prepared.size(), (System.nanoTime()-started)/1_000_000);
+        log.debug("AI claim completed: revision={}, requested={}, issued={}, durationMs={}",
+                snapshot.revision(), size, prepared.size(), (System.nanoTime()-started)/1_000_000);
         return List.copyOf(prepared);
     }
     public void complete(String imageId, AiResult result) {

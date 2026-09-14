@@ -2,6 +2,7 @@ package com.introlabsystems.recognitionvalidator.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiRule;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository;
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import org.junit.jupiter.api.Test;
@@ -33,6 +34,54 @@ class AiTaskHttpTest extends AiTestSupport {
     @Autowired ValidatorProperties properties;
     static final String CLAIM = "/api/integration/ai/tasks/claim";
     static final String KEY = "local-ai-test-key";
+
+    @Test
+    void savedReorderChangesNextClaimsButPreservesActiveClaimsAndRejectsStaleSaves() throws Exception {
+        String oldest = image(1, 1);
+        String specificFirst = image(2, 53);
+        String specificNext = image(3, 53);
+        String broadNext = image(4, 1);
+        Files.createDirectories(properties.imageRoot());
+        for (String id : List.of(oldest, specificFirst, specificNext, broadNext))
+            Files.write(properties.imageRoot().resolve(id + ".png"), new byte[]{1});
+        AiRule disabled = new AiRule(java.util.UUID.randomUUID(), "Disabled", false, 1,
+                "bj_single_deck_ags", null, null, 1L, null, null);
+        AiRule empty = rule(2, 999L);
+        AiRule specific = rule(3, 53L);
+        AiRule broad = rule(4, null);
+        String path = "/admin/api/ai-queue/settings";
+        AiSettings original = new AiSettings(0, true, List.of(broad, specific, empty, disabled));
+        mvc.perform(put(path).with(user("rules-admin").roles("ADMIN")).with(csrf())
+                        .contentType("application/json").content(json.writeValueAsBytes(original)))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(1));
+        String active = mvc.perform(post(CLAIM).param("size", "1").header("X-API-Key", KEY))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(specificFirst))
+                .andReturn().getResponse().getContentAsString();
+        AiRule raised = new AiRule(broad.id(), broad.name(), true, 3, broad.gameCode(),
+                null, null, null, null, null);
+        AiRule lowered = new AiRule(specific.id(), specific.name(), true, 4, specific.gameCode(),
+                null, null, 53L, null, null);
+        mvc.perform(put(path).with(user("rules-admin").roles("ADMIN")).with(csrf())
+                        .contentType("application/json").content(json.writeValueAsBytes(
+                                new AiSettings(1, true, List.of(disabled, empty, raised, lowered)))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.revision").value(2));
+        mvc.perform(put(path).with(user("other-admin").roles("ADMIN")).with(csrf())
+                        .contentType("application/json").content(json.writeValueAsBytes(original)))
+                .andExpect(status().isConflict());
+        mvc.perform(get(path).with(user("rules-admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.rules[2].id").value(broad.id().toString()));
+        mvc.perform(post(CLAIM).param("size", "3").header("X-API-Key", KEY))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath("$.items[0].imageId").value(oldest))
+                .andExpect(jsonPath("$.items[1].imageId").value(specificNext))
+                .andExpect(jsonPath("$.items[2].imageId").value(broadNext));
+        assertThat(jdbc.queryForObject("SELECT claim_id::text FROM ai_review_task WHERE image_id=?",
+                String.class, specificFirst)).isEqualTo(json.readTree(active).path("items").get(0).path("claimId").asText());
+        assertThat(jdbc.queryForObject("SELECT issued_rule_id FROM ai_review_task WHERE image_id=?",
+                java.util.UUID.class, specificFirst)).isEqualTo(specific.id());
+        assertThat(jdbc.queryForList("SELECT issued_rule_id FROM ai_review_task WHERE image_id<>?",
+                java.util.UUID.class, specificFirst)).containsOnly(broad.id());
+    }
 
     @Test
     void claimReturnsOriginalFilenameWithoutParsingExpectedAndUsesTenMinuteLease() throws Exception {

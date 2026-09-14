@@ -112,6 +112,38 @@ In `/admin` → **AI queue**:
 5. **Reload saved settings** discards unsaved edits. A concurrent admin save returns a conflict;
    reload, review and save again. Configurations are read as a coherent snapshot per claim.
 
+Move up/down edits the draft only. **Save AI settings** commits the whole ordered list;
+claims that read settings after that commit use the new order. A claim already in flight
+can finish using its previous snapshot, and existing task leases remain unchanged.
+Disabled rules are skipped; an enabled rule with no available candidates contributes zero.
+An earlier rule can fill the entire requested batch, so a continuously replenished broad
+rule above a narrow rule can keep the latter from issuing work. Put specific rules first
+when that is the intended priority; this is not round-robin scheduling.
+
+### Rule diagnostics
+
+- INFO `AI queue settings saved` is emitted after the save commits: revision, queue state,
+  counts, authenticated `actor`, and `order=[priority:ruleId:enabled|disabled, ...]`.
+  Rule names, sessions, filter contents, API keys and signed URLs are not included.
+- DEBUG `AI rule candidates selected` includes the settings revision, rule ID, priority,
+  candidate count and remaining batch capacity **before** that rule. These are selections
+  inside a transaction, not a claim-success record; a later failure can roll them back.
+- DEBUG `AI claim completed` includes the same revision and the number of deliverable
+  tasks after committing assignments and preparing links. `ai_review_task.issued_rule_id`
+  stores which rule assigned a task.
+
+To inspect a problem temporarily, start with these Spring arguments (DEBUG is off by default):
+
+```text
+--logging.level.com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository=DEBUG
+--logging.level.com.introlabsystems.recognitionvalidator.ai.service.AiQueueService=DEBUG
+```
+
+Verified on 2026-09-14 against disposable PostgreSQL: real browser Up/Down (including
+keyboard focus at list boundaries), draft versus saved order, reload, and subsequent AI
+claims. HTTP tests cover disabled/empty/overlapping rules, stale-save conflicts and
+preservation of active claims. No production rule ordering was changed.
+
 Operator `/review` and admin `/admin/screenshots` default to AI **All** (no AI restriction).
 **Checked by AI** (`aiResult=CHECKED`) includes every completed AI result, whether matched
 or unmatched and whether percentages are known. **Unchecked by AI** (`UNCHECKED`) includes

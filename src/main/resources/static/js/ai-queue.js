@@ -249,7 +249,8 @@ function initializeAiQueue(form, operations) {
         });
     }
 
-    function moveRule(node, offset) {
+    function moveRule(node, offset, button) {
+        if (busy) return;
         const nodes = Array.from(rules.children);
         const index = nodes.indexOf(node);
         const destination = index + offset;
@@ -258,6 +259,8 @@ function initializeAiQueue(form, operations) {
         rules.replaceChildren(...nodes);
         renumberRules();
         refreshControls();
+        (button.disabled ? node.querySelector('summary') : button)?.focus();
+        setMessage(`Rule moved to position ${destination + 1}. Save AI settings to apply this order.`);
     }
 
     function cloneSettings(data) {
@@ -302,7 +305,7 @@ function initializeAiQueue(form, operations) {
             else input.value = value ?? (input.name === 'gameCode' ? DEFAULT_GAME_CODE : '');
         });
         node.querySelectorAll('[data-move-rule]').forEach(button =>
-            button.addEventListener('click', () => moveRule(node, button.dataset.moveRule === 'up' ? -1 : 1)));
+            button.addEventListener('click', () => moveRule(node, button.dataset.moveRule === 'up' ? -1 : 1, button)));
         const remove = node.querySelector('[data-remove-rule]');
         if (remove) remove.addEventListener('click', () => {
             if (busy) return;
@@ -471,7 +474,7 @@ function initializeAiQueue(form, operations) {
         });
     }
 
-    perform(() => request(), 'Rules are checked from top to bottom, oldest screenshot first.');
+    perform(() => request(), 'Enabled rules are checked from top to bottom, oldest screenshots within each rule first.');
     return {render, row, draftSettings, dirty};
 }
 

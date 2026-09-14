@@ -32,6 +32,9 @@ class FakeElement {
         return node;
     }
     replaceChildren(...nodes) {
+        if (this.querySelectorAll('*').includes(this.ownerDocument?.activeElement)) {
+            this.ownerDocument.activeElement = null;
+        }
         this.children = [];
         nodes.forEach(node => this.appendChild(node));
     }
@@ -316,6 +319,54 @@ test('move and remove keep priorities unique and sequential without saving', asy
     } finally {
         global.fetch = previousFetch;
     }
+});
+
+test('reordering preserves focus, draft fields, and saved order across reload', async () => {
+    const {form, rules, save, reload, document} = fakeQueueDom();
+    let saved = {revision: 1, enabled: true, games: ['bj_igt'], rules: [1, 2, 3].map(i => ({
+        id: `r${i}`, name: `Rule ${i}`, enabled: i !== 2, priority: i, gameCode: 'bj_igt',
+        createdFrom: '2026-09-03T10:15:30.123456Z', tokenId: i, sessionId: `session-${i}`, hasUserHand: false
+    }))};
+    let writes = 0;
+    const previousFetch = global.fetch;
+    global.fetch = async (_url, options) => {
+        if (options.body) { writes++; saved = {...saved, ...JSON.parse(options.body), revision: saved.revision + 1}; }
+        return {ok: true, status: 200, json: async () => saved};
+    };
+    const settled = () => new Promise(resolve => setTimeout(resolve, 0));
+    try {
+        const queue = initializeAiQueue(form);
+        await settled();
+        document.register(rules);
+        const third = rules.children[2];
+        const up = third.querySelector('[data-move-rule="up"]');
+        up.focus();
+        up.dispatchEvent({type: 'click'});
+        assert.ok(document.activeElement === up, 'focus stays on Move up');
+        up.dispatchEvent({type: 'click'});
+        assert.equal(up.disabled, true);
+        assert.ok(document.activeElement === third.querySelector('summary'), 'focus stays on the boundary rule');
+        const down = third.querySelector('[data-move-rule="down"]');
+        down.focus();
+        down.dispatchEvent({type: 'click'});
+        assert.ok(document.activeElement === down, 'focus stays on Move down');
+        assert.deepEqual(queue.draftSettings().rules.map(r => r.id), ['r1', 'r3', 'r2']);
+        assert.equal(save.disabled, false);
+        assert.equal(writes, 0);
+        form.dispatchEvent({type: 'submit'});
+        await settled();
+        reload.dispatchEvent({type: 'click'});
+        await settled();
+        assert.equal(writes, 1);
+        assert.equal(save.disabled, true);
+        assert.deepEqual(queue.draftSettings().rules.map(r => r.id), ['r1', 'r3', 'r2']);
+        assert.deepEqual(saved.rules.map(r => r.priority), [1, 2, 3]);
+        assert.equal(saved.rules[2].enabled, false);
+        assert.equal(saved.rules[2].tokenId, 2);
+        assert.equal(saved.rules[2].sessionId, 'session-2');
+        assert.equal(saved.rules[2].hasUserHand, false);
+        assert.equal(saved.rules[2].createdFrom, '2026-09-03T10:15:30.123456Z');
+    } finally { global.fetch = previousFetch; }
 });
 
 test('new rules default to Single Deck', async () => {

@@ -6,6 +6,7 @@ import com.introlabsystems.recognitionvalidator.ai.exception.AiQueueException;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -25,6 +26,7 @@ import java.util.UUID;
 import static com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository.instant;
 
 @Repository
+@Slf4j
 public class AiTaskRepository {
     private final NamedParameterJdbcTemplate jdbc;
     private final TransactionTemplate transactions;
@@ -56,7 +58,8 @@ public class AiTaskRepository {
             Instant expires = claimNow.plus(properties.leaseDuration());
             List<AiClaim> claimed = new ArrayList<>();
             for (AiRule rule : settings.rules()) {
-                if (!rule.enabled() || claimed.size() == size) continue;
+                if (claimed.size() == size) break;
+                if (!rule.enabled()) continue;
                 MapSqlParameterSource parameters = new MapSqlParameterSource("limit", size - claimed.size())
                         .addValue("now", timestamp(claimNow));
                 StringBuilder sql = eligiblePendingSql(parameters, "ai.image_id, ia.file_name, ai.game_code", claimNow);
@@ -65,6 +68,8 @@ public class AiTaskRepository {
                 List<AiClaim> candidates = jdbc.query(sql.toString(), parameters, (rs, row) ->
                         new AiClaim(rs.getString("image_id"), UUID.randomUUID(), rs.getString("file_name"),
                                 rs.getString("game_code"), expires));
+                log.debug("AI rule candidates selected: revision={}, ruleId={}, priority={}, selected={}, remainingSlots={}",
+                        settings.revision(), rule.id(), rule.priority(), candidates.size(), size - claimed.size());
                 for (AiClaim candidate : candidates) {
                     jdbc.update("""
                             UPDATE ai_review_task SET status='PROCESSING', claim_id=:claim,
