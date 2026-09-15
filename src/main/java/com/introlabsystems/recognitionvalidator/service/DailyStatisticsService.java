@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.service;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -54,13 +55,15 @@ public class DailyStatisticsService {
                 rs.getLong("retained"), rs.getLong("retained") == ai[0]),
                 Timestamp.from(date.atStartOfDay(ZoneOffset.UTC).toInstant()),
                 Timestamp.from(date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()));
-        return new Daily(date, "UTC", now, operators, new Ai(ai[0], ai[1], ai[2], confidence));
+        return new Daily(date, "UTC", now, operators, new Ai(ai[0], ai[1], ai[2], null, confidence));
     }
 
     public record Daily(LocalDate date, String timezone, Instant generatedAt, Operators operators, Ai ai) {}
     public record Operators(long total, long accepted, long rejected, List<Operator> byOperator) {}
     public record Operator(UUID id, String username, long total, long accepted, long rejected) {}
-    public record Ai(long total, long matched, long mismatched, Confidence confidence) {}
+    public record Ai(long total, long matched, long mismatched,
+                     @Schema(nullable = true, description = "Reserved count; always null until AI-to-operator handoffs are tracked. Null does not mean zero.")
+                     Long sentToOperators, Confidence confidence) {}
     public record Confidence(long below50, long from50To79, long from80To94, long from95To100,
                              long unknown, long retainedResults, boolean completeCoverage) {}
 }

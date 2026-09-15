@@ -44,6 +44,8 @@ class DailyStatisticsApiTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.timezone").value("UTC"))
                 .andExpect(jsonPath("$.operators.total").value(0))
                 .andExpect(jsonPath("$.ai.total").value(0))
+                .andExpect(jsonPath("$.ai.sentToOperators").hasJsonPath())
+                .andExpect(jsonPath("$.ai.sentToOperators").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.ai.confidence.unknown").value(0))
                 .andExpect(jsonPath("$.ai.confidence.completeCoverage").value(true));
         mockMvc.perform(get("/api/integration/images/" + "a".repeat(64) + "/content")
@@ -137,6 +139,8 @@ class DailyStatisticsApiTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.ai.total").value(10))
                 .andExpect(jsonPath("$.ai.matched").value(7))
                 .andExpect(jsonPath("$.ai.mismatched").value(3))
+                .andExpect(jsonPath("$.ai.sentToOperators").hasJsonPath())
+                .andExpect(jsonPath("$.ai.sentToOperators").value(org.hamcrest.Matchers.nullValue()))
                 .andExpect(jsonPath("$.ai.confidence.below50").value(2))
                 .andExpect(jsonPath("$.ai.confidence.from50To79").value(2))
                 .andExpect(jsonPath("$.ai.confidence.from80To94").value(2))

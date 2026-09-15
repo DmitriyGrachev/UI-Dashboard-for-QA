@@ -21,6 +21,9 @@ The response has `date`, `timezone: "UTC"`, `generatedAt`, and:
   operators without a daily row are omitted. An empty day has zero counts and an empty list.
 - `ai`: `total`, `matched`, `mismatched`, `confidence`. Matched/mismatched use
   `valid=true/false`; mismatched includes every non-MATCH verdict.
+- `ai.sentToOperators`: reserved nullable count, currently always `null`, even on
+  empty days. The AI and operator queues are independent and no handoff is tracked.
+  Do not interpret null as zero; the counting rule is not defined yet.
 - `ai.confidence`: `below50` (0–49), `from50To79`, `from80To94`, `from95To100`,
   `unknown` (NULL confidence), `retainedResults`, `completeCoverage`.
 

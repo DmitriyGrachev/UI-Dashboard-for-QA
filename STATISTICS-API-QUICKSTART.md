@@ -52,6 +52,7 @@ Example values:
     "total": 80,
     "matched": 70,
     "mismatched": 10,
+    "sentToOperators": null,
     "confidence": {
       "below50": 5,
       "from50To79": 10,
@@ -68,9 +69,12 @@ Example values:
 - All numeric metrics are **counts**, not percentages. Operator and AI totals
   describe independent reviews; do not add them as a count of unique screenshots.
 - `byOperator` includes disabled users who have daily statistics; users with no
-  daily statistics are omitted. An empty day returns zero counts and `byOperator: []`.
+  daily statistics are omitted. An empty day returns zero calculated counts and `byOperator: []`.
 - `ai.matched` / `mismatched` count completed results with `valid=true` / `false`.
   A technical failure without an accepted result is not a mismatch.
+- `ai.sentToOperators` is reserved and always **null**, including on empty days.
+  AI and operator queues are independent; handoffs are not tracked yet. Treat null
+  as unavailable data, not zero. The future counting rule still needs agreement.
 - Confidence ranges are **0–49, 50–79, 80–94, 95–100**, inclusive; `unknown` means
   confidence was not provided. These describe the AI's reported confidence.
 - Daily totals survive image cleanup. Confidence covers only retained completed
