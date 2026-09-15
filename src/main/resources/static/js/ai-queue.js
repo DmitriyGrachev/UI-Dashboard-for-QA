@@ -158,6 +158,62 @@ function initializeAiQueue(form, operations) {
     let current = null;
     let savedDraft = null;
     let busy = false;
+    const statsRefresh = byId('ai-rule-stats-refresh');
+    const statsMessage = byId('ai-rule-stats-message');
+    let statistics = null;
+    let statsBusy = false;
+    let statsError = '';
+
+    function renderStatistics() {
+        if (!statsMessage) return;
+        const matches = current && statistics?.revision === current.revision && !dirty();
+        const counts = new Map((matches ? statistics.rules : []).map(value => [value.ruleId, value]));
+        Array.from(rules.children).forEach(node => {
+            const value = counts.get(node.dataset.ruleId);
+            node.querySelectorAll('[data-rule-stat]').forEach(target => {
+                target.textContent = value ? Number(value[target.dataset.ruleStat]).toLocaleString('en-US') : '—';
+            });
+        });
+        statsMessage.dataset.error = String(Boolean(statsError));
+        statsMessage.textContent = statsBusy ? 'Refreshing rule statistics…'
+            : statsError ? `${statsError} Select Refresh rule statistics to retry.`
+            : dirty() ? 'Statistics apply to saved settings. Save or reload settings to see counts for these rules.'
+            : statistics && !matches ? 'Settings changed in another session. Reload saved settings to see current counts.'
+            : statistics ? `Updated ${formatAiTime(statistics.generatedAt)}. Counts can change as tasks are claimed or added.`
+            : 'Rule statistics unavailable.';
+    }
+
+    async function refreshStatistics() {
+        if (!statsRefresh || statsBusy) return;
+        const requestedRevision = current?.revision;
+        statsBusy = true;
+        statsRefresh.disabled = true;
+        statsError = '';
+        renderStatistics();
+        try {
+            const response = await fetch('/admin/api/ai-queue/operations/rules', {cache: 'no-store'});
+            if (response.status === 401 || (response.redirected && response.url.includes('/login'))) {
+                const link = byId('ai-queue-sign-in');
+                if (link) link.hidden = false;
+                throw new Error('Your session has expired. Sign in again.');
+            }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || data.message || `Request failed (${response.status})`);
+            if (!Array.isArray(data.rules) || !Number.isSafeInteger(data.revision) || !data.generatedAt) {
+                throw new Error('Could not read rule statistics.');
+            }
+            statistics = data;
+        } catch (error) {
+            statistics = null;
+            statsError = error.message || 'Could not load rule statistics.';
+        } finally {
+            statsBusy = false;
+            statsRefresh.disabled = false;
+            renderStatistics();
+            if (requestedRevision !== current?.revision) void refreshStatistics();
+        }
+    }
+    statsRefresh?.addEventListener('click', refreshStatistics);
 
     function nodeValues(node) {
         const values = {id: node.dataset.ruleId || null, priority: node.dataset.priority};
@@ -206,6 +262,7 @@ function initializeAiQueue(form, operations) {
     function refreshControls() {
         updateDirty();
         controls();
+        renderStatistics();
     }
 
     function lockFields(value) {
@@ -372,6 +429,7 @@ function initializeAiQueue(form, operations) {
         try {
             const data = await action();
             reconcile(data);
+            void refreshStatistics();
             if (refreshOperations) operations?.refresh();
             lockFields(true);
             setMessage(success);
@@ -475,7 +533,7 @@ function initializeAiQueue(form, operations) {
     }
 
     perform(() => request(), 'Enabled rules are checked from top to bottom, oldest screenshots within each rule first.');
-    return {render, row, draftSettings, dirty};
+    return {render, row, draftSettings, dirty, refreshStatistics};
 }
 
 if (typeof module !== 'undefined' && module.exports) {

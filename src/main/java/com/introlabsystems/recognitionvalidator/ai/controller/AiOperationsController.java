@@ -18,6 +18,11 @@ public class AiOperationsController {
     private final AiOperationsRepository operations;
     private final Clock clock;
 
+    @GetMapping("/rules")
+    public ResponseEntity<AiOperationsRepository.RuleSnapshot> rules() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.rules(clock.instant()));
+    }
+
     @GetMapping
     public ResponseEntity<View> read() {
         var value = operations.snapshot(clock.instant());

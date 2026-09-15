@@ -444,3 +444,18 @@
 .admin-page a:not(.button):not(.brand) { color: var(--signal); }
 .admin-page .admin-navigation a { color: var(--muted); }
 .admin-page .admin-navigation a.is-current { color: var(--text); }
+.ai-rule-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+    margin-top: 8px;
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--muted);
+}
+
+.ai-rule-stats strong {
+    margin-left: 4px;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}

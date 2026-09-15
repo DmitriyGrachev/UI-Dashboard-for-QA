@@ -122,6 +122,28 @@ when that is the intended priority; this is not round-robin scheduling.
 
 ### Rule diagnostics
 
+**Refresh rule statistics** in Issuance settings reads
+`GET /admin/api/ai-queue/operations/rules` (admin session, no writes).
+The response contains `revision`, `enabled`, `generatedAt` (UTC), and
+`rules: [{ruleId, remaining, processing, completed, failed}]` in saved priority order.
+
+- `remaining` assigns each eligible screenshot to its first matching enabled rule.
+  It reuses claim's game/date/token/session/hand, retry and local/B2 availability predicates.
+  `default` is an ordinary rule: its name adds no special fallback or cross-game behavior.
+- The preview includes the same oldest 100 expired assignments that the next claim can
+  recover, without locking or changing them. Concurrent claims can change the snapshot;
+  these counts reserve nothing and do not predict rows skipped because another claim holds a lock.
+- Disabled rules and paused queues have zero remaining. Status counts still apply.
+- `processing`, `completed`, and `failed` count retained tasks by `issued_rule_id`,
+  regardless of today's rule conditions. These are task counts, not attempt or lifetime totals.
+  Expired tasks remain Processing until actually recovered, so columns are not additive.
+- All rules are counted by one aggregate statement, alongside one settings read in a
+  read-only repeatable-read transaction (5-second timeout). No migration or background polling.
+  Draft changes hide counters until saved/reloaded; a revision mismatch requires reload.
+
+The scale regression uses 100,000 tasks and 20 overlapping rules, checks one aggregate
+statement, and applies the same 5-second budget. Its local timings are not production guarantees.
+
 - INFO `AI queue settings saved` is emitted after the save commits: revision, queue state,
   counts, authenticated `actor`, and `order=[priority:ruleId:enabled|disabled, ...]`.
   Rule names, sessions, filter contents, API keys and signed URLs are not included.

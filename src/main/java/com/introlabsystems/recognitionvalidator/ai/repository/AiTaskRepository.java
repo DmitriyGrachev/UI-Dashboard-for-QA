@@ -28,6 +28,11 @@ import static com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsR
 @Repository
 @Slf4j
 public class AiTaskRepository {
+    private static final String EXPIRED_SELECTION = """
+            SELECT image_id FROM ai_review_task
+            WHERE status='PROCESSING' AND lease_expires_at <= :now
+            ORDER BY lease_expires_at, image_id LIMIT 100
+            """;
     private final NamedParameterJdbcTemplate jdbc;
     private final TransactionTemplate transactions;
     private final AiQueueProperties properties;
@@ -123,11 +128,52 @@ public class AiTaskRepository {
                   retry_after=NULL, last_error_code='LEASE_EXPIRED',
                   last_error_message='Previous AI claim expired without an accepted result', last_error_at=clock_timestamp()
                 WHERE image_id IN (
-                  SELECT image_id FROM ai_review_task
-                  WHERE status='PROCESSING' AND lease_expires_at <= CURRENT_TIMESTAMP
-                  ORDER BY lease_expires_at, image_id LIMIT 100 FOR UPDATE SKIP LOCKED
+                  %s FOR UPDATE SKIP LOCKED
                 )
-                """, new MapSqlParameterSource());
+                """.formatted(EXPIRED_SELECTION.replace(":now", "CURRENT_TIMESTAMP")), new MapSqlParameterSource());
+    }
+
+    public List<AiRuleStatistics> ruleStatistics(AiSettings settings, Instant now) {
+        if (settings.rules().isEmpty()) return List.of();
+        var parameters = new MapSqlParameterSource("now", timestamp(now))
+                .addValue("ruleIds", settings.rules().stream().map(AiRule::id).toList());
+        StringBuilder owner = new StringBuilder("CASE");
+        int index = 0;
+        for (AiRule rule : settings.rules()) {
+            if (!settings.enabled() || !rule.enabled()) continue;
+            String suffix = "_" + index++;
+            owner.append(" WHEN TRUE");
+            appendRuleConditions(owner, parameters, rule, suffix);
+            owner.append(" THEN CAST(:ruleId").append(suffix).append(" AS uuid)");
+            parameters.addValue("ruleId" + suffix, rule.id());
+        }
+        String assignment = index == 0 ? "NULL::uuid" : owner.append(" ELSE NULL::uuid END").toString();
+        // Read-only preview of the same bounded recovery performed before claim; no leases are changed.
+        String pending = eligiblePendingSql(parameters, assignment + " AS rule_id", now, true).toString();
+        String sql = "WITH recoverable AS (" + EXPIRED_SELECTION + "), remaining AS (" + pending + """
+                ), counts AS (
+                  SELECT rule_id, COUNT(*) AS remaining, 0::bigint AS processing,
+                         0::bigint AS completed, 0::bigint AS failed
+                  FROM remaining WHERE rule_id IS NOT NULL GROUP BY rule_id
+                  UNION ALL
+                  SELECT issued_rule_id, 0,
+                         COUNT(*) FILTER (WHERE status='PROCESSING'),
+                         COUNT(*) FILTER (WHERE status='COMPLETED'),
+                         COUNT(*) FILTER (WHERE status='FAILED')
+                  FROM ai_review_task
+                  WHERE issued_rule_id IN (:ruleIds) AND status IN ('PROCESSING','COMPLETED','FAILED')
+                  GROUP BY issued_rule_id
+                )
+                SELECT rule_id, SUM(remaining) AS remaining, SUM(processing) AS processing,
+                       SUM(completed) AS completed, SUM(failed) AS failed
+                FROM counts GROUP BY rule_id
+                """;
+        var counts = jdbc.query(sql, parameters, (rs, row) -> new AiRuleStatistics(
+                rs.getObject("rule_id", UUID.class), rs.getLong("remaining"), rs.getLong("processing"),
+                rs.getLong("completed"), rs.getLong("failed"))).stream().collect(
+                java.util.stream.Collectors.toMap(AiRuleStatistics::ruleId, value -> value));
+        return settings.rules().stream().map(rule -> counts.getOrDefault(rule.id(),
+                new AiRuleStatistics(rule.id(), 0, 0, 0, 0))).toList();
     }
 
     public void complete(String imageId, AiResult result) {
@@ -240,13 +286,20 @@ public class AiTaskRepository {
             String projection,
             Instant now
     ) {
+        return eligiblePendingSql(parameters, projection, now, false);
+    }
+
+    private StringBuilder eligiblePendingSql(MapSqlParameterSource parameters, String projection,
+                                             Instant now, boolean previewRecovery) {
         StringBuilder sql = new StringBuilder("""
                 SELECT %s
                 FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
-                WHERE ai.status='PENDING'
+                WHERE %s
                   AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
-                  AND (ai.retry_after IS NULL OR ai.retry_after <= :now)
-                """.formatted(projection));
+                """.formatted(projection, previewRecovery
+                ? "((ai.status='PENDING' AND (ai.retry_after IS NULL OR ai.retry_after <= :now))"
+                    + " OR ai.image_id IN (SELECT image_id FROM recoverable))"
+                : "ai.status='PENDING' AND (ai.retry_after IS NULL OR ai.retry_after <= :now)"));
         if (b2.enabled()) {
             parameters.addValue("metadataCutoff", timestamp(now.minus(b2.metadataRetention())));
             sql.append("""

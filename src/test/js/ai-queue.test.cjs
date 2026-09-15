@@ -492,6 +492,60 @@ test('AI operations load and refresh on demand', async () => {
     }
 });
 
+test('rule statistics refresh saved counts without saving or discarding a draft', async () => {
+    const {form, rules, document} = fakeQueueDom();
+    const refresh = new FakeElement('button', {id: 'ai-rule-stats-refresh'});
+    const message = new FakeElement('p', {id: 'ai-rule-stats-message'});
+    document.root.append(refresh, message);
+    const template = document.getElementById('ai-rule-template').content.firstElementChild;
+    for (const field of ['remaining', 'processing', 'completed', 'failed']) {
+        const node = new FakeElement('strong'); node.dataset.ruleStat = field; template.append(node);
+    }
+    document.register(document.root);
+    let revision = 1, reads = 0, writes = 0, fail = false;
+    const previousFetch = global.fetch;
+    global.fetch = async (url, options) => {
+        if (options.body) writes++;
+        if (url.endsWith('/rules')) {
+            reads++;
+            return {ok: !fail, status: fail ? 503 : 200, json: async () => fail ? {detail: 'Unavailable'} : {
+                revision, generatedAt: '2026-09-15T10:00:00Z', rules: [
+                    {ruleId: 'r1', remaining: reads, processing: 2, completed: 3, failed: 4}]
+            }};
+        }
+        return {ok: true, status: 200, json: async () => ({revision: 1, enabled: true, games: ['bj_igt'],
+            rules: [{id: 'r1', name: 'Rule', enabled: true, priority: 1, gameCode: 'bj_igt'}]})};
+    };
+    const settled = () => new Promise(resolve => setTimeout(resolve, 0));
+    try {
+        const queue = initializeAiQueue(form);
+        await settled();
+        const remaining = rules.firstElementChild.querySelector('[data-rule-stat="remaining"]');
+        assert.equal(remaining.textContent, '1');
+        await queue.refreshStatistics();
+        assert.equal(remaining.textContent, '2');
+        const name = rules.firstElementChild.querySelector('[name="name"]');
+        name.value = 'Draft';
+        form.dispatchEvent({type: 'input', target: name});
+        await queue.refreshStatistics();
+        assert.equal(remaining.textContent, '—');
+        assert.match(message.textContent, /saved settings/);
+        assert.equal(name.value, 'Draft');
+        assert.equal(writes, 0);
+        name.value = 'Rule';
+        form.dispatchEvent({type: 'input', target: name});
+        revision = 2;
+        await queue.refreshStatistics();
+        assert.equal(remaining.textContent, '—');
+        assert.match(message.textContent, /another session/);
+        fail = true;
+        await queue.refreshStatistics();
+        assert.match(message.textContent, /Unavailable/);
+        assert.equal(message.dataset.error, 'true');
+        assert.equal(refresh.disabled, false);
+    } finally { global.fetch = previousFetch; }
+});
+
 test('an expired session HTML response never becomes editable empty settings', async () => {
     const {form, save, document} = fakeQueueDom();
     const previousFetch = global.fetch;
