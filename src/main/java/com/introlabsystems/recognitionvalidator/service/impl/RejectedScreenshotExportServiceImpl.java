@@ -22,6 +22,8 @@ import java.util.concurrent.locks.ReentrantLock;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import static com.introlabsystems.recognitionvalidator.service.Csv.cell;
+
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -32,13 +34,6 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
     private final Clock clock;
     private final RejectedScreenshotExportCompletion completion;
     private final Lock exportLock = new ReentrantLock();
-
-    static String csvCell(Object value) {
-        String text = value == null ? "" : value.toString();
-        // Spreadsheet programs must treat exported explanations and names as text, never formulas.
-        if (text.stripLeading().matches("(?s)^[=+@-].*")) text = "'" + text;
-        return "\"" + text.replace("\"", "\"\"") + "\"";
-    }
 
     @Override
     public int writeZip(
@@ -79,10 +74,10 @@ public class RejectedScreenshotExportServiceImpl implements RejectedScreenshotEx
                         }
                     }
                     writtenIds.add(candidate.imageId());
-                    csv.append(csvCell(content.fileName())).append(',').append(csvCell(candidate.imageId())).append(',')
-                            .append(csvCell(candidate.sessionId())).append(',').append(csvCell(candidate.aiVerdict())).append(',')
-                            .append(csvCell(candidate.aiConfidence())).append(',').append(csvCell(candidate.aiMessage())).append(',')
-                            .append(csvCell(candidate.operatorDecision())).append("\r\n");
+                    csv.append(cell(content.fileName())).append(',').append(cell(candidate.imageId())).append(',')
+                            .append(cell(candidate.sessionId())).append(',').append(cell(candidate.aiVerdict())).append(',')
+                            .append(cell(candidate.aiConfidence())).append(',').append(cell(candidate.aiMessage())).append(',')
+                            .append(cell(candidate.operatorDecision())).append("\r\n");
                 } catch (ImageNotFoundException exception) {
                     // The storage service marks the stale database row unavailable.
                     skipped++;

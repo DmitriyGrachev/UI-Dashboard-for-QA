@@ -293,8 +293,10 @@
                 <div class="filter-actions">
                     <button type="button" class="button secondary" id="reset-screenshot-filters">Reset</button>
                     <button class="button primary" id="search-screenshots" type="submit">Search</button>
+                    <button class="button secondary" id="download-screenshot-csv" type="button" aria-describedby="csv-export-help">Download CSV</button>
                 </div>
             </div>
+            <p id="csv-export-help">CSV includes all rows matching the currently selected filters, even before Search. The browser handles the download; export errors open in a new tab.</p>
         </form>
         <section class="saved-filter-bar" aria-label="Saved filters">
             <label>Saved filters <select id="saved-filter-select"><option value="">Choose saved filters…</option></select></label>

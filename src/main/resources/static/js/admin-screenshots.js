@@ -54,6 +54,12 @@ function formatUtcDate(value) {
     }).format(new Date(value)) + " UTC";
 }
 
+function csvExportUrl(filters) {
+    const params = buildSearchParams(filters);
+    params.delete('limit');
+    return `/admin/api/screenshots/export.csv?${params}`;
+}
+
 function canonicalUtcMinute(date) {
     return date.toISOString().slice(0, 16);
 }
@@ -165,6 +171,7 @@ function filterStatus(liveFilters, appliedFilters, busy) {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
+        csvExportUrl,
         copyShareLink,
         createTechnicalReport,
         formatUtcDate,
@@ -867,6 +874,11 @@ if (typeof document !== "undefined") {
         event.preventDefault();
         updateCheckedOnlyControls();
         search();
+    });
+    byId('download-screenshot-csv').addEventListener('click', () => {
+        updateCheckedOnlyControls();
+        if (!dateRange.validate() || !elements.form.reportValidity()) return;
+        window.open(csvExportUrl(currentFilters()), '_blank', 'noopener');
     });
     byId("review-state").addEventListener("change", updateCheckedOnlyControls);
     elements.dateField.addEventListener("change", () => {

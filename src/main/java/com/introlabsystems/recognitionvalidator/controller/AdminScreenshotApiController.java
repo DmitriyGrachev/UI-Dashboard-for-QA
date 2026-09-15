@@ -54,6 +54,22 @@ public class AdminScreenshotApiController {
         return screenshots.summary(request.toFilters());
     }
 
+    @GetMapping(value = "/export.csv", produces = "text/csv")
+    void exportCsv(@ModelAttribute AdminScreenshotSearchRequest request,
+                   jakarta.servlet.http.HttpServletResponse response) throws IOException {
+        validate(request, false);
+        response.setContentType("text/csv;charset=UTF-8");
+        response.setHeader(HttpHeaders.CONTENT_DISPOSITION,
+                ContentDisposition.attachment().filename("screenshots.csv").build().toString());
+        response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store");
+        try {
+            screenshots.writeCsv(request.toFilters(), response.getOutputStream());
+        } catch (RuntimeException | IOException exception) {
+            if (!response.isCommitted()) response.reset();
+            throw exception;
+        }
+    }
+
     private static void validate(AdminScreenshotSearchRequest request, boolean cursorAllowed) {
         if (request.getCreatedFrom() != null
                 && request.getCreatedTo() != null
@@ -82,7 +98,7 @@ public class AdminScreenshotApiController {
         if (!cursorAllowed && (hasCursorTime || hasCursorId)) {
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Summary does not accept a cursor"
+                    "Summary and CSV export do not accept a cursor"
             );
         }
         if (hasCursorTime != hasCursorId) {

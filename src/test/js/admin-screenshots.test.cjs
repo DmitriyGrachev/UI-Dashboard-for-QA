@@ -16,6 +16,19 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
+test('CSV uses all current search filters without page size or cursor', () => {
+    const {csvExportUrl} = require('../../main/resources/static/js/admin-screenshots.js');
+    const filters = {gameCode: 'bj_igt', sessionId: 'a & b', aiResult: 'CHECKED', confidenceFrom: '0',
+        confidenceTo: '95', reviewedFrom: '2026-09-15T00:00', notification: false, tokenId: 0};
+    const expected = buildSearchParams(filters);
+    expected.delete('limit');
+    const actual = new URL(csvExportUrl(filters), 'http://localhost');
+    assert.equal(actual.pathname, '/admin/api/screenshots/export.csv');
+    assert.equal(actual.searchParams.toString(), expected.toString());
+    assert.equal(actual.searchParams.has('cursorId'), false);
+    assert.equal(actual.searchParams.has('limit'), false);
+});
+
 test("restoring selection keeps the original search scope", () => {
     const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
     const restore = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function storageLabel('));

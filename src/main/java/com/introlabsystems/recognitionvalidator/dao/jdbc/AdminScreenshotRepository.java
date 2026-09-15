@@ -15,6 +15,14 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.jdbc.core.PreparedStatementCallback;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.io.Writer;
+import java.io.IOException;
+import java.io.UncheckedIOException;
+
+import static com.introlabsystems.recognitionvalidator.service.Csv.cell;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -67,8 +75,7 @@ public class AdminScreenshotRepository {
         String order = aiOrdered ? "ai" : "rt";
         String baseConditions = conditions(filters, parameters, aiOrdered);
         String listConditions = baseConditions + cursorCondition(filters, parameters, order);
-        String listFrom = aiOrdered ? AI_SEARCH_FROM
-                : SEARCH_FROM + "LEFT JOIN ai_review_task ai ON ai.image_id = rt.image_id\n";
+        String listFrom = searchFrom(aiOrdered);
         List<AdminScreenshotListItem> items = jdbc.query("""
                 SELECT ia.id, ia.file_name, rt.file_created_at, ia.game_code, ia.session_id, ai.status AS ai_status,
                        CASE WHEN rt.status = 'COMPLETED' THEN 'CHECKED' ELSE 'UNCHECKED' END
@@ -120,6 +127,47 @@ public class AdminScreenshotRepository {
                         instant(resultSet, "oldest_created_at"),
                         instant(resultSet, "newest_created_at")
                 ));
+    }
+
+    private static String searchFrom(boolean aiOrdered) {
+        return aiOrdered ? AI_SEARCH_FROM : SEARCH_FROM + "LEFT JOIN ai_review_task ai ON ai.image_id = rt.image_id\n";
+    }
+
+    @Transactional(readOnly = true, timeout = 120)
+    public long writeCsv(AdminScreenshotFilters filters, Instant cloudCutoff, Writer output) {
+        var parameters = new MapSqlParameterSource("cloudCutoff", Timestamp.from(cloudCutoff));
+        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
+                filters.confidenceFrom(), filters.confidenceTo());
+        String order = aiOrdered ? "ai" : "rt";
+        String sql = """
+                SELECT ia.id, ia.file_name, ia.game_code, ia.session_id, rt.file_created_at,
+                       ai.status, ai.verdict, ai.valid, ai.confidence, ai.message,
+                       CASE WHEN rt.status='COMPLETED' THEN 'CHECKED' ELSE 'UNCHECKED' END AS review_state,
+                       CASE WHEN rt.status='COMPLETED' THEN rt.decision END AS decision,
+                       CASE WHEN rt.status='COMPLETED' THEN reviewer.username END AS reviewed_by
+                %s WHERE TRUE %s
+                ORDER BY %s.file_created_at DESC, %s.image_id DESC
+                """.formatted(searchFrom(aiOrdered), conditions(filters, parameters, aiOrdered), order, order);
+        return jdbc.execute(sql, parameters, (PreparedStatementCallback<Long>) statement -> {
+            // PostgreSQL streams a cursor only inside a transaction with a positive fetch size.
+            statement.setFetchSize(500);
+            try (ResultSet rs = statement.executeQuery()) {
+                output.write("\uFEFFimage_id,file_name,game_code,session_id,created_at_utc,ai_status,ai_verdict,ai_valid,confidence,ai_message,operator_review_state,operator_decision,reviewed_by\r\n");
+                long count = 0;
+                while (rs.next()) {
+                    for (int column = 1; column <= 13; column++) {
+                        if (column > 1) output.write(',');
+                        output.write(cell(column == 5 ? instant(rs, "file_created_at") : rs.getObject(column)));
+                    }
+                    output.write("\r\n");
+                    count++;
+                }
+                output.flush();
+                return count;
+            } catch (IOException exception) {
+                throw new UncheckedIOException(exception);
+            }
+        });
     }
 
     public Optional<AdminScreenshotDetails> findById(String imageId, Instant cloudCutoff) {

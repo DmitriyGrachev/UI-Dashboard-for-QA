@@ -24,6 +24,12 @@ public class AdminScreenshotServiceImpl implements AdminScreenshotService {
     private final Clock clock;
 
     @Override
+    public long writeCsv(AdminScreenshotFilters filters, java.io.OutputStream output) {
+        return screenshots.writeCsv(filters, clock.instant().minus(b2Properties.metadataRetention()),
+                new java.io.BufferedWriter(new java.io.OutputStreamWriter(output, java.nio.charset.StandardCharsets.UTF_8)));
+    }
+
+    @Override
     public AdminScreenshotPage search(AdminScreenshotFilters filters) {
         long started = System.nanoTime();
         AdminScreenshotPage page = screenshots.search(

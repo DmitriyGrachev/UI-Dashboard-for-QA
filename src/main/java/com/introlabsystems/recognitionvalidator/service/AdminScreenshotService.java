@@ -12,4 +12,6 @@ public interface AdminScreenshotService {
     AdminScreenshotSummary summary(AdminScreenshotFilters filters);
 
     AdminScreenshotDetails details(String imageId);
+
+    long writeCsv(AdminScreenshotFilters filters, java.io.OutputStream output);
 }
