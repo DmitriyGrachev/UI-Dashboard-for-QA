@@ -38,10 +38,13 @@ class DailyStatisticsApiTest extends AbstractWebIntegrationTest {
         mockMvc.perform(get(URL).with(user("admin").roles("ADMIN"))).andExpect(status().isUnauthorized());
         mockMvc.perform(get(URL).header("X-API-Key", "images-test-only")).andExpect(status().isUnauthorized());
         mockMvc.perform(get(URL).header("X-API-Key", "wrong")).andExpect(status().isUnauthorized());
-        mockMvc.perform(get(URL).param("date", "2099-01-01").header("X-API-Key", "statistics-test-only"))
+        mockMvc.perform(get(URL).param("date", "2099-01-01").header("X-API-Key", "statistics-test-only")
+                        .accept("application/json"))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(content().contentTypeCompatibleWith("application/json"))
                 .andExpect(jsonPath("$.date").value("2099-01-01"))
                 .andExpect(jsonPath("$.timezone").value("UTC"))
+                .andExpect(jsonPath("$.generatedAt").value("2026-09-13T23:59:59Z"))
                 .andExpect(jsonPath("$.operators.total").value(0))
                 .andExpect(jsonPath("$.ai.total").value(0))
                 .andExpect(jsonPath("$.ai.sentToOperators").hasJsonPath())
@@ -62,7 +65,8 @@ class DailyStatisticsApiTest extends AbstractWebIntegrationTest {
         mockMvc.perform(get(URL).header("X-API-Key", "statistics-test-only"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.date").value("2026-09-14"));
         for (String invalid : new String[]{"2026-02-30", "0000-01-01", "+10000-01-01", "2026-09-14T00:00:00Z", "invalid"})
-            mockMvc.perform(get(URL).param("date", invalid).header("X-API-Key", "statistics-test-only"))
+            mockMvc.perform(get(URL).param("date", invalid).header("X-API-Key", "statistics-test-only")
+                            .accept("application/json"))
                     .andExpect(status().isBadRequest());
     }
 

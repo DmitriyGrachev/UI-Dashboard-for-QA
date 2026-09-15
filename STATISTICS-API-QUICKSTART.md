@@ -8,6 +8,7 @@ the dedicated statistics key from the application administrator.
 ```http
 GET /api/integration/statistics/daily?date=2026-09-14
 X-API-Key: <STATISTICS_API_KEY>
+Accept: application/json
 ```
 
 `date` is optional (`YYYY-MM-DD`); the default is today in **UTC**, not the
@@ -18,7 +19,8 @@ Example with environment variables on the calling service:
 
 ```bash
 curl "$BASE_URL/api/integration/statistics/daily?date=2026-09-14" \
-  -H "X-API-Key: $STATISTICS_API_KEY"
+  -H "X-API-Key: $STATISTICS_API_KEY" \
+  -H "Accept: application/json"
 ```
 
 The application reads `STATISTICS_API_KEY` from its environment (`.env` for Compose);

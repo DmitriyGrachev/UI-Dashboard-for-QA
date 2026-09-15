@@ -22,7 +22,7 @@ import java.time.LocalDate;
 public class DailyStatisticsController {
     private final DailyStatisticsService statistics;
 
-    @GetMapping
+    @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Read operator and AI statistics for one UTC day",
             description = "Date defaults to today in UTC. Confidence counts cover retained results; check completeCoverage.")
     @SecurityRequirement(name = OpenApiConfig.STATISTICS_API_KEY)
