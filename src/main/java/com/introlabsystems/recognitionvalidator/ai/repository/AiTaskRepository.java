@@ -149,7 +149,10 @@ public class AiTaskRepository {
         }
         String assignment = index == 0 ? "NULL::uuid" : owner.append(" ELSE NULL::uuid END").toString();
         // Read-only preview of the same bounded recovery performed before claim; no leases are changed.
-        String pending = eligiblePendingSql(parameters, assignment + " AS rule_id", now, true).toString();
+        // Disjoint branches keep the PENDING partial indexes usable; an OR with recovery
+        // made PostgreSQL scan the entire task table and spill an oversized hash join.
+        String pending = eligiblePendingSql(parameters, assignment + " AS rule_id", now, false, true).toString()
+                + " UNION ALL " + eligiblePendingSql(parameters, assignment + " AS rule_id", now, true, true);
         String sql = "WITH recoverable AS (" + EXPIRED_SELECTION + "), remaining AS (" + pending + """
                 ), counts AS (
                   SELECT rule_id, COUNT(*) AS remaining, 0::bigint AS processing,
@@ -286,26 +289,28 @@ public class AiTaskRepository {
             String projection,
             Instant now
     ) {
-        return eligiblePendingSql(parameters, projection, now, false);
+        return eligiblePendingSql(parameters, projection, now, false, false);
     }
 
     private StringBuilder eligiblePendingSql(MapSqlParameterSource parameters, String projection,
-                                             Instant now, boolean previewRecovery) {
+                                             Instant now, boolean recovered, boolean statistics) {
+        // IDs are SHA-256 hex (ImageId), not natural-language text. Bytewise equality uses
+        // the statistics indexes without expensive locale comparisons; claim ordering is unchanged.
+        String imageJoin = statistics ? "ia.id COLLATE \"C\"=ai.image_id COLLATE \"C\"" : "ia.id=ai.image_id";
         StringBuilder sql = new StringBuilder("""
                 SELECT %s
-                FROM ai_review_task ai JOIN image_asset ia ON ia.id=ai.image_id
+                FROM ai_review_task ai JOIN image_asset ia ON %s %s
                 WHERE %s
                   AND (ai.file_available OR ai.cloud_available_at IS NOT NULL)
-                """.formatted(projection, previewRecovery
-                ? "((ai.status='PENDING' AND (ai.retry_after IS NULL OR ai.retry_after <= :now))"
-                    + " OR ai.image_id IN (SELECT image_id FROM recoverable))"
+                """.formatted(projection, imageJoin, recovered ? "JOIN recoverable r ON r.image_id=ai.image_id" : "", recovered
+                ? "TRUE"
                 : "ai.status='PENDING' AND (ai.retry_after IS NULL OR ai.retry_after <= :now)"));
         if (b2.enabled()) {
             parameters.addValue("metadataCutoff", timestamp(now.minus(b2.metadataRetention())));
             sql.append("""
                     AND (ai.file_available OR ai.cloud_available_at > :metadataCutoff)
-                    AND (ia.file_available OR (NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL
-                      AND ia.cloud_uploaded_at > :metadataCutoff))
+                    AND (ia.file_available OR NULLIF(BTRIM(ia.cloud_object_key),'') IS NOT NULL)
+                    AND (ia.file_available OR ia.cloud_uploaded_at > :metadataCutoff)
                     """);
         } else {
             sql.append(" AND ai.file_available=TRUE AND ia.file_available=TRUE ");
