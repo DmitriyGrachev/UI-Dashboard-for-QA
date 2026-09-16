@@ -10,7 +10,9 @@ public record ReviewQueueResponse(
         ReviewItemResponse item,
         Long remaining,
         Instant oldestCreatedAt,
-        Instant newestCreatedAt
+        Instant newestCreatedAt,
+        String nextImageId,
+        String nextImageUrl
 ) {
 
     public static ReviewQueueResponse from(ReviewQueueResult result) {
@@ -30,7 +32,9 @@ public record ReviewQueueResponse(
                 item,
                 remaining,
                 result.oldestCreatedAt(),
-                result.newestCreatedAt()
+                result.newestCreatedAt(),
+                result.nextImageId(),
+                result.nextImageId() == null ? null : "/api/images/" + result.nextImageId() + "/content"
         );
     }
 }

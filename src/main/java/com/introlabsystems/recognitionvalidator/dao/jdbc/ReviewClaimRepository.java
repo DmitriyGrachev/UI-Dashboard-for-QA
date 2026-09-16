@@ -93,7 +93,7 @@ public class ReviewClaimRepository {
                         ? summarizePending(filters, new MapSqlParameterSource())
                                 .including(active.orElseThrow().fileCreatedAt())
                         : null;
-                return new ReviewQueueResult(active, summary);
+                return result(active, summary, filters);
             }
             releaseActiveAssignment(operatorId);
         }
@@ -131,7 +131,12 @@ public class ReviewClaimRepository {
                     lease_expires_at = :leaseExpiresAt
                 WHERE image_id = :imageId
                 """, parameters.addValue("imageId", imageId));
-        return new ReviewQueueResult(findItem(imageId), summary);
+        return result(findItem(imageId), summary, filters);
+    }
+
+    private ReviewQueueResult result(Optional<ReviewItem> item, ReviewQueueSummary summary, ReviewFilters filters) {
+        return new ReviewQueueResult(item, summary,
+                item.map(value -> candidateBuffer.peek(filters, value.imageId())).orElse(null));
     }
 
     public Optional<ReviewItem> findItem(String imageId) {

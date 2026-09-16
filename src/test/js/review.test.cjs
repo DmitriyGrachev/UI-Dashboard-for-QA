@@ -2,6 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 
 const {
+    createImagePreload,
     createImageAvailabilityRetryUrl,
     createImageRetryPlan,
     createImageAvailabilityUrl,
@@ -21,6 +22,69 @@ const {
     writeStoredScale,
     writeStoredFilters
 } = require("../../main/resources/static/js/review.js");
+
+test("preload reuses the same image without assigning src a second time", () => {
+    const images = [];
+    const preload = createImagePreload(() => {
+        const image = {sources: [], removeAttribute(name) { if (name === "src") this.cancelled = true; },
+            set src(value) { this.sources.push(value); }};
+        images.push(image);
+        return image;
+    });
+    preload.start("next", "/api/images/next/content");
+    preload.start("next", "/api/images/next/content");
+    assert.equal(images.length, 1);
+    assert.equal(preload.take("next"), images[0]);
+    assert.deepEqual(images[0].sources, ["/api/images/next/content"]);
+    assert.equal(images[0].cancelled, undefined);
+    assert.equal(preload.take("next"), null);
+});
+
+test("mismatch, empty hints, and clear discard the one speculative download", () => {
+    const images = [];
+    const preload = createImagePreload(() => {
+        const image = {removeAttribute() { this.cancelled = true; }};
+        images.push(image);
+        return image;
+    });
+    preload.start("a", "/a");
+    assert.equal(preload.take("b"), null);
+    assert.equal(images[0].cancelled, true);
+    preload.start("b", "/b");
+    preload.start("c", "/c");
+    assert.equal(images[1].cancelled, true);
+    preload.clear();
+    assert.equal(images[2].cancelled, true);
+    preload.start(null, null);
+    preload.start(undefined, undefined);
+    assert.equal(images.length, 3);
+});
+
+test("a late preload error cannot cancel its replacement or an adopted image", () => {
+    const images = [];
+    const preload = createImagePreload(() => {
+        const image = {removeAttribute() { this.cancelled = true; }};
+        images.push(image);
+        return image;
+    });
+    preload.start("a", "/a");
+    const lateError = images[0].onerror;
+    preload.start("b", "/b");
+    lateError();
+    assert.equal(preload.take("b"), images[1]);
+    assert.equal(images[1].onerror, null);
+    assert.equal(images[1].cancelled, undefined);
+});
+
+test("a failed preload is discarded so the real assignment can use normal retries", () => {
+    const image = {removeAttribute() { this.cancelled = true; }};
+    const preload = createImagePreload(() => image);
+    preload.start("a", "/a");
+    image.onerror();
+    assert.equal(preload.take("a"), null);
+    assert.equal(image.cancelled, true);
+});
+
 
 test("queue summary starts only after the screenshot claim is rendered", async () => {
     const events = [];

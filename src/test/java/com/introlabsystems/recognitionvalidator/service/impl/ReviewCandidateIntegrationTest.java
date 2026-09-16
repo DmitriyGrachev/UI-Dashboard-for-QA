@@ -35,6 +35,51 @@ class ReviewCandidateIntegrationTest extends AbstractReviewIntegrationTest {
     @BeforeEach void resetBuffer() { buffer.clear(); doReturn(now).when(bufferClock).instant(); }
 
     @Test
+    void lookaheadDoesNotReserveAnotherAssignmentAndMayBeClaimedByAnotherOperator() {
+        var first = insertOperator("preload-first");
+        var second = insertOperator("preload-second");
+        String current = insertImage(1, now, "bj_igt", "a", false, true);
+        String next = insertImage(2, now.plusSeconds(1), "bj_igt", "a", false, true);
+        String last = insertImage(3, now.plusSeconds(2), "bj_igt", "a", false, true);
+        var result = claims.claim(first, session("a"), now, Duration.ofMinutes(30), false, false);
+        var response = com.introlabsystems.recognitionvalidator.dto.response.ReviewQueueResponse.from(result);
+        assertThat(response.item().imageId()).isEqualTo(current);
+        assertThat(response.nextImageId()).isEqualTo(next);
+        assertThat(response.nextImageUrl()).isEqualTo("/api/images/" + next + "/content");
+        assertThat(jdbc.queryForMap("SELECT status,assigned_to,lease_expires_at FROM review_task WHERE image_id=?", next))
+                .containsEntry("status", "PENDING").containsEntry("assigned_to", null).containsEntry("lease_expires_at", null);
+        assertThat(claims.claim(second, session("a"), now, Duration.ofMinutes(30), false, false)
+                .item().orElseThrow().imageId()).isEqualTo(next);
+        completeReview(current, first, com.introlabsystems.recognitionvalidator.model.enums.Decision.ACCEPTED, now);
+        var actual = claims.claim(first, session("a"), now, Duration.ofMinutes(30), false, false);
+        assertThat(actual.item().orElseThrow().imageId()).isEqualTo(last);
+        assertThat(actual.nextImageId()).isNull();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM review_task WHERE status='ASSIGNED' AND assigned_to=?", Long.class, first)).isOne();
+    }
+
+    @Test
+    void lookaheadUsesOnlyTheSelectedFilterAndExistingUnexpiredBuffer() {
+        var operator = insertOperator("preload-filter");
+        insertImage(1, now, "bj_igt", "a", false, true);
+        String nextA = insertImage(2, now.plusSeconds(1), "bj_igt", "a", false, true);
+        String firstB = insertImage(3, now.plusSeconds(2), "bj_igt", "b", false, true);
+        String nextB = insertImage(4, now.plusSeconds(3), "bj_igt", "b", false, true);
+        var initial = claims.claim(operator, session("a"), now, Duration.ofMinutes(30), false, false);
+        assertThat(initial.nextImageId()).isEqualTo(nextA);
+        var existing = claims.claim(operator, session("a"), now, Duration.ofMinutes(30), false, false);
+        assertThat(existing.item()).isEqualTo(initial.item());
+        assertThat(existing.nextImageId()).isEqualTo(nextA);
+        doReturn(now.plusSeconds(5)).when(bufferClock).instant();
+        assertThat(claims.claim(operator, session("a"), now, Duration.ofMinutes(30), false, false).nextImageId()).isNull();
+        var replaced = claims.claim(operator, session("b"), now, Duration.ofMinutes(30), true, false);
+        assertThat(replaced.item().orElseThrow().imageId()).isEqualTo(firstB);
+        assertThat(replaced.nextImageId()).isEqualTo(nextB);
+        var empty = claims.claim(operator, session("empty"), now, Duration.ofMinutes(30), true, false);
+        assertThat(empty.item()).isEmpty();
+        assertThat(empty.nextImageId()).isNull();
+    }
+
+    @Test
     void thirtyDatabaseAssignmentsUseOneFullCandidateSearch() {
         for (int i = 1; i <= 30; i++) insertImage(i, now.plusSeconds(i), "bj_igt", "session", false, true);
         for (int i = 1; i <= 30; i++) {

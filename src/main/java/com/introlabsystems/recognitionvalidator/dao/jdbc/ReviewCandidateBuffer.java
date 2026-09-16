@@ -63,6 +63,17 @@ public class ReviewCandidateBuffer {
         if (entry != null) synchronized (entry) { entry.ids.removeAll(ids); }
     }
 
+    /** Opportunistic preview only: never refills, removes an ID, or reserves a task. */
+    public String peek(ReviewFilters filters, String currentImageId) {
+        Entry entry;
+        synchronized (entries) { entry = entries.get(filters.normalized()); }
+        if (entry == null) return null;
+        synchronized (entry) {
+            if (entry.expires == null || !clock.instant().isBefore(entry.expires)) return null;
+            return entry.ids.stream().filter(id -> !id.equals(currentImageId)).findFirst().orElse(null);
+        }
+    }
+
     public void clear() {
         synchronized (entries) { entries.clear(); }
     }

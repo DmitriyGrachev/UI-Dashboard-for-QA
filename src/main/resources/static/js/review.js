@@ -1,3 +1,40 @@
+function createImagePreload(createImage = () => new Image()) {
+    let pending = null;
+    function clear() {
+        const previous = pending;
+        pending = null;
+        if (previous) {
+            previous.image.onerror = null;
+            previous.image.removeAttribute("src");
+        }
+    }
+    return {
+        clear,
+        start(imageId, url) {
+            if (pending && pending.imageId === imageId && pending.url === url) return;
+            clear();
+            if (!imageId || !url) return;
+            const image = createImage();
+            const entry = {imageId, url, image};
+            pending = entry;
+            image.decoding = "async";
+            image.fetchPriority = "low";
+            image.onerror = () => { if (pending === entry) clear(); };
+            image.src = url;
+        },
+        take(imageId) {
+            if (!pending || pending.imageId !== imageId) {
+                clear();
+                return null;
+            }
+            const image = pending.image;
+            pending = null;
+            image.onerror = null;
+            return image; // Keep this element and its resource; assigning src again can redownload no-store responses.
+        }
+    };
+}
+
 function toUtcIso(value) {
     if (!value) return null;
     const withSeconds = value.length === 16 ? `${value}:00` : value;
@@ -146,6 +183,7 @@ function startSharedCountPolling(refresh, doc, timers) {
 
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
+        createImagePreload,
         startSharedCountPolling,
         createImageAvailabilityRetryUrl,
         createImageAvailabilityUrl,
@@ -234,6 +272,11 @@ if (typeof document !== "undefined") {
     const scaleStorageKey = "recognition-validator.review-scale";
 
     const state = {
+        queueVersion: 0,
+        imageVersion: 0,
+        nextHint: null,
+        decisionInFlight: false,
+        filtersPending: false,
         item: null,
         busy: false,
         scale: readStoredScale(window.sessionStorage, scaleStorageKey),
@@ -362,6 +405,8 @@ if (typeof document !== "undefined") {
     }
 
     async function claim({replaceCurrent = false} = {}) {
+        const version = ++state.queueVersion;
+        clearPreload();
         if (state.claimController) {
             state.claimController.abort();
         }
@@ -380,14 +425,16 @@ if (typeof document !== "undefined") {
                 signal: controller.signal
             });
             const payload = await responsePayload(response);
-            if (!payload) return false;
+            if (!payload || state.queueVersion !== version) return false;
             if (payload.item) {
-                renderItem(payload.item);
+                renderItem(payload.item, payload);
             } else {
                 showEmpty("No screenshots are available for these filters.");
             }
             return true;
         } catch (error) {
+            if (state.queueVersion !== version) return false;
+            clearPreload();
             if (error.name === "AbortError") {
                 return false;
             }
@@ -399,7 +446,7 @@ if (typeof document !== "undefined") {
         } finally {
             if (state.claimController === controller) {
                 state.claimController = null;
-                setBusy(false);
+                if (state.queueVersion === version) setBusy(false);
             }
         }
     }
@@ -461,6 +508,8 @@ if (typeof document !== "undefined") {
             return;
         }
         cancelQueueSummary();
+        const version = ++state.queueVersion;
+        state.decisionInFlight = true;
         setBusy(true, "Saving decision…");
         try {
             const response = await fetch(
@@ -471,23 +520,29 @@ if (typeof document !== "undefined") {
                     body: JSON.stringify({decision, filters: filters()})
                 }
             );
+            if (state.queueVersion !== version) return;
             if (response.status === 409) {
+                clearPreload();
                 state.item = null;
                 await loadQueue();
                 return;
             }
             const payload = await responsePayload(response);
-            if (!payload) return;
+            if (!payload || state.queueVersion !== version) return;
             void refreshQueueSummary();
             if (payload.item) {
-                renderItem(payload.item);
+                renderItem(payload.item, payload);
             } else {
                 showEmpty("No screenshots are available for these filters.");
             }
         } catch (error) {
+            if (state.queueVersion !== version) return;
+            clearPreload();
             elements.decisionMessage.textContent = error.message;
         } finally {
-            setBusy(false);
+            state.decisionInFlight = false;
+            if (state.filtersPending) applyFilters();
+            else if (state.queueVersion === version) setBusy(false);
         }
     }
 
@@ -502,6 +557,7 @@ if (typeof document !== "undefined") {
 
     async function responsePayload(response) {
         if (response.status === 401 || isLoginRedirect(response)) {
+            clearPreload();
             window.location.replace("/login?expired");
             return null;
         }
@@ -515,7 +571,24 @@ if (typeof document !== "undefined") {
         return response.json();
     }
 
-    function renderItem(item) {
+    const preload = createImagePreload();
+
+    function clearPreload() {
+        state.nextHint = null;
+        preload.clear();
+    }
+
+    function startPreload() {
+        if (state.imageReady && !document.hidden && state.nextHint?.nextImageId !== state.item?.imageId) {
+            preload.start(state.nextHint?.nextImageId, state.nextHint?.nextImageUrl);
+        }
+    }
+
+    function renderItem(item, hint = null) {
+        const image = preload.take(item.imageId) || new Image();
+        const alreadyRequested = image.hasAttribute("src");
+        const version = ++state.imageVersion;
+        state.nextHint = hint;
         renderAiResult(elements.aiDetails, item.ai);
         clearTimeout(state.imageRetryTimer);
         state.item = item;
@@ -545,13 +618,31 @@ if (typeof document !== "undefined") {
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = "Loading screenshot…";
         elements.retry.hidden = true;
-        elements.image.hidden = false;
-        elements.image.src = item.imageUrl;
+        const previous = elements.image;
+        image.id = previous.id;
+        image.alt = previous.alt;
+        image.draggable = false;
+        image.fetchPriority = "high";
+        image.hidden = false;
+        image.onload = () => imageLoaded(image, version);
+        image.onerror = () => imageFailed(image, version);
+        previous.onload = previous.onerror = null;
+        previous.replaceWith(image);
+        previous.removeAttribute("src");
+        elements.image = image;
+        applyTransform();
+        if (!alreadyRequested) image.src = item.imageUrl;
         elements.decisionMessage.textContent = "Loading screenshot…";
         updateActions();
+        if (alreadyRequested && image.complete) {
+            if (image.naturalWidth) void imageLoaded(image, version);
+            else imageFailed(image, version);
+        }
     }
 
     function showEmpty(message, error = false) {
+        clearPreload();
+        state.imageVersion++;
         clearTimeout(state.imageRetryTimer);
         state.item = null;
         state.imageReady = false;
@@ -692,14 +783,24 @@ if (typeof document !== "undefined") {
     }
 
     function applyFilters() {
+        clearPreload();
         clearTimeout(state.filterTimer);
-        if (!elements.filterForm.reportValidity()) return;
+        state.filtersPending = true;
+        // A decision changes the lease on the server; aborting its fetch cannot undo it.
+        // Apply new filters only after that mutation finishes, then replace its assignment.
+        if (state.decisionInFlight) return;
+        state.filtersPending = false;
+        if (!elements.filterForm.reportValidity()) { setBusy(false); return; }
         persistFilters();
         updateActiveFilterCount();
         loadQueue({replaceCurrent: true});
     }
 
     function scheduleFilterApplication() {
+        clearPreload();
+        state.queueVersion++;
+        state.claimController?.abort();
+        setBusy(true, "Applying filters…");
         persistFilters();
         updateActiveFilterCount();
         state.filterTimer = scheduleLatestTimer(
@@ -829,16 +930,25 @@ if (typeof document !== "undefined") {
     elements.stage.addEventListener("pointerup", finishDrag);
     elements.stage.addEventListener("pointercancel", finishDrag);
 
-    elements.image.addEventListener("load", () => {
-        if (!state.item) return;
+    function currentImage(image, version) {
+        return state.item && elements.image === image && state.imageVersion === version;
+    }
+
+    async function imageLoaded(image, version) {
+        if (!currentImage(image, version)) return;
+        try { await image.decode(); }
+        catch { if (currentImage(image, version)) imageFailed(image, version); return; }
+        if (!currentImage(image, version)) return;
         state.imageReady = true;
         elements.viewerMessage.hidden = true;
         elements.retry.hidden = true;
         elements.decisionMessage.textContent = "Compare the screenshot with the recognition result";
         updateActions();
-    });
+        startPreload();
+    }
 
     function showStorageUnavailable(message = "Image storage is temporarily unavailable. Try again later.") {
+        clearPreload();
         clearTimeout(state.imageRetryTimer);
         state.imageReady = false;
         elements.image.hidden = true;
@@ -852,14 +962,16 @@ if (typeof document !== "undefined") {
 
     async function verifyImageAvailability(item) {
         const expectedImageId = item.imageId;
+        const expectedVersion = state.imageVersion;
         if (state.imageAvailabilityInFlight) return;
         state.imageAvailabilityInFlight = true;
         try {
             const response = await fetch(createImageAvailabilityUrl(expectedImageId), {
                 cache: "no-store"
             });
-            if (!state.item || state.item.imageId !== expectedImageId) return;
+            if (!state.item || state.item.imageId !== expectedImageId || state.imageVersion !== expectedVersion) return;
             if (response.status === 401 || isLoginRedirect(response)) {
+                clearPreload();
                 window.location.replace("/login?expired");
                 return;
             }
@@ -878,18 +990,20 @@ if (typeof document !== "undefined") {
                 showStorageUnavailable();
             }
         } catch {
-            if (state.item && state.item.imageId === expectedImageId) {
+            if (state.item && state.item.imageId === expectedImageId && state.imageVersion === expectedVersion) {
                 state.imageAvailabilityChecked = true;
                 showStorageUnavailable();
             }
         } finally {
-            if (state.item && state.item.imageId === expectedImageId) {
+            if (state.item && state.item.imageId === expectedImageId && state.imageVersion === expectedVersion) {
                 state.imageAvailabilityInFlight = false;
             }
         }
     }
 
-    elements.image.addEventListener("error", () => {
+    function imageFailed(image, version) {
+        if (!currentImage(image, version)) return;
+        clearPreload();
         const item = state.item;
         if (!item) return;
         state.imageReady = false;
@@ -907,14 +1021,18 @@ if (typeof document !== "undefined") {
             clearTimeout(state.imageRetryTimer);
             state.imageRetryTimer = window.setTimeout(() => {
                 state.imageRetryTimer = null;
-                if (!state.item || state.item.imageId !== expectedImageId) return;
+                if (!currentImage(image, version) || state.item.imageId !== expectedImageId) return;
                 elements.image.src = retry.url;
             }, retry.delayMs);
             return;
         }
 
         verifyImageAvailability(item);
-    });
+    }
+
+    window.addEventListener("pagehide", clearPreload);
+    document.querySelector('form[action="/logout"]')?.addEventListener("submit", clearPreload);
+    document.addEventListener("visibilitychange", () => { if (document.hidden) clearPreload(); });
 
     document.addEventListener("keydown", event => {
         if (event.ctrlKey || event.metaKey || event.altKey || event.repeat || event.defaultPrevented

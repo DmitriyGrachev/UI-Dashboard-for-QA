@@ -717,6 +717,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                         .content("{}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.item").doesNotExist())
+                .andExpect(jsonPath("$.nextImageId").doesNotExist())
+                .andExpect(jsonPath("$.nextImageUrl").doesNotExist())
                 .andExpect(jsonPath("$.remaining").value(0));
     }
 
@@ -803,13 +805,17 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 105, "decision-next.png", true, "bj_igt", "session",
                 null, "Nine", null
         );
+        String lookaheadId = insertReviewImage(
+                106, "decision-lookahead.png", true, "bj_igt", "session", null, "Seven", null);
         OperatorPrincipal principal = principal(operatorId, "decision-operator");
         mockMvc.perform(post("/api/review-tasks/claim")
                         .with(user(principal))
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{}"))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.nextImageId").value(nextImageId))
+                .andExpect(jsonPath("$.nextImageUrl").value("/api/images/" + nextImageId + "/content"));
 
         String decision = "{\"decision\":\"REJECTED\"}";
         mockMvc.perform(post("/api/review-tasks/{imageId}/decision", imageId)
@@ -819,6 +825,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .content(decision))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.item.imageId").value(nextImageId))
+                .andExpect(jsonPath("$.nextImageId").value(lookaheadId))
+                .andExpect(jsonPath("$.nextImageUrl").value("/api/images/" + lookaheadId + "/content"))
                 .andExpect(jsonPath("$.remaining").doesNotExist())
                 .andExpect(jsonPath("$.oldestCreatedAt").doesNotExist())
                 .andExpect(jsonPath("$.newestCreatedAt").doesNotExist());
