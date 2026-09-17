@@ -68,6 +68,7 @@
                 <div class="ai-queue-actions">
                     <p id="ai-queue-state">Loading settings…</p>
                     <button type="button" class="button secondary" id="ai-rule-stats-refresh">Refresh rule statistics</button>
+                    <button type="button" class="button secondary" id="ai-activity-refresh">Refresh activity</button>
                 </div>
             </header>
             <p>Pausing prevents new assignments. Already assigned screenshots can still return results.</p>
@@ -75,7 +76,9 @@
             <details>
                 <summary>About rule statistics</summary>
                 <p>Remaining follows saved priority and file availability, including up to 100 expired assignments recoverable on the next claim. Paused queues show zero. Other counts follow the rule that issued each task and cover retained tasks only. Expired assignments stay in Processing until reclaimed, so the columns should not be added together.</p>
+                <p>Activity records assignments and accepted results since tracking was enabled. A batch may use several rules; the marker shows the latest recorded batch among saved rules. An assignment may still fail during image preparation. A recorded error describes the last failure, not necessarily the task's current state.</p>
             </details>
+            <p id="ai-activity-message" role="status" aria-live="polite">Loading rule activity…</p>
             <form id="ai-queue-form">
                 <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI assignments</label>
                 <p>Each rule must match all its conditions. Enabled rules run from top to bottom; screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
@@ -94,6 +97,7 @@
             <template id="ai-rule-template">
                 <details class="ai-rule">
                     <summary><span data-rule-summary>Selection rule</span>
+                        <span class="ai-rule-cursor" data-rule-cursor hidden>Last assignment batch</span>
                         <span class="ai-rule-stats">
                             <span>Remaining <strong data-rule-stat="remaining">—</strong></span>
                             <span>Processing <strong data-rule-stat="processing">—</strong></span>
@@ -101,6 +105,7 @@
                             <span>Failed <strong data-rule-stat="failed">—</strong></span>
                         </span>
                     </summary>
+                    <div class="ai-rule-activity" data-rule-activity></div>
                     <div class="ai-rule-fields">
                         <p>Priority <strong data-rule-position></strong></p>
                         <label>Name<input name="name" maxlength="100" required></label>

@@ -22,10 +22,11 @@ const remote = http.createServer((req, res) => {
 });
 const app = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1:18992");
-    if (url.pathname === "/review") {
+    if (url.pathname === "/review" || url.pathname === "/admin/ai-queue") {
         held.forEach(release => release()); held = [];
         scenario = url.searchParams.get("case") || "match"; counts = {}; decisions = 0; claims = [];
-        let html = fs.readFileSync(path.join(root, "templates/review.html"), "utf8")
+        const template = url.pathname === "/review" ? "review.html" : "admin-ai-queue.html";
+        let html = fs.readFileSync(path.join(root, "templates", template), "utf8")
             .replace(/th:(src|href|action)="@\{([^}]+)\}"/g, '$1="$2"')
             .replace(/th:content="\$\{_csrf.token\}"/, 'content="test"')
             .replace(/th:content="\$\{_csrf.headerName\}"/, 'content="X-CSRF-TOKEN"')

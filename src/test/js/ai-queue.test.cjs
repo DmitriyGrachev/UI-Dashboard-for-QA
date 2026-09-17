@@ -201,6 +201,57 @@ test('rules use server priority order', () => {
     assert.deepEqual(sortRules(rules).map(rule => rule.priority), [1, 2, 3]);
 });
 
+test('rule activity shows the last batch, safe diagnostic links, and hides stale or draft cursors', async () => {
+    const {form, rules, document} = fakeQueueDom();
+    const refresh = new FakeElement('button', {id: 'ai-activity-refresh'});
+    const message = new FakeElement('p', {id: 'ai-activity-message'});
+    form.append(refresh, message);
+    const source = document.getElementById('ai-rule-template').content.firstElementChild;
+    const cursor = new FakeElement('span'); cursor.dataset.ruleCursor = '';
+    const details = new FakeElement('div'); details.dataset.ruleActivity = '';
+    source.append(cursor, details); document.register(document.root);
+    const settings = {revision: 1, enabled: true, games: ['bj_igt'], rules: [
+        {id: 'a', name: 'First', priority: 1, enabled: true, gameCode: 'bj_igt'},
+        {id: 'b', name: 'Default', priority: 2, enabled: true, gameCode: 'bj_igt'}]};
+    const imageId = 'a'.repeat(64);
+    let revision = 1, failure = false;
+    const original = global.fetch;
+    const calls = [];
+    global.fetch = async (url, options) => {
+        calls.push({url, options});
+        if (url.endsWith('/settings')) return {ok: true, json: async () => settings};
+        assert.equal(url, '/admin/api/ai-queue/operations/activity');
+        if (failure) throw new Error('Unavailable');
+        return {ok: true, json: async () => ({revision, generatedAt: '2026-09-17T10:00:00Z',
+            lastIssuedRuleIds: ['a', 'b'], rules: [{ruleId: 'a', lastIssuedAt: '2026-09-17T09:59:00Z', lastIssuedCount: 3,
+                expired: 2, expiredImageId: imageId, oldestDeadline: '2026-09-17T09:58:00Z',
+                lastErrorAt: '2026-09-17T09:50:00Z', lastErrorCode: 'AI_REJECTED', lastErrorMessage: '<img onerror=alert(1)>',
+                lastErrorImageId: imageId}, {ruleId: 'b', expired: 0, lastIssuedAt: '2026-09-17T09:59:00Z', lastIssuedCount: 1}]})};
+    };
+    try {
+        const queue = initializeAiQueue(form);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        assert.equal(rules.children[0].querySelector('[data-rule-cursor]').hidden, false);
+        assert.equal(rules.children[1].querySelector('[data-rule-cursor]').hidden, false);
+        const activity = rules.children[0].querySelector('[data-rule-activity]');
+        assert.ok(activity.querySelectorAll('a').some(link => link.href === '/admin/screenshots?imageId=' + imageId));
+        assert.ok(activity.querySelectorAll('p').some(p => p.textContent.includes('<img onerror=alert(1)>')));
+        assert.equal(activity.querySelectorAll('img').length, 0);
+        assert.equal(calls.some(call => call.options.method === 'PUT'), false);
+        const name = rules.children[0].querySelector('[name="name"]');
+        name.value = 'Draft'; form.dispatchEvent({type: 'input', target: name});
+        assert.equal(rules.children[0].querySelector('[data-rule-cursor]').hidden, true);
+        assert.match(message.textContent, /saved settings/i);
+        name.value = 'First'; form.dispatchEvent({type: 'input', target: name});
+        revision = 2; await queue.refreshActivity();
+        assert.equal(rules.children[0].querySelector('[data-rule-cursor]').hidden, true);
+        assert.match(message.textContent, /another session/i);
+        revision = 1; failure = true; await queue.refreshActivity();
+        assert.equal(rules.children[0].querySelector('[data-rule-cursor]').hidden, true);
+        assert.match(message.textContent, /Unavailable/);
+    } finally { global.fetch = original; }
+});
+
 test('rule summary keeps selected false and zero conditions', () => {
     const summary = ruleSummary({name: '<unsafe>', enabled: false, priority: '1', gameCode: 'bj_igt', tokenId: '0'});
     assert.match(summary, /<unsafe>/);

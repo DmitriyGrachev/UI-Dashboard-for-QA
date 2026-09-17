@@ -163,6 +163,88 @@ function initializeAiQueue(form, operations) {
     let statistics = null;
     let statsBusy = false;
     let statsError = '';
+    const activityRefresh = byId('ai-activity-refresh');
+    const activityMessage = byId('ai-activity-message');
+    let activity = null;
+    let activityBusy = false;
+    let activityError = '';
+    let activityController = null;
+    let disposed = false;
+
+    function renderActivity() {
+        if (!activityMessage) return;
+        const matches = current && activity?.revision === current.revision && !dirty();
+        const values = new Map((matches ? activity.rules : []).map(value => [value.ruleId, value]));
+        const latest = new Set(matches ? activity.lastIssuedRuleIds : []);
+        Array.from(rules.children).forEach(node => {
+            const cursor = node.querySelector('[data-rule-cursor]');
+            if (cursor) {
+                cursor.hidden = !latest.has(node.dataset.ruleId);
+                cursor.textContent = 'Last assignment batch';
+            }
+            const container = node.querySelector('[data-rule-activity]');
+            if (!container) return;
+            container.replaceChildren();
+            const value = values.get(node.dataset.ruleId);
+            if (!value) return;
+            const line = text => {
+                const p = doc.createElement('p'); p.textContent = text; container.append(p); return p;
+            };
+            const link = (p, imageId, label) => {
+                if (!/^[0-9a-f]{64}$/.test(imageId || '')) return;
+                const a = doc.createElement('a'); a.textContent = label;
+                a.href = '/admin/screenshots?imageId=' + encodeURIComponent(imageId); p.append(a);
+            };
+            line(value.lastIssuedAt ? `Last assigned: ${formatAiTime(value.lastIssuedAt)} · ${value.lastIssuedCount} tasks`
+                : 'Last assigned: no recorded activity');
+            line(value.lastResultAt ? `Last accepted result: ${formatAiTime(value.lastResultAt)}` : 'Last accepted result: no recorded activity');
+            if (value.expired > 0) {
+                const p = line(`Response deadline exceeded: ${value.expired}. Oldest deadline: ${formatAiTime(value.oldestDeadline)}. `);
+                p.dataset.error = 'true'; link(p, value.expiredImageId, 'Inspect an overdue task');
+            }
+            if (value.lastErrorAt) {
+                const p = line(`Last recorded error: ${formatAiTime(value.lastErrorAt)} · ${value.lastErrorCode || ''} · ${value.lastErrorMessage || ''} `);
+                link(p, value.lastErrorImageId, 'Inspect screenshot');
+            }
+        });
+        activityMessage.dataset.error = String(Boolean(activityError));
+        activityMessage.textContent = activityError ? `${activityError} Select Refresh activity to retry.`
+            : dirty() ? 'Activity applies to saved settings. Save or reload settings to see these rules.'
+            : activity && !matches ? 'Settings changed in another session. Reload saved settings to see activity.'
+            : activity ? `Activity updated ${formatAiTime(activity.generatedAt)}. Refreshes every 15 seconds while this page is visible.`
+            : activityBusy ? 'Loading rule activity…' : 'Rule activity unavailable.';
+    }
+
+    async function refreshActivity() {
+        if (!activityRefresh || activityBusy || disposed) return;
+        const revision = current?.revision;
+        activityBusy = true; activityRefresh.disabled = true; activityError = '';
+        const controller = new AbortController(); activityController = controller;
+        renderActivity();
+        try {
+            const response = await fetch('/admin/api/ai-queue/operations/activity', {cache: 'no-store', signal: controller.signal});
+            if (response.status === 401 || (response.redirected && response.url.includes('/login'))) {
+                const signIn = byId('ai-queue-sign-in'); if (signIn) signIn.hidden = false;
+                throw new Error('Your session has expired. Sign in again.');
+            }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || data.message || `Request failed (${response.status})`);
+            if (!Array.isArray(data.rules) || !Array.isArray(data.lastIssuedRuleIds) || !Number.isSafeInteger(data.revision) || !data.generatedAt) {
+                throw new Error('Could not read rule activity.');
+            }
+            if (!disposed) activity = data;
+        } catch (error) {
+            activity = null;
+            if (error.name !== 'AbortError') activityError = error.message || 'Could not load rule activity.';
+        } finally {
+            activityBusy = false; activityController = null; activityRefresh.disabled = false;
+            if (!disposed) {
+                renderActivity();
+                if (revision !== current?.revision) void refreshActivity();
+            }
+        }
+    }
+    activityRefresh?.addEventListener('click', refreshActivity);
 
     function renderStatistics() {
         if (!statsMessage) return;
@@ -263,6 +345,7 @@ function initializeAiQueue(form, operations) {
         updateDirty();
         controls();
         renderStatistics();
+        renderActivity();
     }
 
     function lockFields(value) {
@@ -430,6 +513,7 @@ function initializeAiQueue(form, operations) {
             const data = await action();
             reconcile(data);
             void refreshStatistics();
+            void refreshActivity();
             if (refreshOperations) operations?.refresh();
             lockFields(true);
             setMessage(success);
@@ -532,8 +616,18 @@ function initializeAiQueue(form, operations) {
         });
     }
 
+    if (activityRefresh && view?.setInterval) {
+        const timer = view.setInterval(() => { if (!doc.hidden) void refreshActivity(); }, 15000);
+        const visible = () => { if (!doc.hidden) void refreshActivity(); };
+        doc.addEventListener('visibilitychange', visible);
+        view.addEventListener('pagehide', () => {
+            disposed = true; view.clearInterval(timer); activityController?.abort();
+            doc.removeEventListener('visibilitychange', visible);
+        }, {once: true});
+    }
+
     perform(() => request(), 'Enabled rules are checked from top to bottom, oldest screenshots within each rule first.');
-    return {render, row, draftSettings, dirty, refreshStatistics};
+    return {render, row, draftSettings, dirty, refreshStatistics, refreshActivity};
 }
 
 if (typeof module !== 'undefined' && module.exports) {
