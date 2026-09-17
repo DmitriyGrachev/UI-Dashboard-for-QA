@@ -88,7 +88,25 @@ class AiRuleStatisticsLargeScaleTest {
                     }
                 }
                 verify(template, times(6)).query(anyString(), any(SqlParameterSource.class), any(RowMapper.class));
+                var activityJdbc = spy(new NamedParameterJdbcTemplate(dataSource));
+                var activity = new com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository(activityJdbc);
+                jdbc.execute("SET statement_timeout='5s'");
+                for (int run = 0; run < 3; run++) {
+                    long started = System.nanoTime();
+                    var values = activity.read(Instant.parse("2026-09-16T10:00:00Z"));
+                    assertThat(values).extracting(com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivity::expired)
+                            .containsExactly(8800L, 13200L, 13200L);
+                    System.out.printf("AI_ACTIVITY_SCALE run=%d ms=%d%n", run + 1, (System.nanoTime() - started) / 1_000_000);
+                }
+                var activitySql = ArgumentCaptor.forClass(String.class);
+                var activityParams = ArgumentCaptor.forClass(SqlParameterSource.class);
+                verify(activityJdbc, times(3)).query(activitySql.capture(), activityParams.capture(), any(RowMapper.class));
+                var activityPlan = activityJdbc.queryForList(
+                        "EXPLAIN (ANALYZE, BUFFERS) " + activitySql.getValue(), activityParams.getValue(), String.class);
+                Files.write(output.resolve("activity-plan.txt"), activityPlan);
+                assertThat(String.join("\n", activityPlan)).contains("Index Only Scan using ix_ai_rule_overdue", "Heap Fetches: 0");
             } finally {
+                jdbc.execute("SET statement_timeout='90s'"); // Keep diagnostic plans available even after a budget failure.
                 var sql = ArgumentCaptor.forClass(String.class);
                 var parameters = ArgumentCaptor.forClass(SqlParameterSource.class);
                 verify(template, atLeastOnce()).query(sql.capture(), parameters.capture(), any(RowMapper.class));

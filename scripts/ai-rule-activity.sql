@@ -14,3 +14,5 @@ CREATE TABLE IF NOT EXISTS ai_rule_activity (
     last_error_message varchar(1000)
 );
 COMMIT;
+-- Reuse the resumable concurrent-index migration, outside the table transaction.
+\ir ai-rule-statistics-index.sql

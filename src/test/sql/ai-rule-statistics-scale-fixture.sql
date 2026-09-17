@@ -37,7 +37,12 @@ CREATE INDEX ix_ai_expired_lease ON ai_review_task(lease_expires_at,image_id) WH
 CREATE INDEX ix_ai_completed_result_order ON ai_review_task(valid,file_created_at,image_id) INCLUDE(certainty) WHERE status='COMPLETED';
 CREATE INDEX ix_ai_completed_order ON ai_review_task(file_created_at,image_id) INCLUDE(valid,certainty) WHERE status='COMPLETED';
 CREATE STATISTICS st_ai_token_session (dependencies,ndistinct,mcv) ON token_id,session_id FROM ai_review_task;
-\ir ../../../scripts/ai-rule-statistics-index.sql
+\ir ../../../scripts/ai-rule-activity.sql
+DELETE FROM ai_selection_rule;
+INSERT INTO ai_selection_rule(id,name,enabled,priority,game_code,token_id) VALUES
+ ('00000000-0000-0000-0000-000000000001','specific',true,1,'bj_igt',1),
+ ('00000000-0000-0000-0000-000000000002','default',true,2,'bj_igt',NULL),
+ ('00000000-0000-0000-0000-000000000003','other game',true,3,'bj_single_deck_ags',NULL);
 VACUUM (ANALYZE) image_asset;
 VACUUM (ANALYZE) ai_review_task;
 SELECT status,count(*) FROM ai_review_task GROUP BY status;

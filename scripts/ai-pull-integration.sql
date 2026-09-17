@@ -146,7 +146,6 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_completed_order
     ON ai_review_task (file_created_at, image_id) INCLUDE (valid, certainty) WHERE status='COMPLETED';
 CREATE STATISTICS IF NOT EXISTS st_ai_token_session (dependencies, ndistinct, mcv)
     ON token_id, session_id FROM ai_review_task;
-\ir ai-rule-statistics-index.sql
 \ir ai-rule-activity.sql
 ANALYZE ai_review_task;
 
