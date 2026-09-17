@@ -22,7 +22,7 @@ abstract class AiTestSupport {
     void cleanAi() {
         candidates.clear();
         summaries.clear();
-        jdbc.execute("TRUNCATE ai_task_rejection, review_disagreement, operator_daily_statistics, review_task, image_asset, app_user, ai_selection_rule, ai_queue_settings, ai_daily_statistics CASCADE");
+        jdbc.execute("TRUNCATE ai_rule_activity, ai_task_rejection, review_disagreement, operator_daily_statistics, review_task, image_asset, app_user, ai_selection_rule, ai_queue_settings, ai_daily_statistics CASCADE");
     }
 
     protected String image(int number, long token) {

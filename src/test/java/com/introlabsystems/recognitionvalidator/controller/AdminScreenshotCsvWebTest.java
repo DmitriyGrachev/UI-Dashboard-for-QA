@@ -117,10 +117,13 @@ class AdminScreenshotCsvWebTest extends AbstractWebIntegrationTest {
         mockMvc.perform(get(EXPORT)).andExpect(status().is3xxRedirection());
         mockMvc.perform(get(EXPORT).with(user("operator").roles("OPERATOR")))
                 .andExpect(status().is3xxRedirection()).andExpect(redirectedUrl("/review"));
-        for (String path : List.of("/admin/api/ai-queue/operations/rules")) {
+        for (String path : List.of("/admin/api/ai-queue/operations/rules", "/admin/api/ai-queue/operations/activity")) {
             mockMvc.perform(get(path).accept(MediaType.APPLICATION_JSON)).andExpect(status().isUnauthorized());
             mockMvc.perform(get(path).accept(MediaType.APPLICATION_JSON).with(user("operator").roles("OPERATOR")))
                     .andExpect(status().isForbidden());
+            mockMvc.perform(get(path).with(user("admin").roles("ADMIN")))
+                    .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                    .andExpect(jsonPath("$.revision").isNumber()).andExpect(jsonPath("$.rules").isArray());
         }
         mockMvc.perform(get("/admin/api/ai-queue/operations/rules").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))

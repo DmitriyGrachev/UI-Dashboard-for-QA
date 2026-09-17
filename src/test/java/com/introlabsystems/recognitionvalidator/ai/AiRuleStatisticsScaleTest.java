@@ -56,7 +56,8 @@ class AiRuleStatisticsScaleTest extends AiTestSupport {
                 true, i, "bj_igt", null, null, i == 20 ? null : (long) i, null, null));
         var template = spy(new NamedParameterJdbcTemplate(jdbc));
         var tasks = new AiTaskRepository(template, transactionManager, properties, b2,
-                mock(DailyStatisticsRepository.class), mock(ReviewDisagreementRepository.class));
+                mock(DailyStatisticsRepository.class), mock(ReviewDisagreementRepository.class),
+                new com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository(template));
         long started = System.nanoTime();
         // Budget matches the production rule-statistics transaction timeout, including all 20 rules.
         var counts = assertTimeout(Duration.ofSeconds(5), () -> tasks.ruleStatistics(new AiSettings(0, true, rules), Instant.now()));

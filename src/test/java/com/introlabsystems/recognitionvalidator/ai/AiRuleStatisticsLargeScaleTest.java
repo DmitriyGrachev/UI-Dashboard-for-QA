@@ -64,7 +64,8 @@ class AiRuleStatisticsLargeScaleTest {
                     Duration.ofSeconds(30), Duration.ofSeconds(45), Duration.ofMinutes(2), 4);
             var manager = new DataSourceTransactionManager(dataSource);
             var tasks = new AiTaskRepository(template, manager, new AiQueueProperties(Duration.ofMinutes(2)), b2,
-                    mock(DailyStatisticsRepository.class), mock(ReviewDisagreementRepository.class));
+                    mock(DailyStatisticsRepository.class), mock(ReviewDisagreementRepository.class),
+                    new com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository(template));
             var rules = List.of(rule(1, "specific", "bj_igt", 1L), rule(2, "default", "bj_igt", null),
                     rule(3, "other game", "bj_single_deck_ags", null));
             var settings = new AiSettings(0, true, rules);

@@ -59,7 +59,8 @@ class AiRuleStatisticsTest extends AiTestSupport {
         var cloudTasks = new AiTaskRepository(new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc),
                 transactionManager, new com.introlabsystems.recognitionvalidator.ai.config.AiQueueProperties(java.time.Duration.ofMinutes(2)),
                 b2, org.mockito.Mockito.mock(com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository.class),
-                org.mockito.Mockito.mock(com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository.class));
+                org.mockito.Mockito.mock(com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository.class),
+                new com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository(new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc)));
         for (int i = 1; i <= 5; i++) image(i, 53);
         jdbc.update("UPDATE ai_review_task SET file_available=false, cloud_available_at=now()");
         jdbc.update("UPDATE image_asset SET file_available=false, cloud_object_key='cloud', cloud_uploaded_at=now()");

@@ -131,7 +131,8 @@ class AiTaskRepositoryTest extends AiTestSupport {
                 new AiQueueProperties(Duration.ofMinutes(2)),
                 b2Enabled(),
                 mock(DailyStatisticsRepository.class),
-                mock(ReviewDisagreementRepository.class)
+                mock(ReviewDisagreementRepository.class),
+                new com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository(new NamedParameterJdbcTemplate(jdbc))
         );
 
         assertThat(b2Tasks.hasEligiblePending(all(), b2Tasks.databaseNow())).isTrue();

@@ -39,11 +39,12 @@ public class AiTaskRepository {
     private final B2StorageProperties b2;
     private final DailyStatisticsRepository dailyStatistics;
     private final ReviewDisagreementRepository disagreements;
+    private final AiRuleActivityRepository activity;
 
     public AiTaskRepository(NamedParameterJdbcTemplate jdbc, PlatformTransactionManager transactionManager,
                             AiQueueProperties properties, B2StorageProperties b2,
                             DailyStatisticsRepository dailyStatistics,
-                            ReviewDisagreementRepository disagreements) {
+                            ReviewDisagreementRepository disagreements, AiRuleActivityRepository activity) {
         this.jdbc = jdbc;
         this.transactions = new TransactionTemplate(transactionManager);
         this.transactions.setTimeout(5);
@@ -51,6 +52,7 @@ public class AiTaskRepository {
         this.b2 = b2;
         this.dailyStatistics = dailyStatistics;
         this.disagreements = disagreements;
+        this.activity = activity;
     }
 
     public List<AiClaim> claim(AiSettings settings, int size) {
@@ -62,6 +64,7 @@ public class AiTaskRepository {
             Instant claimNow = databaseNow();
             Instant expires = claimNow.plus(properties.leaseDuration());
             List<AiClaim> claimed = new ArrayList<>();
+            var issuedCounts = new java.util.HashMap<UUID, Integer>();
             for (AiRule rule : settings.rules()) {
                 if (claimed.size() == size) break;
                 if (!rule.enabled()) continue;
@@ -86,7 +89,9 @@ public class AiTaskRepository {
                             .addValue("game", candidate.gameCode()));
                     claimed.add(candidate);
                 }
+                if (!candidates.isEmpty()) issuedCounts.put(rule.id(), candidates.size());
             }
+            activity.issued(issuedCounts, claimNow);
             return List.copyOf(claimed);
         });
     }
@@ -209,6 +214,7 @@ public class AiTaskRepository {
                     .addValue("confidence", result.confidence()).addValue("message", result.message()).addValue("now", timestamp(now)));
             dailyStatistics.incrementAi(now, result.valid());
             disagreements.capture(imageId);
+            activity.result(imageId, now);
         });
     }
 
@@ -255,17 +261,21 @@ public class AiTaskRepository {
                     WHERE image_id=:id
                     """, new MapSqlParameterSource("id", reject.imageId())
                     .addValue("message", reject.message()).addValue("rejectedAt", timestamp(now)));
+            activity.error(reject.imageId());
         });
     }
 
     public void preparationFailed(AiClaim claim, boolean permanent, String code) {
-        jdbc.update("""
+        transactions.executeWithoutResult(tx -> {
+            int changed = jdbc.update("""
                 UPDATE ai_review_task SET status=:status, claim_id=NULL, lease_expires_at=NULL,
                   retry_after=CASE WHEN :permanent THEN NULL ELSE clock_timestamp()+INTERVAL '30 seconds' END,
                   last_error_code=:code, last_error_message=:code, last_error_at=clock_timestamp()
                 WHERE image_id=:id AND claim_id=:claim AND status='PROCESSING' AND lease_expires_at > clock_timestamp()
                 """, key(claim).addValue("status", permanent ? "FAILED" : "PENDING")
                 .addValue("permanent", permanent).addValue("code", code));
+            if (changed != 0) activity.error(claim.imageId());
+        });
     }
 
     public AiResultDetails details(String imageId) {

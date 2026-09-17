@@ -2,6 +2,7 @@ package com.introlabsystems.recognitionvalidator.ai.repository;
 
 import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleStatistics;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,14 @@ public class AiOperationsRepository {
     private final JdbcTemplate jdbc;
     private final AiSettingsRepository settingsRepository;
     private final AiTaskRepository tasks;
+    private final AiRuleActivityRepository activity;
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
+    public AiRuleActivitySnapshot activity(Instant now) {
+        jdbc.execute("SET LOCAL statement_timeout='5s'");
+        var settings = settingsRepository.read();
+        return AiRuleActivitySnapshot.from(settings.revision(), now, activity.read(now));
+    }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
     public RuleSnapshot rules(Instant now) {

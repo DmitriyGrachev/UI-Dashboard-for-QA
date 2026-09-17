@@ -18,6 +18,11 @@ public class AiOperationsController {
     private final AiOperationsRepository operations;
     private final Clock clock;
 
+    @GetMapping("/activity")
+    public ResponseEntity<com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot> activity() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.activity(clock.instant()));
+    }
+
     @GetMapping("/rules")
     public ResponseEntity<AiOperationsRepository.RuleSnapshot> rules() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.rules(clock.instant()));
