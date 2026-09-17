@@ -617,13 +617,18 @@ function initializeAiQueue(form, operations) {
     }
 
     if (activityRefresh && view?.setInterval) {
-        const timer = view.setInterval(() => { if (!doc.hidden) void refreshActivity(); }, 15000);
+        let timer = view.setInterval(() => { if (!doc.hidden) void refreshActivity(); }, 15000);
         const visible = () => { if (!doc.hidden) void refreshActivity(); };
         doc.addEventListener('visibilitychange', visible);
         view.addEventListener('pagehide', () => {
-            disposed = true; view.clearInterval(timer); activityController?.abort();
-            doc.removeEventListener('visibilitychange', visible);
-        }, {once: true});
+            disposed = true; view.clearInterval(timer); timer = null; activityController?.abort();
+        });
+        view.addEventListener('pageshow', event => {
+            if (!event.persisted) return;
+            disposed = false;
+            if (timer == null) timer = view.setInterval(() => { if (!doc.hidden) void refreshActivity(); }, 15000);
+            void refreshActivity();
+        });
     }
 
     perform(() => request(), 'Enabled rules are checked from top to bottom, oldest screenshots within each rule first.');

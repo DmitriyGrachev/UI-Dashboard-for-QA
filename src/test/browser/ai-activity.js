@@ -75,6 +75,13 @@ async (page) => {
         unavailable = false;
         await p.getByRole('button', {name: 'Refresh activity', exact: true}).click();
         await p.locator('[data-rule-cursor]:visible').waitFor();
+        const beforeNavigation = activityCalls;
+        await p.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', {persisted: true})));
+        await p.clock.fastForward(15000);
+        check(activityCalls === beforeNavigation, 'Navigation kept the activity timer running');
+        await p.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true})));
+        await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
+        check(activityCalls === beforeNavigation + 1, 'Back navigation did not resume activity');
         check(errors.length === 0, errors.join('; '));
         return {viewports, polling: 'light endpoint only, paused while hidden', draft: 'preserved', errors: 'clear cursor and retry', keyboard: 'passed', consoleErrors: errors};
     } finally { await context.close(); }
