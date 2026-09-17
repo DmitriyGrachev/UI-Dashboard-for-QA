@@ -11,8 +11,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-import static com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository.instant;
-import static com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository.timestamp;
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.instant;
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.timestamp;
 
 @Repository
 @RequiredArgsConstructor

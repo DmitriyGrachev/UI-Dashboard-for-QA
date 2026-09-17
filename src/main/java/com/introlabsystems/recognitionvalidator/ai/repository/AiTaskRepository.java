@@ -3,6 +3,7 @@ package com.introlabsystems.recognitionvalidator.ai.repository;
 import com.introlabsystems.recognitionvalidator.ai.config.AiQueueProperties;
 import com.introlabsystems.recognitionvalidator.ai.dto.*;
 import com.introlabsystems.recognitionvalidator.ai.exception.AiQueueException;
+import com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping;
 import com.introlabsystems.recognitionvalidator.config.B2StorageProperties;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.DailyStatisticsRepository;
 import com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewDisagreementRepository;
@@ -14,8 +15,6 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -23,7 +22,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import static com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository.instant;
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.instant;
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.timestamp;
 
 @Repository
 @Slf4j
@@ -280,14 +280,7 @@ public class AiTaskRepository {
 
     public AiResultDetails details(String imageId) {
         return jdbc.query("SELECT * FROM ai_review_task WHERE image_id=:id", new MapSqlParameterSource("id", imageId),
-                (rs, row) -> mapDetails(rs)).stream().findFirst().orElse(null);
-    }
-
-    private static AiResultDetails mapDetails(ResultSet rs) throws SQLException {
-        return new AiResultDetails(rs.getString("status"), rs.getObject("valid", Boolean.class), rs.getString("verdict"),
-                rs.getObject("certainty", Integer.class), rs.getObject("confidence", Integer.class), rs.getString("message"),
-                instant(rs, "checked_at"), rs.getInt("attempt_count"), rs.getString("last_error_code"),
-                rs.getString("last_error_message"), instant(rs, "last_error_at"));
+                AiJdbcMapping::resultDetails).stream().findFirst().orElse(null);
     }
 
     public Instant databaseNow() {
@@ -354,7 +347,6 @@ public class AiTaskRepository {
     private static MapSqlParameterSource key(AiReject reject) {
         return new MapSqlParameterSource("id", reject.imageId()).addValue("claim", reject.claimId());
     }
-    private static Timestamp timestamp(Instant value) { return value == null ? null : Timestamp.from(value); }
     private static void condition(StringBuilder sql, MapSqlParameterSource p, String predicate, String name, Object value) {
         if (value != null) { sql.append(" AND ").append(predicate); p.addValue(name, value); }
     }

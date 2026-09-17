@@ -1,6 +1,9 @@
 package com.introlabsystems.recognitionvalidator.ai.controller;
 
 import com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiOperationsSnapshot;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleStatisticsSnapshot;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
@@ -9,7 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
-import java.time.Instant;
 
 @RestController
 @RequestMapping("/admin/api/ai-queue/operations")
@@ -19,22 +21,17 @@ public class AiOperationsController {
     private final Clock clock;
 
     @GetMapping("/activity")
-    public ResponseEntity<com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot> activity() {
+    public ResponseEntity<AiRuleActivitySnapshot> activity() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.activity(clock.instant()));
     }
 
     @GetMapping("/rules")
-    public ResponseEntity<AiOperationsRepository.RuleSnapshot> rules() {
+    public ResponseEntity<AiRuleStatisticsSnapshot> rules() {
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.rules(clock.instant()));
     }
 
     @GetMapping
-    public ResponseEntity<View> read() {
-        var value = operations.snapshot(clock.instant());
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(new View(
-                value.enabled(), value.hasEligiblePending(), value.processing(), value.failed(), value.expired(), value.lastResult()));
+    public ResponseEntity<AiOperationsSnapshot> read() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.snapshot(clock.instant()));
     }
-
-    public record View(boolean enabled, boolean hasEligiblePending, long processing, long failed,
-                       long expired, Instant lastResult) {}
 }

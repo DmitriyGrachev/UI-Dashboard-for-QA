@@ -9,13 +9,12 @@ import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.instant;
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.timestamp;
 
 @Repository
 public class AiSettingsRepository {
@@ -65,10 +64,4 @@ public class AiSettingsRepository {
             return read();
         });
     }
-
-    static Instant instant(ResultSet rs, String field) throws SQLException {
-        Timestamp value = rs.getTimestamp(field);
-        return value == null ? null : value.toInstant();
-    }
-    static Timestamp timestamp(Instant value) { return value == null ? null : Timestamp.from(value); }
 }
