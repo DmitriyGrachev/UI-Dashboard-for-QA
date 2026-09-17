@@ -51,9 +51,12 @@ async (page) => {
             viewports.push({width, height, theme, passed: true});
         }
         const countsBefore = countCalls, activityBefore = activityCalls;
+        await first.getByRole('link', {name: 'Inspect screenshot', exact: true}).focus();
         await p.clock.fastForward(15000);
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
         check(activityCalls === activityBefore + 1 && countCalls === countsBefore, 'Polling reran heavy statistics');
+        check(await first.getByRole('link', {name: 'Inspect screenshot', exact: true}).evaluate(node => node === document.activeElement),
+            'Activity refresh lost keyboard focus');
         await p.evaluate(() => Object.defineProperty(document, 'hidden', {value: true, configurable: true}));
         await p.clock.fastForward(30000);
         check(activityCalls === activityBefore + 1, 'Hidden page kept polling');

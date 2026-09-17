@@ -184,6 +184,7 @@ function initializeAiQueue(form, operations) {
             }
             const container = node.querySelector('[data-rule-activity]');
             if (!container) return;
+            const focusedLink = container.querySelector('a:focus')?.textContent;
             container.replaceChildren();
             const value = values.get(node.dataset.ruleId);
             if (!value) return;
@@ -206,6 +207,8 @@ function initializeAiQueue(form, operations) {
                 const p = line(`Last recorded error: ${formatAiTime(value.lastErrorAt)} · ${value.lastErrorCode || ''} · ${value.lastErrorMessage || ''} `);
                 link(p, value.lastErrorImageId, 'Inspect screenshot');
             }
+            if (focusedLink) Array.from(container.querySelectorAll('a'))
+                .find(a => a.textContent === focusedLink)?.focus({preventScroll: true});
         });
         activityMessage.dataset.error = String(Boolean(activityError));
         activityMessage.textContent = activityError ? `${activityError} Select Refresh activity to retry.`
