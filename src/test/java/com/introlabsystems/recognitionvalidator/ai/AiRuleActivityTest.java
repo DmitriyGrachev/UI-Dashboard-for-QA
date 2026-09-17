@@ -17,6 +17,21 @@ class AiRuleActivityTest extends AiTestSupport {
     @Autowired AiTaskRepository tasks;
     @Autowired AiSettingsRepository settings;
     @Autowired com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository activities;
+    @Autowired com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository operations;
+
+    @Test
+    void cursorMarksEveryRuleInTheSameBatchAndNeverInventsHistoricalActivity() {
+        var first = AiSettingsRepositoryTest.rule(1, 53L);
+        var second = AiSettingsRepositoryTest.rule(2, null);
+        var saved = settings.save(new AiSettings(0, true, List.of(first, second)));
+        var now = java.time.Instant.parse("2026-09-17T10:00:00Z");
+        assertThat(operations.activity(now).lastIssuedRuleIds()).isEmpty();
+        activities.issued(java.util.Map.of(first.id(), 2, second.id(), 3), now);
+        assertThat(operations.activity(now).lastIssuedRuleIds()).containsExactly(first.id(), second.id());
+        activities.issued(java.util.Map.of(second.id(), 1), now.plusNanos(1000));
+        assertThat(operations.activity(now).lastIssuedRuleIds()).containsExactly(second.id());
+        assertThat(operations.activity(now).revision()).isEqualTo(saved.revision());
+    }
 
     @Test
     void snapshotShowsAllExpiredLeasesAndDisabledRulesWithoutChangingTasks() {

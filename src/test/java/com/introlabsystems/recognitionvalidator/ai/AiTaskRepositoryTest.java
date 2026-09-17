@@ -40,10 +40,11 @@ class AiTaskRepositoryTest extends AiTestSupport {
     @Test
     void concurrentThreadsClaimDistinctImagesWithOneSharedConfiguration() throws Exception {
         for (int i = 1; i <= 20; i++) image(i, 53);
+        var configuration = all();
         try (ExecutorService pool = Executors.newFixedThreadPool(5)) {
             CountDownLatch start = new CountDownLatch(1);
             List<Future<List<AiClaim>>> futures = new ArrayList<>();
-            for (int i = 0; i < 5; i++) futures.add(pool.submit(() -> { start.await(); return tasks.claim(all(), 4); }));
+            for (int i = 0; i < 5; i++) futures.add(pool.submit(() -> { start.await(); return tasks.claim(configuration, 4); }));
             start.countDown();
             List<String> ids = new ArrayList<>();
             for (var future : futures) ids.addAll(future.get(5, TimeUnit.SECONDS).stream().map(AiClaim::imageId).toList());
@@ -106,6 +107,61 @@ class AiTaskRepositoryTest extends AiTestSupport {
         assertThat(tasks.claim(new AiSettings(0, true, List.of(rule(1, 999L))), 1)).isEmpty();
         jdbc.update("UPDATE image_asset SET file_available=false, cloud_object_key='test.png', cloud_uploaded_at=now() WHERE id=?", id);
         assertThat(tasks.claim(all(), 1)).isEmpty();
+    }
+
+    @Test
+    void concurrentClaimsWithDifferentRuleOrdersKeepOwnershipAndAvoidActivityDeadlocks() throws Exception {
+        var first = rule(1, 53L);
+        var second = rule(2, 7L);
+        var fallback = rule(3, null);
+        var normal = new AiSettings(0, true, List.of(first, second, fallback));
+        var reversed = new AiSettings(1, true, List.of(
+                new AiRule(second.id(), second.name(), true, 1, second.gameCode(), null, null, 7L, null, null),
+                new AiRule(first.id(), first.name(), true, 2, first.gameCode(), null, null, 53L, null, null), fallback));
+        for (int i = 1; i <= 60; i++) image(i, i % 3 == 0 ? 53 : i % 3 == 1 ? 7 : 999);
+        var gate = new CountDownLatch(1);
+        List<String> issued = new ArrayList<>();
+        try (var pool = Executors.newFixedThreadPool(6)) {
+            var futures = new ArrayList<Future<List<AiClaim>>>();
+            for (int i = 0; i < 6; i++) {
+                var config = i % 2 == 0 ? normal : reversed;
+                futures.add(pool.submit(() -> { gate.await(); return tasks.claim(config, 15); }));
+            }
+            gate.countDown();
+            for (var future : futures) issued.addAll(future.get(10, TimeUnit.SECONDS).stream().map(AiClaim::imageId).toList());
+        }
+        for (int i = 0; i < 3; i++) issued.addAll(tasks.claim(normal, 20).stream().map(AiClaim::imageId).toList());
+        assertThat(issued).hasSize(60).doesNotHaveDuplicates();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM ai_review_task WHERE issued_rule_id <>
+                  CASE WHEN token_id=53 THEN ?::uuid WHEN token_id=7 THEN ?::uuid ELSE ?::uuid END
+                """, Long.class, first.id(), second.id(), fallback.id())).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_rule_activity", Long.class)).isEqualTo(3);
+    }
+
+    @Test
+    void expiredClaimsRecoverConcurrentlyAndOldResultsCannotOverwriteTheirNewOwners() throws Exception {
+        var config = all();
+        for (int i = 1; i <= 40; i++) image(i, 53);
+        var old = new ArrayList<>(tasks.claim(config, 20));
+        old.addAll(tasks.claim(config, 20));
+        jdbc.update("UPDATE ai_review_task SET lease_expires_at=now()-interval '1 minute'");
+        var gate = new CountDownLatch(1);
+        List<AiClaim> renewed = new ArrayList<>();
+        try (var pool = Executors.newFixedThreadPool(4)) {
+            var futures = new ArrayList<Future<List<AiClaim>>>();
+            for (int i = 0; i < 4; i++) futures.add(pool.submit(() -> { gate.await(); return tasks.claim(config, 10); }));
+            gate.countDown();
+            for (var future : futures) renewed.addAll(future.get(10, TimeUnit.SECONDS));
+        }
+        for (int i = 0; i < 2; i++) renewed.addAll(tasks.claim(config, 20));
+        assertThat(renewed).extracting(AiClaim::imageId).hasSize(40).doesNotHaveDuplicates();
+        var stale = old.getFirst();
+        assertThatThrownBy(() -> tasks.complete(stale.imageId(), new AiResult(stale.claimId(), true, "MATCH", 99, 99, "old")))
+                .hasMessageContaining("STALE_CLAIM");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_review_task WHERE status='PROCESSING' AND attempt_count=2", Long.class)).isEqualTo(40);
+        assertThat(jdbc.queryForObject("SELECT last_result_at FROM ai_rule_activity WHERE rule_id=?", java.sql.Timestamp.class,
+                config.rules().getFirst().id())).isNull();
     }
 
     @Test
