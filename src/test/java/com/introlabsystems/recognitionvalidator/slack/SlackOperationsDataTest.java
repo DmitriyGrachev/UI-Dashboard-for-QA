@@ -53,6 +53,9 @@ class SlackOperationsDataTest {
         insertAiImage(6, "PENDING", false, 11L, "session-a", null, null, null);
         insertAiImage(7, "PENDING", true, 12L, "session-a", null, null, null);
         insertAiImage(8, "FAILED", true, 11L, "session-a", null, null, null);
+        // Global diagnostics include tasks issued by deleted rules, as well as legacy NULL rule IDs.
+        jdbc.update("UPDATE ai_review_task SET issued_rule_id=? WHERE image_id IN (?, ?)",
+                UUID.randomUUID(), id(5), id(8));
 
         jdbc.update("UPDATE ai_queue_settings SET enabled = TRUE WHERE id = 1");
         insertRule("rule-a", 1, 11L, "session-a");

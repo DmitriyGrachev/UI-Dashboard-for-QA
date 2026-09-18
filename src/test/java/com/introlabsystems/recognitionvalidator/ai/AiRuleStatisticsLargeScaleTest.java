@@ -38,6 +38,48 @@ import static org.mockito.Mockito.*;
 @EnabledIfSystemProperty(named = "ai.rules.scale.url", matches = "jdbc:postgresql://.+")
 class AiRuleStatisticsLargeScaleTest {
     @Test
+    void globalOperationsReadOnlyOperationalIndexes() throws Exception {
+        try (var connection = DriverManager.getConnection(System.getProperty("ai.rules.scale.url"), "validator", "validator")) {
+            var dataSource = new SingleConnectionDataSource(connection, true);
+            var jdbc = spy(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
+            assertThat(jdbc.queryForObject("SELECT current_database()", String.class)).isEqualTo("rv_ai_stats_analysis");
+            connection.setReadOnly(true);
+            var output = Path.of("target/ai-rule-statistics-scale");
+            Files.createDirectories(output);
+            Files.write(output.resolve("operations-old-plan.txt"), jdbc.queryForList("""
+                    EXPLAIN (ANALYZE, BUFFERS)
+                    SELECT COUNT(*) FILTER (WHERE status='PROCESSING') AS processing,
+                           COUNT(*) FILTER (WHERE status='FAILED') AS failed,
+                           COUNT(*) FILTER (WHERE status='PROCESSING' AND lease_expires_at <= '2026-09-16T10:00:00Z') AS expired
+                    FROM ai_review_task
+                    """, String.class));
+            var settings = mock(com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository.class);
+            when(settings.read()).thenReturn(new AiSettings(0, false, List.of()));
+            var repository = new com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository(
+                    jdbc, settings, mock(AiTaskRepository.class),
+                    mock(com.introlabsystems.recognitionvalidator.ai.repository.AiRuleActivityRepository.class));
+            var transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+            transaction.setReadOnly(true);
+            transaction.setTimeout(5);
+            Instant now = Instant.parse("2026-09-16T10:00:00Z");
+            for (int run = 0; run < 3; run++) {
+                long started = System.nanoTime();
+                var snapshot = transaction.execute(tx -> repository.snapshot(now));
+                assertThat(snapshot.processing()).isEqualTo(44_000);
+                assertThat(snapshot.failed()).isEqualTo(44_000);
+                assertThat(snapshot.expired()).isEqualTo(44_000);
+                System.out.printf("AI_OPERATIONS_SCALE run=%d ms=%d%n", run + 1, (System.nanoTime() - started) / 1_000_000);
+            }
+            var sql = ArgumentCaptor.forClass(String.class);
+            verify(jdbc, times(3)).queryForObject(sql.capture(), any(RowMapper.class), any(java.sql.Timestamp.class));
+            var plan = jdbc.queryForList("EXPLAIN (ANALYZE, BUFFERS) " + sql.getValue(), String.class, java.sql.Timestamp.from(now));
+            Files.write(output.resolve("operations-plan.txt"), plan);
+            assertThat(String.join("\n", plan)).doesNotContain("Seq Scan on ai_review_task")
+                    .contains("Index Only Scan");
+        }
+    }
+
+    @Test
     void exactRuleCountsFitFiveSecondsWhereLegacyQueryTimesOut() throws Exception {
         try (var connection = DriverManager.getConnection(System.getProperty("ai.rules.scale.url"), "validator", "validator")) {
             var dataSource = new SingleConnectionDataSource(connection, true);

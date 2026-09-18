@@ -21,6 +21,8 @@ BEGIN
       $p$((issued_rule_id IS NOT NULL) AND ((status)::text = ANY ((ARRAY['PROCESSING'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying])::text[])))$p$),
     ('ix_ai_rule_overdue', 'ai_review_task', ARRAY['lease_expires_at','issued_rule_id','image_id'], 1,
       $p$((status)::text = 'PROCESSING'::text)$p$),
+    ('ix_ai_failed_tasks', 'ai_review_task', ARRAY['file_created_at','image_id','issued_rule_id'], 2,
+      $p$((status)::text = 'FAILED'::text)$p$),
     ('ix_ai_pending_rule_stats', 'ai_review_task', ARRAY['image_id','game_code','file_created_at','token_id','session_id','has_user_hand','retry_after','file_available','cloud_available_at'], 1,
       $p$(((status)::text = 'PENDING'::text) AND (file_available OR (cloud_available_at IS NOT NULL)))$p$),
     ('ix_image_ai_availability', 'image_asset', ARRAY['id','file_available','cloud_uploaded_at'], 1,
@@ -32,7 +34,7 @@ BEGIN
         WHERE i.indexrelid=to_regclass(expected.name)
           AND i.indrelid=to_regclass(expected.table_name) AND am.amname='btree'
           AND NOT i.indisunique AND i.indnkeyatts=expected.key_count
-          AND (expected.name IN ('ix_ai_issued_rule_status','ix_ai_rule_overdue') OR i.indcollation[0]='"C"'::regcollation)
+          AND (expected.name IN ('ix_ai_issued_rule_status','ix_ai_rule_overdue','ix_ai_failed_tasks') OR i.indcollation[0]='"C"'::regcollation)
           AND ARRAY(SELECT pg_get_indexdef(i.indexrelid,n,true) FROM generate_series(1,i.indnatts) n)=expected.col_names
           AND pg_get_expr(i.indpred,i.indrelid)=expected.predicate
     ) THEN
@@ -43,7 +45,7 @@ END $$;
 
 SELECT format('DROP INDEX CONCURRENTLY %I.%I', n.nspname, c.relname)
 FROM pg_index i JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_namespace n ON n.oid=c.relnamespace
-WHERE i.indexrelid IN (to_regclass('ix_ai_issued_rule_status'),to_regclass('ix_ai_rule_overdue'),to_regclass('ix_ai_pending_rule_stats'),
+WHERE i.indexrelid IN (to_regclass('ix_ai_issued_rule_status'),to_regclass('ix_ai_rule_overdue'),to_regclass('ix_ai_failed_tasks'),to_regclass('ix_ai_pending_rule_stats'),
                       to_regclass('ix_image_ai_availability')) AND NOT i.indisvalid
 \gexec
 
@@ -56,6 +58,11 @@ CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_issued_rule_status
 CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_rule_overdue
     ON ai_review_task (lease_expires_at) INCLUDE (issued_rule_id, image_id)
     WHERE status='PROCESSING';
+
+-- Count failures even without a current issuing rule, and page through them in the Explorer.
+CREATE INDEX CONCURRENTLY IF NOT EXISTS ix_ai_failed_tasks
+    ON ai_review_task (file_created_at, image_id) INCLUDE (issued_rule_id)
+    WHERE status='FAILED';
 
 -- The existing claim indexes do not cover availability, retries, and all rule conditions.
 -- This reads only compact PENDING index entries instead of wide result/message heap pages.

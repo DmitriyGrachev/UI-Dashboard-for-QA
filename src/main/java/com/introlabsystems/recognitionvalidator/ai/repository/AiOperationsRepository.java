@@ -42,10 +42,12 @@ public class AiOperationsRepository {
         jdbc.execute("SET LOCAL statement_timeout='5s'");
         AiSettings settings = settingsRepository.read();
         long[] counts = jdbc.queryForObject("""
-                SELECT COUNT(*) FILTER (WHERE status='PROCESSING') AS processing,
-                       COUNT(*) FILTER (WHERE status='FAILED') AS failed,
-                       COUNT(*) FILTER (WHERE status='PROCESSING' AND lease_expires_at <= ?) AS expired
-                FROM ai_review_task
+                SELECT active.processing, active.expired,
+                       (SELECT COUNT(*) FROM ai_review_task WHERE status='FAILED') AS failed
+                FROM (
+                    SELECT COUNT(*) AS processing, COUNT(*) FILTER (WHERE lease_expires_at <= ?) AS expired
+                    FROM ai_review_task WHERE status='PROCESSING'
+                ) active
                 """, (rs, row) -> new long[]{rs.getLong("processing"), rs.getLong("failed"), rs.getLong("expired")},
                 Timestamp.from(now));
         Timestamp lastResult = jdbc.queryForObject("SELECT MAX(last_checked_at) FROM ai_daily_statistics", Timestamp.class);
