@@ -49,11 +49,11 @@ test('viewer leaves modified browser shortcuts alone', () => {
 
 test('restoring selection does not filter the search by its ID', () => {
     const source = read('admin-screenshots');
-    const body = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function storageLabel('));
+    const body = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function ensureRuleOption('));
     const fields = {};
     const elements = new Proxy(fields, {get: (target, name) => target[name] ||= {value: ''}});
     const restore = vm.runInNewContext(`(${body.trim()})`, {
-        URLSearchParams, elements,
+        URLSearchParams, elements, ensureRuleOption() {},
         setInputFromQuery: (input, params, name, fallback = '') => { input.value = params.get(name) || fallback; },
         writeBoundary: (input, value) => { input.value = value || ''; }, updateCheckedOnlyControls() {}
     });

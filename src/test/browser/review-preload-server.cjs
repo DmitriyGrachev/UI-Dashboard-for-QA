@@ -22,15 +22,19 @@ const remote = http.createServer((req, res) => {
 });
 const app = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1:18992");
-    if (url.pathname === "/review" || url.pathname === "/admin/ai-queue") {
+    if (["/review", "/admin/ai-queue", "/admin/screenshots"].includes(url.pathname)) {
         held.forEach(release => release()); held = [];
         scenario = url.searchParams.get("case") || "match"; counts = {}; decisions = 0; claims = [];
-        const template = url.pathname === "/review" ? "review.html" : "admin-ai-queue.html";
+        const template = url.pathname === "/review" ? "review.html"
+            : url.pathname === "/admin/screenshots" ? "admin-screenshots.html" : "admin-ai-queue.html";
         let html = fs.readFileSync(path.join(root, "templates", template), "utf8")
             .replace(/th:(src|href|action)="@\{([^}]+)\}"/g, '$1="$2"')
             .replace(/th:content="\$\{_csrf.token\}"/, 'content="test"')
-            .replace(/th:content="\$\{_csrf.headerName\}"/, 'content="X-CSRF-TOKEN"')
-            .replace(/<script[^>]*src="[^"]*(flatpickr|time-segment-combobox|utc-datetime-picker)[^"]*"[^>]*><\/script>/g, "")
+            .replace(/th:content="\$\{_csrf.headerName\}"/, 'content="X-CSRF-TOKEN"');
+        if (url.pathname === "/admin/screenshots") {
+            html = html.replace(/<script[^>]*src="[^"]*flatpickr[^"]*"[^>]*><\/script>/g, "")
+                .replace(/<link[^>]*flatpickr[^>]*>/g, "");
+        } else html = html.replace(/<script[^>]*src="[^"]*(flatpickr|time-segment-combobox|utc-datetime-picker)[^"]*"[^>]*><\/script>/g, "")
             .replace(/<link[^>]*flatpickr[^>]*>/g, "")
             .replace("</head>", '<script>window.UtcDateTimePicker={createRange:()=>({clear(){}})};</script></head>');
         res.writeHead(200, {"Content-Type": "text/html"}); res.end(html); return;

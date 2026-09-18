@@ -257,6 +257,10 @@ function initializeAiQueue(form, operations) {
             const value = counts.get(node.dataset.ruleId);
             node.querySelectorAll('[data-rule-stat]').forEach(target => {
                 target.textContent = value ? Number(value[target.dataset.ruleStat]).toLocaleString('en-US') : '—';
+                if (target.dataset.ruleStat === 'failed') {
+                    if (value) target.setAttribute('href', `/admin/screenshots?aiTaskStatus=FAILED&issuedRuleId=${encodeURIComponent(value.ruleId)}`);
+                    else target.removeAttribute('href');
+                }
             });
         });
         statsMessage.dataset.error = String(Boolean(statsError));

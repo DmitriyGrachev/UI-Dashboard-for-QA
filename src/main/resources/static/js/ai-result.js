@@ -18,6 +18,8 @@ function aiResultText(ai) {
     const percent = value => value == null ? '—' : `${value}%`;
     if (ai.status !== 'COMPLETED') {
         return `AI: Unchecked (${ai.status})${ai.lastErrorCode ? ` · ${ai.lastErrorCode}` : ''}`
+            + `${ai.attemptCount != null ? `\nAssignment attempts: ${ai.attemptCount}` : ''}`
+            + `${ai.issuedRuleId ? `\nIssuing rule: ${ai.issuedRuleName || ai.issuedRuleId}` : ''}`
             + `${ai.lastErrorMessage ? `\n${ai.lastErrorMessage}` : ''}`
             + `${ai.lastErrorAt ? `\n${ai.lastErrorAt}` : ''}`;
     }
@@ -66,13 +68,16 @@ function renderAiResult(container, ai) {
     }
     if (ai?.status === 'COMPLETED') container.append(node('p', 'ai-explanation', 'AI suggestion. The operator makes the final decision.'));
     if (result.message) container.append(node('p', 'ai-explanation', result.message));
-    if (ai?.checkedAt || ai?.lastErrorCode || ai?.status === 'COMPLETED' || ai?.attemptCount != null) {
+    if (ai?.checkedAt || ai?.lastErrorCode || ai?.status === 'COMPLETED' || ai?.attemptCount != null || ai?.issuedRuleId) {
         const details = node('details', 'ai-diagnostics', '');
+        details.open = ai?.status === 'FAILED';
         details.append(node('summary', '', 'Check details'));
         if (ai.attemptCount != null) details.append(node('p', '', `Assignment attempts: ${ai.attemptCount}`));
         if (ai.status === 'COMPLETED') details.append(node('p', '', 'Certainty: ' + (result.certainty == null ? '—' : result.certainty + '%')));
         if (ai.checkedAt) details.append(node('p', '', `Checked: ${ai.checkedAt}`));
         if (ai.lastErrorCode) details.append(node('p', '', `Error: ${ai.lastErrorCode}`));
+        if (ai.lastErrorAt) details.append(node('p', '', `Last error: ${ai.lastErrorAt}`));
+        if (ai.issuedRuleId) details.append(node('p', '', `Issuing rule: ${ai.issuedRuleName ? `${ai.issuedRuleName} · ` : ''}${ai.issuedRuleId}`));
         container.append(details);
     }
 }

@@ -30,6 +30,8 @@ function buildSearchParams(filters, cursor = null) {
     appendIfPresent(params, "notification", filters.notification);
     appendIfPresent(params, "hasUserHand", filters.hasUserHand);
     appendIfPresent(params, "aiResult", filters.aiResult);
+    appendIfPresent(params, "aiTaskStatus", filters.aiTaskStatus);
+    appendIfPresent(params, "issuedRuleId", filters.issuedRuleId);
     appendIfPresent(params, "aiVerdict", filters.aiVerdict);
     appendIfPresent(params, "confidenceFrom", filters.confidenceFrom);
     appendIfPresent(params, "confidenceTo", filters.confidenceTo);
@@ -208,6 +210,8 @@ if (typeof document !== "undefined") {
         notification: byId("explorer-notification"),
         hasUserHand: byId("explorer-has-user-hand"),
         aiResult: byId("explorer-ai-result"),
+        aiTaskStatus: byId("explorer-ai-task-status"),
+        issuedRuleId: byId("explorer-issued-rule"),
         aiVerdict: byId("explorer-ai-verdict"),
         confidenceFrom: byId("explorer-confidence-from"),
         confidenceTo: byId("explorer-confidence-to"),
@@ -321,6 +325,8 @@ if (typeof document !== "undefined") {
             notification: elements.notification.value,
             hasUserHand: elements.hasUserHand.value,
             aiResult: elements.aiResult.value,
+            aiTaskStatus: elements.aiTaskStatus.value,
+            issuedRuleId: elements.issuedRuleId.value,
             aiVerdict: elements.aiVerdict.value,
             confidenceFrom: elements.confidenceFrom.value,
             confidenceTo: elements.confidenceTo.value,
@@ -353,7 +359,8 @@ if (typeof document !== "undefined") {
             const labels = {gameCode: 'Game', imageId: 'Image ID', sessionId: 'Session', tokenId: 'Token',
                 createdFrom: 'Created from', createdTo: 'Created to', reviewedFrom: 'Reviewed from',
                 reviewedTo: 'Reviewed to', decision: 'Decision', reviewState: 'Review', aiResult: 'AI result',
-                aiVerdict: 'AI verdict', confidenceFrom: 'Confidence from', confidenceTo: 'Confidence to'};
+                aiVerdict: 'AI verdict', aiTaskStatus: 'AI task status', issuedRuleId: 'Issuing rule',
+                confidenceFrom: 'Confidence from', confidenceTo: 'Confidence to'};
             const conditions = Array.from(buildSearchParams(state.appliedFilters))
                 .filter(([key, value]) => key !== 'limit' && !(key === 'reviewState' && value === 'ALL'))
                 .map(([key, value]) => (labels[key] || key) + ': ' + value);
@@ -444,6 +451,9 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.notification, params, "notification");
         setInputFromQuery(elements.hasUserHand, params, "hasUserHand");
         setInputFromQuery(elements.aiResult, params, "aiResult");
+        setInputFromQuery(elements.aiTaskStatus, params, "aiTaskStatus");
+        ensureRuleOption(params.get("issuedRuleId"));
+        setInputFromQuery(elements.issuedRuleId, params, "issuedRuleId");
         setInputFromQuery(elements.aiVerdict, params, "aiVerdict");
         setInputFromQuery(elements.confidenceFrom, params, "confidenceFrom");
         setInputFromQuery(elements.confidenceTo, params, "confidenceTo");
@@ -451,6 +461,28 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.fileName, params, "fileName");
         updateCheckedOnlyControls();
         return params.get("selected");
+    }
+
+    function ensureRuleOption(id) {
+        if (id && !Array.from(elements.issuedRuleId.options).some(option => option.value === id)) {
+            elements.issuedRuleId.add(new Option(`Rule ${id} (name unavailable)`, id));
+        }
+    }
+
+    async function loadIssuingRules() {
+        try {
+            const settings = await fetchJson('/admin/api/ai-queue/settings');
+            const selected = elements.issuedRuleId.value;
+            elements.issuedRuleId.replaceChildren(new Option('All issuing rules', ''));
+            settings.rules.forEach(rule => elements.issuedRuleId.add(
+                new Option(`${rule.name}${rule.enabled ? '' : ' (disabled)'}`, rule.id)));
+            ensureRuleOption(selected);
+            elements.issuedRuleId.value = selected;
+        } catch {
+            const message = byId('explorer-rule-load-message');
+            message.textContent = 'Rule names unavailable. The selected rule ID still applies. Reload the page to retry.';
+            message.hidden = false;
+        }
     }
 
     function storageLabel(value) {
@@ -1042,6 +1074,7 @@ if (typeof document !== "undefined") {
     });
 
     const selectedId = restoreFromUrl();
+    void loadIssuingRules();
     clearSelection();
     refreshStorage();
     search({selectedId});

@@ -1,7 +1,9 @@
 package com.introlabsystems.recognitionvalidator.ai.dto;
 
 import java.time.Instant;
+import java.util.UUID;
 
 public record AiResultDetails(String status, Boolean valid, String verdict, Integer certainty,
                               Integer confidence, String message, Instant checkedAt,
-                              int attemptCount, String lastErrorCode, String lastErrorMessage, Instant lastErrorAt) {}
+                              int attemptCount, String lastErrorCode, String lastErrorMessage, Instant lastErrorAt,
+                              UUID issuedRuleId, String issuedRuleName) {}

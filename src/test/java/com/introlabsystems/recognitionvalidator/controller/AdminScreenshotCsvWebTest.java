@@ -21,6 +21,56 @@ class AdminScreenshotCsvWebTest extends AbstractWebIntegrationTest {
     private static final String EXPORT = "/admin/api/screenshots/export.csv";
 
     @Test
+    void failedTaskFiltersAgreeAcrossSearchSummaryAndCsvAndExposeDiagnostics() throws Exception {
+        String rule = "11111111-1111-1111-1111-111111111111";
+        String other = "22222222-2222-2222-2222-222222222222";
+        for (int i = 1; i <= 6; i++) {
+            String id = insertReviewImage(i, "failed-" + i + ".png", false,
+                    i % 2 == 0 ? "bj_igt" : "bj_single_deck_ags", "diagnostics", null, "Two", null);
+            jdbc.update("""
+                    INSERT INTO ai_review_task(image_id,status,file_created_at,game_code,is_notification,has_user_hand,
+                        issued_rule_id,attempt_count,last_error_code,last_error_message,last_error_at,valid,verdict)
+                    SELECT image_id,?,file_created_at,game_code,false,true,?::uuid,3,'AI_REJECTED',?,now(),false,'MISMATCH'
+                    FROM review_task WHERE image_id=?
+                    """, i <= 3 ? "FAILED" : i == 4 ? "COMPLETED" : i == 5 ? "PROCESSING" : "PENDING",
+                    i == 3 ? other : rule, "<script>untrusted error</script>", id);
+        }
+        for (var filters : List.of(Map.of("aiTaskStatus", "FAILED"),
+                Map.of("aiTaskStatus", "FAILED", "issuedRuleId", rule),
+                Map.of("issuedRuleId", other), Map.of("aiTaskStatus", "FAILED", "gameCode", "bj_igt"),
+                Map.of("aiTaskStatus", "FAILED", "aiResult", "UNCHECKED"),
+                Map.of("aiTaskStatus", "PROCESSING"), Map.of("aiTaskStatus", "COMPLETED"), Map.of("aiTaskStatus", "PENDING"),
+                Map.of("aiTaskStatus", "FAILED", "aiResult", "CHECKED"))) {
+            var result = mapper.readTree(mockMvc.perform(request("/admin/api/screenshots", filters))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+            List<String> ids = new ArrayList<>();
+            result.get("items").forEach(item -> ids.add(item.get("imageId").asText()));
+            int expected = "CHECKED".equals(filters.get("aiResult")) ? 0 : filters.containsKey("gameCode") ? 1
+                    : filters.containsKey("aiTaskStatus") && !"FAILED".equals(filters.get("aiTaskStatus")) ? 1
+                    : rule.equals(filters.get("issuedRuleId")) ? 2 : other.equals(filters.get("issuedRuleId")) ? 1 : 3;
+            assertThat(ids).as("filters %s", filters).hasSize(expected);
+            mockMvc.perform(request("/admin/api/screenshots/summary", filters))
+                    .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(expected));
+            var csv = parse(mockMvc.perform(request(EXPORT, filters)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+            assertThat(csv.subList(1, csv.size()).stream().map(row -> row.getFirst()).toList()).containsExactlyElementsOf(ids);
+        }
+        mockMvc.perform(request("/admin/api/screenshots/" + "%064x".formatted(1), Map.of()))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.ai.status").value("FAILED"))
+                .andExpect(jsonPath("$.ai.attemptCount").value(3))
+                .andExpect(jsonPath("$.ai.issuedRuleId").value(rule))
+                .andExpect(jsonPath("$.ai.lastErrorMessage").value("<script>untrusted error</script>"));
+    }
+
+    @Test
+    void operationalFiltersRejectInvalidStatusAndRuleId() throws Exception {
+        for (String path : List.of("/admin/api/screenshots", "/admin/api/screenshots/summary", EXPORT)) {
+            mockMvc.perform(request(path, Map.of("aiTaskStatus", "BROKEN"))).andExpect(status().isBadRequest());
+            mockMvc.perform(request(path, Map.of("issuedRuleId", "not-a-uuid"))).andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void exportsAllPagesIncludingMissingFilesWithoutChangingTasks() throws Exception {
         for (int i = 1; i <= 103; i++) insertReviewImage(i, "missing-" + i + ".png", false, "bj_igt", "export", null, "Two", null);
         var before = jdbc.queryForList("SELECT * FROM review_task ORDER BY image_id");

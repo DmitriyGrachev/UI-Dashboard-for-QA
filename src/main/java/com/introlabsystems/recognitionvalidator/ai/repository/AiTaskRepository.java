@@ -279,7 +279,10 @@ public class AiTaskRepository {
     }
 
     public AiResultDetails details(String imageId) {
-        return jdbc.query("SELECT * FROM ai_review_task WHERE image_id=:id", new MapSqlParameterSource("id", imageId),
+        return jdbc.query("""
+                SELECT ai.*, rule.name AS issued_rule_name FROM ai_review_task ai
+                LEFT JOIN ai_selection_rule rule ON rule.id=ai.issued_rule_id WHERE ai.image_id=:id
+                """, new MapSqlParameterSource("id", imageId),
                 AiJdbcMapping::resultDetails).stream().findFirst().orElse(null);
     }
 

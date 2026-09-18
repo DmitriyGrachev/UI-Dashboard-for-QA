@@ -29,7 +29,7 @@ public final class AiResultFilterSql {
             sql.append(" AND FALSE");
             return;
         }
-        if (joined) sql.append(" AND ai.status = 'COMPLETED'");
+        if (joined) sql.append(state == AiResultState.UNCHECKED ? " AND ai.status <> 'COMPLETED'" : " AND ai.status = 'COMPLETED'");
         else {
             sql.append(state == AiResultState.UNCHECKED ? " AND NOT EXISTS (" : " AND EXISTS (");
             sql.append("SELECT 1 FROM ai_review_task ai WHERE ai.image_id = rt.image_id AND ai.status = 'COMPLETED'");

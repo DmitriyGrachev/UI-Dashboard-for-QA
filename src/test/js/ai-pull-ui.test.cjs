@@ -3,6 +3,18 @@ const assert = require('node:assert/strict');
 const {aiResultText, aiFilterValues} = require('../../main/resources/static/js/ai-result.js');
 const {buildSearchParams} = require('../../main/resources/static/js/admin-screenshots.js');
 
+test('operational failure and rule filters survive pagination and CSV export', () => {
+    const filters = {aiTaskStatus: 'FAILED', issuedRuleId: '11111111-1111-1111-1111-111111111111'};
+    const params = buildSearchParams(filters, {createdAt:'2026-09-18T00:00:00Z', id:'abc'});
+    assert.equal(params.get('aiTaskStatus'), 'FAILED');
+    assert.equal(params.get('issuedRuleId'), filters.issuedRuleId);
+    const {csvExportUrl} = require('../../main/resources/static/js/admin-screenshots.js');
+    const csv = new URL(csvExportUrl(filters), 'http://localhost');
+    assert.equal(csv.searchParams.get('aiTaskStatus'), 'FAILED');
+    assert.equal(csv.searchParams.get('issuedRuleId'), filters.issuedRuleId);
+    assert.equal(csv.searchParams.has('cursorId'), false);
+});
+
 test('AI state survives cursor pagination without retired certainty filters', () => {
     const params = buildSearchParams({aiResult:'CHECKED', certaintyFrom:0, certaintyTo:50},
         {createdAt:'2026-09-03T00:00:00Z', id:'abc'});
@@ -56,12 +68,16 @@ test('AI diagnostics show assignment attempts even before a result or error exis
     const {renderAiResult} = require('../../main/resources/static/js/ai-result.js');
     const container = testDocument().createElement('section');
     for (const [status, attemptCount] of [['PENDING', 0], ['PROCESSING', 2], ['FAILED', 3], ['COMPLETED', 1]]) {
-        renderAiResult(container, {status, attemptCount, verdict: 'MISMATCH', lastErrorMessage: '<img onerror=alert(1)>'});
+        renderAiResult(container, {status, attemptCount, verdict: 'MISMATCH', lastErrorMessage: '<img onerror=alert(1)>',
+            issuedRuleId: 'rule-1', issuedRuleName: '<script>name</script>', lastErrorAt: '2026-09-18T12:00:00Z'});
         const details = container.children.find(node => node.tagName === 'details');
         assert.ok(details, status);
         assert.ok(details.children.some(node => node.textContent === `Assignment attempts: ${attemptCount}`), status);
         assert.equal(details.children[0].tagName, 'summary');
         assert.equal(details.children[0].textContent, 'Check details');
+        assert.equal(details.open, status === 'FAILED');
+        assert.ok(details.children.some(node => node.textContent === 'Issuing rule: <script>name</script> · rule-1'));
+        assert.ok(details.children.some(node => node.textContent === 'Last error: 2026-09-18T12:00:00Z'));
         assert.ok(container.children.every(node => node.tagName !== 'img'));
     }
     renderAiResult(container, null);

@@ -53,7 +53,7 @@
                 <div><dt>New assignments</dt><dd id="ai-operations-state">Loading…</dd></div>
                 <div><dt>Work available</dt><dd id="ai-operations-eligible">—</dd></div>
                 <div><dt>In progress</dt><dd id="ai-operations-processing">—</dd></div>
-                <div><dt>Failed</dt><dd id="ai-operations-failed">—</dd></div>
+                <div><dt>Failed</dt><dd><a id="ai-operations-failed" href="/admin/screenshots?aiTaskStatus=FAILED" aria-label="Show all failed AI tasks">—</a></dd></div>
                 <div><dt>Response deadline exceeded</dt><dd id="ai-operations-expired">—</dd></div>
                 <div><dt>Last accepted result (UTC)</dt><dd id="ai-operations-last-result">—</dd></div>
             </dl>
@@ -102,7 +102,7 @@
                             <span>Remaining <strong data-rule-stat="remaining">—</strong></span>
                             <span>Processing <strong data-rule-stat="processing">—</strong></span>
                             <span>Completed <strong data-rule-stat="completed">—</strong></span>
-                            <span>Failed <strong data-rule-stat="failed">—</strong></span>
+                            <span>Failed <a data-rule-stat="failed" aria-label="Show failed AI tasks for this rule">—</a></span>
                         </span>
                     </summary>
                     <div class="ai-rule-activity" data-rule-activity></div>

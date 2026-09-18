@@ -209,6 +209,21 @@
                         <option value="NO_HANDS_FOUND">No hands found</option>
                     </select>
                 </label>
+                <label>AI task status
+                    <select id="explorer-ai-task-status">
+                        <option value="">All task statuses</option>
+                        <option value="FAILED">Failed</option>
+                        <option value="PROCESSING">Processing</option>
+                        <option value="PENDING">Pending</option>
+                        <option value="COMPLETED">Completed</option>
+                    </select>
+                </label>
+                <label>Issuing AI rule
+                    <select id="explorer-issued-rule" aria-describedby="explorer-rule-load-message">
+                        <option value="">All issuing rules</option>
+                    </select>
+                </label>
+                <p id="explorer-rule-load-message" class="wide-filter" role="status" hidden></p>
                 <label>AI confidence from (%)
                     <input id="explorer-confidence-from" type="number" min="0" max="100" step="1">
                 </label>

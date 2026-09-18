@@ -21,6 +21,7 @@ public final class AiJdbcMapping {
         return new AiResultDetails(rs.getString("status"), rs.getObject("valid", Boolean.class), rs.getString("verdict"),
                 rs.getObject("certainty", Integer.class), rs.getObject("confidence", Integer.class), rs.getString("message"),
                 instant(rs, "checked_at"), rs.getInt("attempt_count"), rs.getString("last_error_code"),
-                rs.getString("last_error_message"), instant(rs, "last_error_at"));
+                rs.getString("last_error_message"), instant(rs, "last_error_at"),
+                rs.getObject("issued_rule_id", java.util.UUID.class), rs.getString("issued_rule_name"));
     }
 }

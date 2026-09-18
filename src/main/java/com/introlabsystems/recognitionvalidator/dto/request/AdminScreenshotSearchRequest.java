@@ -2,6 +2,8 @@ package com.introlabsystems.recognitionvalidator.dto.request;
 
 import com.introlabsystems.recognitionvalidator.ai.model.AiResultState;
 import com.introlabsystems.recognitionvalidator.ai.model.AiVerdict;
+import com.introlabsystems.recognitionvalidator.ai.model.AiTaskStatus;
+import java.util.UUID;
 
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
 import com.introlabsystems.recognitionvalidator.model.enums.Decision;
@@ -40,6 +42,8 @@ public class AdminScreenshotSearchRequest {
     private Integer confidenceTo;
     private Instant reviewedFrom;
     private Instant reviewedTo;
+    private AiTaskStatus aiTaskStatus;
+    private UUID issuedRuleId;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -65,7 +69,9 @@ public class AdminScreenshotSearchRequest {
                 confidenceFrom,
                 confidenceTo,
                 reviewedFrom,
-                reviewedTo
+                reviewedTo,
+                aiTaskStatus,
+                issuedRuleId
         );
     }
 }

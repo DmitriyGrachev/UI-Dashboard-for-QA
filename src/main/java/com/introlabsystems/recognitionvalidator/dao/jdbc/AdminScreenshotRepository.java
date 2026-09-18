@@ -70,8 +70,7 @@ public class AdminScreenshotRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("fetchLimit", filters.limit() + 1)
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
-        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
-                filters.confidenceFrom(), filters.confidenceTo());
+        boolean aiOrdered = usesAiOrder(filters);
         String order = aiOrdered ? "ai" : "rt";
         String baseConditions = conditions(filters, parameters, aiOrdered);
         String listConditions = baseConditions + cursorCondition(filters, parameters, order);
@@ -113,8 +112,10 @@ public class AdminScreenshotRepository {
     public AdminScreenshotSummary summary(AdminScreenshotFilters filters, Instant cloudCutoff) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
-        String baseConditions = conditions(filters, parameters);
-        String summaryFrom = requiresImageAsset(filters) ? SEARCH_FROM + "WHERE TRUE\n" : SUMMARY_FROM;
+        boolean aiOrdered = usesAiOrder(filters);
+        String baseConditions = conditions(filters, parameters, aiOrdered);
+        String summaryFrom = aiOrdered ? AI_SEARCH_FROM + "WHERE TRUE\n"
+                : requiresImageAsset(filters) ? SEARCH_FROM + "WHERE TRUE\n" : SUMMARY_FROM;
         return jdbc.queryForObject("""
                 SELECT COUNT(*) AS total_count,
                        MIN(rt.file_created_at) AS oldest_created_at,
@@ -133,11 +134,16 @@ public class AdminScreenshotRepository {
         return aiOrdered ? AI_SEARCH_FROM : SEARCH_FROM + "LEFT JOIN ai_review_task ai ON ai.image_id = rt.image_id\n";
     }
 
+    private static boolean usesAiOrder(AdminScreenshotFilters filters) {
+        return filters.aiTaskStatus() != null || filters.issuedRuleId() != null
+                || AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
+                    filters.confidenceFrom(), filters.confidenceTo());
+    }
+
     @Transactional(readOnly = true, timeout = 120)
     public long writeCsv(AdminScreenshotFilters filters, Instant cloudCutoff, Writer output) {
         var parameters = new MapSqlParameterSource("cloudCutoff", Timestamp.from(cloudCutoff));
-        boolean aiOrdered = AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
-                filters.confidenceFrom(), filters.confidenceTo());
+        boolean aiOrdered = usesAiOrder(filters);
         String order = aiOrdered ? "ai" : "rt";
         String sql = """
                 SELECT ia.id, ia.file_name, ia.game_code, ia.session_id, rt.file_created_at,
@@ -201,13 +207,6 @@ public class AdminScreenshotRepository {
                 AdminScreenshotRepository::mapDetails
         );
         return details.stream().findFirst();
-    }
-
-    private static String conditions(
-            AdminScreenshotFilters filters,
-            MapSqlParameterSource parameters
-    ) {
-        return conditions(filters, parameters, false);
     }
 
     private static String conditions(AdminScreenshotFilters filters, MapSqlParameterSource parameters, boolean aiOrdered) {
@@ -281,6 +280,14 @@ public class AdminScreenshotRepository {
         }
         AiResultFilterSql.append(sql, parameters, filters.aiResult(), filters.aiVerdict(),
                 filters.confidenceFrom(), filters.confidenceTo(), aiOrdered);
+        if (filters.aiTaskStatus() != null) {
+            sql.append(" AND ai.status = :aiTaskStatus");
+            parameters.addValue("aiTaskStatus", filters.aiTaskStatus().name());
+        }
+        if (filters.issuedRuleId() != null) {
+            sql.append(" AND ai.issued_rule_id = :issuedRuleId");
+            parameters.addValue("issuedRuleId", filters.issuedRuleId());
+        }
         return sql.toString();
     }
 

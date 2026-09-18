@@ -31,10 +31,10 @@ test('CSV uses all current search filters without page size or cursor', () => {
 
 test("restoring selection keeps the original search scope", () => {
     const source = require('node:fs').readFileSync(require.resolve('../../main/resources/static/js/admin-screenshots.js'), 'utf8');
-    const restore = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function storageLabel('));
+    const restore = source.slice(source.indexOf('function restoreFromUrl('), source.indexOf('function ensureRuleOption('));
     const elements = new Proxy({}, {get: (target, name) => target[name] ||= {value: ''}});
     const restoreFromUrl = require('node:vm').runInNewContext(`(${restore.trim()})`, {
-        elements, URLSearchParams,
+        elements, URLSearchParams, ensureRuleOption() {},
         window: {location: {search: '?sessionId=session-a&selected=image-51'}},
         writeBoundary: (input, value) => { input.value = value; },
         setInputFromQuery: (input, params, name, fallback = '') => { input.value = params.get(name) ?? fallback; },
