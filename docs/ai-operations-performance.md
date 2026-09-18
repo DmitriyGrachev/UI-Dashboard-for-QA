@@ -17,4 +17,6 @@ PostgreSQL 17.11, 2 CPUs / 4 GiB, 5m images and 4.4m AI tasks. The static fixtur
 | New, EXPLAIN ANALYZE | Two Index Only Scans of 88k tasks | 1,234 | 12.7 ms |
 | New, repository calls | Same indexed counts | | 19–68 ms |
 
-The baseline did not exceed the five-second statement timeout locally. The regression checks exact values and rejects a full task-table scan; it does not increase timeouts or substitute estimates. Run `mvn clean verify -Dai.rules.scale.url=jdbc:postgresql://127.0.0.1:55440/rv_ai_stats_analysis` only against the dedicated fixture. Plans are saved under `target/ai-rule-statistics-scale/operations-{old-plan,plan}.txt`.
+The final full verification repeated the plans at 2,833.4 ms (previous) and 13.3 ms (new); repository calls took 16–73 ms. Timing varies with cache state and concurrent local work; index reads remained bounded to operational statuses.
+
+The repository benchmark stubs settings and availability, so it measures the count/last-result reads, not full HTTP latency. The baseline did not exceed the five-second statement timeout locally. The regression checks exact values and rejects a full task-table scan; it does not increase timeouts or substitute estimates. Run `mvn clean verify -Dai.rules.scale.url=jdbc:postgresql://127.0.0.1:55440/rv_ai_stats_analysis` only against the dedicated fixture. Plans are saved under `target/ai-rule-statistics-scale/operations-{old-plan,plan}.txt`.
