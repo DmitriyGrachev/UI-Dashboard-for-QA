@@ -6,7 +6,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.web.server.ResponseStatusException;
 
-/** AI rows are unique by image ID, so an ordered completed-result join cannot duplicate a page. */
+/** AI rows are unique by image ID, so an ordered AI task join cannot duplicate a page. */
 public final class AiResultFilterSql {
     private AiResultFilterSql() {}
 
@@ -49,14 +49,6 @@ public final class AiResultFilterSql {
             parameters.addValue("aiConfidenceTo", confidenceTo);
         }
         if (!joined) sql.append(")");
-    }
-
-    public static boolean completedOnly(AiResultState state) {
-        return completedOnly(state, null, null, null);
-    }
-
-    public static void append(StringBuilder sql, AiResultState state, boolean joined) {
-        append(sql, new MapSqlParameterSource(), state, null, null, null, joined);
     }
 
     public static void validate(Integer from, Integer to) {

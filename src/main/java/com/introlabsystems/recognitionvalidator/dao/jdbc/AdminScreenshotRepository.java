@@ -112,7 +112,8 @@ public class AdminScreenshotRepository {
     public AdminScreenshotSummary summary(AdminScreenshotFilters filters, Instant cloudCutoff) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
-        boolean aiOrdered = usesAiOrder(filters);
+        // Preserve the existing EXISTS-only path for result filters that do not need image metadata.
+        boolean aiOrdered = filters.aiTaskStatus() != null || filters.issuedRuleId() != null;
         String baseConditions = conditions(filters, parameters, aiOrdered);
         String summaryFrom = aiOrdered ? AI_SEARCH_FROM + "WHERE TRUE\n"
                 : requiresImageAsset(filters) ? SEARCH_FROM + "WHERE TRUE\n" : SUMMARY_FROM;
