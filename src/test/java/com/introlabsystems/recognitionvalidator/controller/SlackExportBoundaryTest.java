@@ -57,6 +57,27 @@ class SlackExportBoundaryTest extends AbstractWebIntegrationTest {
     @MockitoSpyBean
     private SlackProperties slackProperties;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.introlabsystems.recognitionvalidator.service.impl.RejectedScreenshotExportCompletion completion;
+
+    @Test
+    void notificationFailureRollsBackEveryMarkerBatch() throws Exception {
+        String first = insertRejectedExportImage(450, "batch-first.png", new byte[]{1});
+        String last = insertRejectedExportImage(451, "batch-last.png", new byte[]{2});
+        var ids = new java.util.ArrayList<>(java.util.Collections.nCopies(1_001, "0".repeat(64)));
+        ids.set(0, first);
+        ids.set(1_000, last);
+        doThrow(new org.springframework.dao.DataIntegrityViolationException("archive insert failed"))
+                .when(outbox).enqueueArchive(any(UUID.class), eq(EXPORTED_AT), anyString(), eq(true));
+
+        assertThatThrownBy(() -> completion.complete(UUID.randomUUID(), ADMIN, ids, EXPORTED_AT))
+                .isInstanceOf(org.springframework.dao.DataIntegrityViolationException.class);
+
+        assertThat(downloadedAt(first)).isNull();
+        assertThat(downloadedAt(last)).isNull();
+        assertThat(outboxCount()).isZero();
+    }
+
     @BeforeEach
     void resetSlackBoundaryState() {
         jdbc.execute("TRUNCATE TABLE slack_notification_outbox, slack_notification_state "

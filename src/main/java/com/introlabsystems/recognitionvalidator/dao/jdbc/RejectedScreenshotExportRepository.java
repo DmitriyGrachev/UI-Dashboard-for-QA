@@ -5,12 +5,15 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.jdbc.core.PreparedStatementCallback;
 
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
 @Repository
 @RequiredArgsConstructor
@@ -30,12 +33,14 @@ public class RejectedScreenshotExportRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
 
-    public List<ExportCandidate> findCandidates(
+    @Transactional(readOnly = true, timeout = 120)
+    public void forEachCandidate(
             Instant processedFrom,
             Instant processedTo,
             boolean includePreviouslyDownloaded,
             String sessionId,
-            boolean aiMismatch
+            boolean aiMismatch,
+            Consumer<ExportCandidate> consumer
     ) {
         StringBuilder sql = new StringBuilder("""
                 SELECT ia.id AS image_id, ia.session_id, ai.verdict, ai.confidence, ai.message,
@@ -66,14 +71,15 @@ public class RejectedScreenshotExportRepository {
         }
         sql.append(" ORDER BY ia.processed_at, ia.id");
 
-        return jdbc.query(
-                sql.toString(),
-                parameters,
-                (resultSet, rowNumber) -> new ExportCandidate(resultSet.getString("image_id"),
-                        resultSet.getString("session_id"), resultSet.getString("verdict"),
-                        resultSet.getObject("confidence", Integer.class), resultSet.getString("message"),
-                        resultSet.getString("decision"))
-        );
+        jdbc.execute(sql.toString(), parameters, (PreparedStatementCallback<Void>) statement -> {
+            statement.setFetchSize(500);
+            try (var rs = statement.executeQuery()) {
+                while (rs.next()) consumer.accept(new ExportCandidate(rs.getString("image_id"),
+                        rs.getString("session_id"), rs.getString("verdict"), rs.getObject("confidence", Integer.class),
+                        rs.getString("message"), rs.getString("decision")));
+            }
+            return null;
+        });
     }
 
     @Transactional
@@ -81,6 +87,20 @@ public class RejectedScreenshotExportRepository {
         if (imageIds.isEmpty()) {
             return 0;
         }
+        int updated = 0;
+        var batch = new ArrayList<String>(1_000);
+        for (String id : imageIds) {
+            batch.add(id);
+            if (batch.size() == 1_000) {
+                updated += markBatch(batch, downloadedAt);
+                batch.clear();
+            }
+        }
+        if (!batch.isEmpty()) updated += markBatch(batch, downloadedAt);
+        return updated;
+    }
+
+    private int markBatch(List<String> imageIds, Instant downloadedAt) {
         return jdbc.update("""
                 UPDATE review_task
                 SET rejected_downloaded_at = :downloadedAt

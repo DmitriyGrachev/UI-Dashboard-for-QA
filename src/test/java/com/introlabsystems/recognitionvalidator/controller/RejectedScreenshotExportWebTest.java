@@ -31,6 +31,39 @@ import static software.amazon.awssdk.services.s3.model.NoSuchKeyException.builde
 
 class RejectedScreenshotExportWebTest extends AbstractWebIntegrationTest {
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private com.introlabsystems.recognitionvalidator.dao.jdbc.RejectedScreenshotExportRepository exports;
+
+    @Test
+    void downloadMarkersSupportMoreThanThePostgresParameterLimit() throws Exception {
+        String id = insertRejectedExportImage(900, "large-marker.png", new byte[]{1});
+        var ids = new java.util.ArrayList<>(java.util.Collections.nCopies(65_535, "0".repeat(64)));
+        ids.set(0, id);
+        ids.set(ids.size() - 1, id);
+        Instant now = Instant.parse("2026-09-18T12:00:00Z");
+        assertThat(exports.markDownloaded(ids, now)).isEqualTo(1);
+        assertThat(exports.markDownloaded(ids, now.plusSeconds(1))).isZero();
+        assertThat(jdbc.queryForObject("SELECT rejected_downloaded_at FROM review_task WHERE image_id=?",
+                Timestamp.class, id)).isEqualTo(Timestamp.from(now));
+    }
+
+    @Test
+    void exportsAcrossCandidatePagesIncludingNullProcessedDates() throws Exception {
+        for (int i = 1; i <= 1_003; i++) {
+            String id = insertRejectedExportImage(10_000 + i, "page-" + i + ".png", new byte[]{1});
+            jdbc.update("UPDATE image_asset SET processed_at=? WHERE id=?",
+                    i > 500 ? null : Timestamp.from(Instant.parse("2026-09-18T10:00:00Z")), id);
+        }
+        var output = new ByteArrayOutputStream();
+        assertThat(rejectedExports.writeZip(null, null, false, output, null, null, false)).isEqualTo(1_003);
+        var entries = readZipEntries(output.toByteArray());
+        assertThat(entries).hasSize(1_004);
+        assertThat(new String(entries.get("results.csv"), java.nio.charset.StandardCharsets.UTF_8).lines().count())
+                .isEqualTo(1_004);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM review_task WHERE rejected_downloaded_at IS NOT NULL",
+                Long.class)).isEqualTo(1_003);
+    }
+
     private static final String CLOUD_KEY = "validator/cloud-rejected.png";
 
     @MockitoBean

@@ -95,13 +95,15 @@ class CoreOperationalLoggingTest {
     @Test
     void rejectedExportLogsUnexpectedFailureWithOperationContext(CapturedOutput output) {
         RejectedScreenshotExportRepository exports = mock(RejectedScreenshotExportRepository.class);
-        when(exports.findCandidates(null, null, false, null, false))
-                .thenThrow(new IllegalStateException("database down"));
+        org.mockito.Mockito.doThrow(new IllegalStateException("database down")).when(exports)
+                .forEachCandidate(org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.isNull(),
+                        org.mockito.ArgumentMatchers.eq(false), org.mockito.ArgumentMatchers.isNull(),
+                        org.mockito.ArgumentMatchers.eq(false), any());
         RejectedScreenshotExportServiceImpl service = new RejectedScreenshotExportServiceImpl(
                 exports,
                 mock(ImageStorageService.class),
                 Clock.fixed(NOW, ZoneOffset.UTC),
-                mock(RejectedScreenshotExportCompletion.class)
+                mock(RejectedScreenshotExportCompletion.class), new com.fasterxml.jackson.databind.ObjectMapper()
         );
 
         assertThatThrownBy(() -> service.writeZip(
