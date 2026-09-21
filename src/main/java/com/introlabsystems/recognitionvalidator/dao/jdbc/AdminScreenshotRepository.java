@@ -88,7 +88,7 @@ public class AdminScreenshotRepository {
                 %s
                 WHERE TRUE
                 %s
-                ORDER BY %s.file_created_at DESC, %s.image_id DESC
+                ORDER BY %s.file_created_at ASC, %s.image_id ASC
                 LIMIT :fetchLimit
                 """.formatted(VALID_CLOUD, VALID_CLOUD, listFrom, listConditions, order, order),
                 parameters,
@@ -153,7 +153,7 @@ public class AdminScreenshotRepository {
                        CASE WHEN rt.status='COMPLETED' THEN rt.decision END AS decision,
                        CASE WHEN rt.status='COMPLETED' THEN reviewer.username END AS reviewed_by
                 %s WHERE TRUE %s
-                ORDER BY %s.file_created_at DESC, %s.image_id DESC
+                ORDER BY %s.file_created_at ASC, %s.image_id ASC
                 """.formatted(searchFrom(aiOrdered), conditions(filters, parameters, aiOrdered), order, order);
         return jdbc.execute(sql, parameters, (PreparedStatementCallback<Long>) statement -> {
             // PostgreSQL streams a cursor only inside a transaction with a positive fetch size.
@@ -310,7 +310,7 @@ public class AdminScreenshotRepository {
         parameters.addValue("cursorCreatedAt", Timestamp.from(filters.cursorCreatedAt()));
         parameters.addValue("cursorId", filters.cursorId().trim());
         return """
-                 AND (%s.file_created_at, %s.image_id) < (:cursorCreatedAt, :cursorId)
+                 AND (%s.file_created_at, %s.image_id) > (:cursorCreatedAt, :cursorId)
                 """.formatted(queue, queue);
     }
 

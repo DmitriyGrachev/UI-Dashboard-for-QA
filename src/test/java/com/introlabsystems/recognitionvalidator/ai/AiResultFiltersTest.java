@@ -45,11 +45,11 @@ class AiResultFiltersTest extends AiTestSupport {
                 .andExpect(status().isOk()).andReturn();
         var rows = json.readTree(response.getResponse().getContentAsString()).get("items");
         assertThat(rows.size()).isEqualTo(6);
-        String[] expected = {"COMPLETED", "COMPLETED", "FAILED", "PROCESSING", null, "PENDING"};
+        String[] expected = {"PENDING", null, "PROCESSING", "FAILED", "COMPLETED", "COMPLETED"};
         for (int i = 0; i < expected.length; i++) {
             assertThat(rows.get(i).has("aiStatus")).isTrue();
             assertThat(rows.get(i).get("aiStatus").asText(null)).isEqualTo(expected[i]);
-            assertThat(rows.get(i).get("reviewState").asText()).isEqualTo(i == 5 ? "CHECKED" : "UNCHECKED");
+            assertThat(rows.get(i).get("reviewState").asText()).isEqualTo(i == 0 ? "CHECKED" : "UNCHECKED");
         }
         mvc.perform(get("/admin/api/screenshots").param("aiResult", "CHECKED").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(2))
@@ -71,12 +71,18 @@ class AiResultFiltersTest extends AiTestSupport {
         jdbc.update("UPDATE review_task SET file_created_at='2026-08-30T00:00:00Z'");
         var first = mvc.perform(get("/admin/api/screenshots").param("aiResult", state)
                         .param("limit", "1").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(newest)).andReturn();
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(oldest)).andReturn();
         var cursor = json.readTree(first.getResponse().getContentAsString());
+        var second = mvc.perform(get("/admin/api/screenshots").param("aiResult", state).param("limit", "1")
+                        .param("cursorCreatedAt", cursor.get("nextCreatedAt").asText())
+                        .param("cursorId", cursor.get("nextId").asText()).with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(middle)).andReturn();
+        cursor = json.readTree(second.getResponse().getContentAsString());
         mvc.perform(get("/admin/api/screenshots").param("aiResult", state).param("limit", "1")
                         .param("cursorCreatedAt", cursor.get("nextCreatedAt").asText())
                         .param("cursorId", cursor.get("nextId").asText()).with(user("admin").roles("ADMIN")))
-                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(middle));
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(newest))
+                .andExpect(jsonPath("$.nextId").doesNotExist());
         UUID operator = UUID.randomUUID();
         jdbc.update("INSERT INTO app_user(id,username,password_hash,enabled,created_at) VALUES (?,'ai-page-op','hash',true,now())", operator);
         mvc.perform(post("/api/review-tasks/claim").with(user(new OperatorPrincipal(operator, "ai-page-op", "hash", true)))

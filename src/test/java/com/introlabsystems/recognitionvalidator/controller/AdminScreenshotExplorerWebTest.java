@@ -1,6 +1,9 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.springframework.util.LinkedMultiValueMap;
 
 import java.sql.Timestamp;
 import java.time.Instant;
@@ -171,9 +174,9 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(2))
-                .andExpect(jsonPath("$.items[0].imageId").value(assigned))
+                .andExpect(jsonPath("$.items[0].imageId").value(pending))
                 .andExpect(jsonPath("$.items[0].reviewState").value("UNCHECKED"))
-                .andExpect(jsonPath("$.items[1].imageId").value(pending))
+                .andExpect(jsonPath("$.items[1].imageId").value(assigned))
                 .andExpect(jsonPath("$.items[1].reviewState").value("UNCHECKED"));
     }
 
@@ -226,8 +229,9 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.items[0].storageState").value("BOTH"));
     }
 
-    @Test
-    void cursorPaginationDoesNotSkipRowsWithTheSameCreationTime() throws Exception {
+    @ParameterizedTest
+    @ValueSource(strings = {"ALL", "COMPLETED", "CHECKED"})
+    void cursorPaginationRunsOldestFirstWithoutSkippingEqualDates(String aiFilter) throws Exception {
         String first = insertReviewImage(
                 709, "cursor-first.png", true, "bj_igt", "cursor-session",
                 null, "Two_Three", null
@@ -240,6 +244,11 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 711, "cursor-newest.png", true, "bj_igt", "cursor-session",
                 null, "Six_Seven", null
         );
+        String oldest = insertReviewImage(
+                712, "cursor-oldest.png", true, "bj_igt", "cursor-session",
+                null, "Eight_Nine", null
+        );
+        setCreatedAt(oldest, "2026-08-28T14:00:00Z");
         setCreatedAt(first, "2026-08-28T15:00:00Z");
         setCreatedAt(second, "2026-08-28T15:00:00Z");
         setCreatedAt(newest, "2026-08-28T16:00:00Z");
@@ -248,17 +257,29 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 Timestamp.from(Instant.parse("2026-08-27T14:00:00Z")),
                 second
         );
+        var filters = new LinkedMultiValueMap<String, String>();
+        filters.add("sessionId", "cursor-session");
+        filters.add("limit", "2");
+        if (!aiFilter.equals("ALL")) {
+            jdbc.update("""
+                    INSERT INTO ai_review_task(image_id,status,file_created_at,game_code,is_notification,has_user_hand)
+                    SELECT image_id,'COMPLETED',file_created_at,game_code,is_notification,has_user_hand
+                    FROM review_task
+                    """);
+            filters.add(aiFilter.equals("COMPLETED") ? "aiTaskStatus" : "aiResult", aiFilter);
+        }
 
         mockMvc.perform(get("/admin/api/screenshots")
-                        .param("sessionId", "cursor-session")
-                        .param("limit", "2")
+                        .params(filters)
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items[1].imageId").value(second))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].imageId").value(oldest))
+                .andExpect(jsonPath("$.items[1].imageId").value(first))
                 .andExpect(jsonPath("$.items[1].fileCreatedAt")
                         .value("2026-08-28T15:00:00Z"))
                 .andExpect(jsonPath("$.nextCreatedAt").value("2026-08-28T15:00:00Z"))
-                .andExpect(jsonPath("$.nextId").value(second));
+                .andExpect(jsonPath("$.nextId").value(first));
 
         mockMvc.perform(get("/admin/api/screenshots/{imageId}", second)
                         .with(user("admin").roles("ADMIN")))
@@ -266,14 +287,14 @@ class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
                 .andExpect(jsonPath("$.fileCreatedAt").value("2026-08-28T15:00:00Z"));
 
         mockMvc.perform(get("/admin/api/screenshots")
-                        .param("sessionId", "cursor-session")
-                        .param("limit", "2")
+                        .params(filters)
                         .param("cursorCreatedAt", "2026-08-28T15:00:00Z")
-                        .param("cursorId", second)
+                        .param("cursorId", first)
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.items.length()").value(1))
-                .andExpect(jsonPath("$.items[0].imageId").value(first))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].imageId").value(second))
+                .andExpect(jsonPath("$.items[1].imageId").value(newest))
                 .andExpect(jsonPath("$.nextCreatedAt").doesNotExist())
                 .andExpect(jsonPath("$.nextId").doesNotExist());
     }

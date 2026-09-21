@@ -83,8 +83,9 @@ class AdminScreenshotCsvWebTest extends AbstractWebIntegrationTest {
                 .andExpect(header().string("Cache-Control", "no-store")).andReturn().getResponse();
         var rows = parse(response.getContentAsString(StandardCharsets.UTF_8));
         assertThat(rows).hasSize(104);
-        assertThat(rows.get(1)).containsExactly("%064x".formatted(103), "missing-103.png", "bj_igt", "export",
+        assertThat(rows.get(1)).containsExactly("%064x".formatted(1), "missing-1.png", "bj_igt", "export",
                 "2026-07-30T10:00:00Z", "", "", "", "", "", "UNCHECKED", "", "");
+        assertThat(rows.get(103).getFirst()).isEqualTo("%064x".formatted(103));
         assertThat(jdbc.queryForList("SELECT * FROM review_task ORDER BY image_id")).isEqualTo(before);
         assertThat(jdbc.queryForObject("SELECT COUNT(*) FROM ai_review_task", Long.class)).isZero();
         assertThat(jdbc.queryForList("SELECT file_available FROM image_asset", Boolean.class)).containsOnly(false);
