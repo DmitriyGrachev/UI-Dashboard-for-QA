@@ -19,7 +19,8 @@ async (page) => {
         else if (url.pathname.endsWith('/storage/status')) body = {enabled: false};
         else if (url.pathname.endsWith('/summary')) body = {totalCount: 6, oldestCreatedAt: items[0].fileCreatedAt, newestCreatedAt: items[5].fileCreatedAt};
         else if (/\/(content|thumbnail)$/.test(url.pathname)) return route.fulfill({contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="540" fill="#243b37"/></svg>'});
-        else if (url.pathname === '/admin/api/screenshots') body = {items, nextCreatedAt: null, nextId: null};
+        else if (url.pathname.endsWith('/export.csv')) return route.fulfill({contentType: 'text/csv', body: 'image_id\r\n'});
+        else if (url.pathname === '/admin/api/screenshots') body = {items, nextCreatedAt: href.includes('cursorId=') ? null : items[5].fileCreatedAt, nextId: href.includes('cursorId=') ? null : items[5].imageId};
         else {
             const item = items.find(item => url.pathname.endsWith('/' + item.imageId)) || items[0];
             body = {...item, imageUrl: `/admin/api/screenshots/${item.imageId}/content`, downloadUrl: '#',
@@ -45,7 +46,30 @@ async (page) => {
         check(await p.locator('.result-thumbnail').count() === 6, 'Grid lost results');
         await results.nth(1).focus(); await p.keyboard.press('Enter');
         await p.waitForFunction(() => document.querySelectorAll('.screenshot-result')[1].getAttribute('aria-pressed') === 'true');
+        await p.setViewportSize({width:1440,height:900});
+        await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
+        await p.clock.install({time: new Date('2026-09-30T23:59:00Z')});
+        await p.locator('#explorer-date-preset').selectOption('today');
+        await p.locator('#search-screenshots').click();
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        await p.locator('#saved-filter-name').fill('Today');
+        await p.locator('#save-filter').click();
+        const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('recognition-validator.admin-saved-filters'))[0]);
+        check(saved.relativeDate.preset === 'today' && !saved.query.includes('createdFrom'), 'Relative preset stored as fixed dates');
+        await p.clock.setSystemTime(new Date('2026-10-01T00:01:00Z'));
+        await p.locator('#load-more-results').click();
+        await p.waitForFunction(() => document.querySelectorAll('.screenshot-result').length === 12);
+        check(requests.filter(url => url.includes('cursorId=')).at(-1).includes('createdFrom=2026-09-30'), 'Pagination crossed midnight');
+        await p.locator('#download-screenshot-csv').click();
+        await p.waitForTimeout(100);
+        check(requests.some(url => url.includes('export.csv?') && url.includes('createdFrom=2026-09-30')), 'CSV recalculated the period');
+        await p.locator('#saved-filter-select').selectOption('');
+        await p.locator('#saved-filter-select').selectOption('0');
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        check(await p.locator('#explorer-created-from').inputValue() === '2026-10-01T00:00', 'Saved today did not advance');
+        await p.locator('#explorer-created-from-date').fill('29.09.2026');
+        check(await p.locator('#explorer-date-preset').inputValue() === '', 'Manual date edit kept relative mode');
         check(errors.length === 0, errors.join('; '));
-        return {passed: 'List outcomes, zero/null confidence, list/grid, keyboard, three viewport sizes', requests: requests.length};
+        return {passed: 'List outcomes; relative saved dates across midnight; frozen pagination/CSV; manual date edit; keyboard and three sizes', requests: requests.length};
     } finally { await context.close(); }
 }

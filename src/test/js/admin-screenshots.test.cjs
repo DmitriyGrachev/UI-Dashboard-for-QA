@@ -16,6 +16,26 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
+test('saved relative ranges resolve in UTC on application, retaining legacy exact dates', () => {
+    const {resolveSavedFilter} = require('../../main/resources/static/js/admin-screenshots.js');
+    const legacy = {query: 'createdFrom=2026-09-01T00%3A00%3A00Z&sessionId=a'};
+    assert.equal(resolveSavedFilter(legacy).toString(), legacy.query);
+    for (const field of ['created', 'reviewed']) {
+        const saved = {query: 'confidenceFrom=0&createdFrom=old&reviewedTo=old', relativeDate: {preset: 'today', field}};
+        const resolved = resolveSavedFilter(saved, new Date('2026-10-01T00:00:10Z'));
+        assert.equal(resolved.get(field + 'From'), '2026-10-01T00:00:00Z');
+        assert.equal(resolved.get(field + 'To'), '2026-10-02T00:00:00Z');
+        assert.equal(resolved.get('confidenceFrom'), '0');
+        assert.equal(resolved.has((field === 'created' ? 'reviewed' : 'created') + 'From'), false);
+        saved.relativeDate.preset = 'yesterday';
+        assert.equal(resolveSavedFilter(saved, new Date('2026-10-01T00:00Z')).get(field + 'From'), '2026-09-30T00:00:00Z');
+        saved.relativeDate.preset = 'last24h';
+        assert.equal(resolveSavedFilter(saved, new Date('2026-10-01T00:00Z')).get(field + 'To'), '2026-10-01T00:00:00Z');
+    }
+    assert.throws(() => resolveSavedFilter({query: '', relativeDate: {preset: 'invalid', field: 'created'}}));
+    assert.throws(() => resolveSavedFilter({query: 'reviewState=UNCHECKED', relativeDate: {preset: 'today', field: 'reviewed'}}));
+});
+
 test('CSV uses all current search filters without page size or cursor', () => {
     const {csvExportUrl} = require('../../main/resources/static/js/admin-screenshots.js');
     const filters = {gameCode: 'bj_igt', sessionId: 'a & b', aiResult: 'CHECKED', confidenceFrom: '0',
@@ -363,7 +383,8 @@ test('saved filters persist, restore exact filter values, replace and delete wit
     let searches = 0;
     const context = {byId, localStorage:{getItem:key=>store.get(key),setItem:(key,value)=>store.set(key,value)},
         Option:function(text,value){this.text=text;this.value=value;}, URLSearchParams,
-        elements:{form:{reportValidity:()=>true}}, dateRange:{validate:()=>true}, state:{}, buildSearchParams,
+        elements:{form:{reportValidity:()=>true}, datePreset:{value:''}, dateField:{value:'reviewed'}}, dateRange:{validate:()=>true}, state:{}, buildSearchParams,
+        resolveSavedFilter: require('../../main/resources/static/js/admin-screenshots.js').resolveSavedFilter,
         currentFilters:()=>({sessionId:'session-a', aiVerdict:'MISMATCH', reviewedFrom:'2026-09-10T00:00'}),
         restoreFromUrl:params=>{restored=params;},search:()=>{searches++;}};
     const run = () => require('node:vm').runInNewContext(setup, {...context});
@@ -379,9 +400,20 @@ test('saved filters persist, restore exact filter values, replace and delete wit
     assert.equal(restored.get('reviewedFrom'),'2026-09-10T00:00:00Z');
     assert.equal(restored.has('selected'),false);
     assert.equal(searches,1);
+    context.elements.datePreset.value = 'today';
+    byId('save-filter').listeners.click();
+    const relative = JSON.parse(store.values().next().value)[0];
+    assert.deepEqual(relative.relativeDate, {preset:'today', field:'reviewed'});
+    assert.equal(new URLSearchParams(relative.query).has('reviewedFrom'), false);
+    byId('saved-filter-select').listeners.change();
+    assert.equal(restored.get('reviewedFrom').slice(0,10), new Date().toISOString().slice(0,10));
     byId('save-filter').listeners.click();
     assert.equal(byId('saved-filter-select').options.length,2);
     byId('delete-filter').listeners.click();
     run();
     assert.equal(byId('saved-filter-select').options.length,1);
+    context.localStorage.setItem = () => { throw new Error('Storage disabled'); };
+    run();
+    byId('save-filter').listeners.click();
+    assert.match(byId('saved-filter-message').textContent, /not saved/);
 });

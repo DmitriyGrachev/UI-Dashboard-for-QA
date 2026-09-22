@@ -73,6 +73,14 @@
                 <fieldset class="explorer-filter-group">
                     <legend>Period · UTC</legend>
                     <div class="explorer-filter-fields">
+                <label class="wide-filter">Period
+                    <select id="explorer-date-preset">
+                        <option value="">Fixed dates</option>
+                        <option value="today">Today (UTC)</option>
+                        <option value="yesterday">Yesterday (UTC)</option>
+                        <option value="last24h">Last 24 hours</option>
+                    </select>
+                </label>
                 <label class="wide-filter">
                     Date field
                     <select id="explorer-date-field">
@@ -318,7 +326,7 @@
             <label>Filter name <input id="saved-filter-name" type="text" maxlength="60" placeholder="e.g. IGT mismatches"></label>
             <button type="button" class="button secondary" id="save-filter">Save / replace</button>
             <button type="button" class="button secondary" id="delete-filter">Delete selected</button>
-            <p id="saved-filter-message" role="status">Stored in this browser. Dates are saved exactly as selected.</p>
+            <p id="saved-filter-message" role="status">Stored in this browser. Relative periods update on each new search; fixed dates stay unchanged.</p>
         </section>
     </details>
 

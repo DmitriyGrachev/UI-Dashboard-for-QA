@@ -81,6 +81,21 @@ function presetRange(now, {hours = 0, days = 0, day} = {}) {
     return {from: canonicalUtcMinute(from), to: canonicalUtcMinute(to)};
 }
 
+function resolveSavedFilter(saved, now = new Date()) {
+    const params = new URLSearchParams(saved.query);
+    if (saved.relativeDate == null) return params;
+    const {preset, field} = saved.relativeDate;
+    if (!["today", "yesterday", "last24h"].includes(preset) || !["created", "reviewed"].includes(field)
+            || (field === "reviewed" && params.get("reviewState") === "UNCHECKED")) {
+        throw new Error("Saved date period is invalid. Select a valid period and save the filters again.");
+    }
+    for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo"]) params.delete(key);
+    const range = presetRange(now, preset === "last24h" ? {hours: 24} : {day: preset});
+    params.set(field + "From", utcIso(range.from));
+    params.set(field + "To", utcIso(range.to));
+    return params;
+}
+
 function keyboardAction({key, tagName = "", isContentEditable = false,
     ctrlKey, metaKey, altKey, shiftKey, repeat, defaultPrevented}) {
     if (ctrlKey || metaKey || altKey || repeat || defaultPrevented || (shiftKey && key !== '+')) return null;
@@ -183,6 +198,7 @@ if (typeof module !== "undefined" && module.exports) {
         loadPageThenSummary,
         nextSearchSequence,
         presetRange,
+        resolveSavedFilter,
         resolveSearchFilters,
         storageSupportsTemporaryLink
     };
@@ -199,6 +215,7 @@ if (typeof document !== "undefined") {
         createdTo: byId("explorer-created-to"),
         dateError: byId("explorer-date-range-error"),
         dateField: byId("explorer-date-field"),
+        datePreset: byId("explorer-date-preset"),
         reviewState: byId("screenshot-filter-form")?.elements.namedItem("reviewState"),
         gameCode: byId("explorer-game-code"),
         tokenId: byId("explorer-token-id"),
@@ -301,10 +318,17 @@ if (typeof document !== "undefined") {
         originY: 0
     };
 
+    let resolvedDateRange = null;
     const dateRange = window.UtcDateTimePicker.createRange({
         fromInput: elements.createdFrom,
         toInput: elements.createdTo,
-        errorElement: elements.dateError
+        errorElement: elements.dateError,
+        onCommit: () => {
+            if (elements.createdFrom.value !== resolvedDateRange?.from || elements.createdTo.value !== resolvedDateRange?.to) {
+                elements.datePreset.value = "";
+            }
+            updateSearchControls();
+        }
     });
 
     function currentFilters() {
@@ -435,6 +459,7 @@ if (typeof document !== "undefined") {
     }
 
     function restoreFromUrl(params = new URLSearchParams(window.location.search)) {
+        elements.datePreset.value = "";
         const canonical = value => value ? value.slice(0, 16) : value;
         const reviewed = params.has("reviewedFrom") || params.has("reviewedTo");
         elements.dateField.value = reviewed ? "reviewed" : "created";
@@ -606,6 +631,7 @@ if (typeof document !== "undefined") {
 
     async function search({append = false, selectedId = null} = {}) {
         if (state.searching || state.loadingMore) return;
+        if (!append) resolveDatePeriod();
         if (!append && !dateRange.validate()) return;
         const sequence = nextSearchSequence(state.searchSequence, append);
         state.searchSequence = sequence;
@@ -922,7 +948,20 @@ if (typeof document !== "undefined") {
             elements.reviewState.value = "CHECKED";
             updateCheckedOnlyControls();
         }
+        resolveDatePeriod();
         updateSearchControls();
+    });
+    function resolveDatePeriod() {
+        const preset = elements.datePreset.value;
+        if (!preset) return;
+        const range = presetRange(new Date(), preset === "last24h" ? {hours: 24} : {day: preset});
+        resolvedDateRange = range;
+        writeBoundary(elements.createdFrom, range.from);
+        writeBoundary(elements.createdTo, range.to);
+    }
+    elements.datePreset.addEventListener("change", () => { resolveDatePeriod(); updateSearchControls(); });
+    for (const type of ["input", "change"]) elements.form.addEventListener(type, event => {
+        if (event.target.closest('[data-utc-boundary]')) elements.datePreset.value = "";
     });
     elements.form.addEventListener("input", updateSearchControls);
     elements.form.addEventListener("change", updateSearchControls);
@@ -935,6 +974,7 @@ if (typeof document !== "undefined") {
     });
     document.querySelectorAll("[data-range-hours], [data-range-days], [data-range-day]").forEach(button => {
         button.addEventListener("click", () => {
+            elements.datePreset.value = button.dataset.rangeDay || (button.dataset.rangeHours === "24" ? "last24h" : "");
             const range = presetRange(new Date(), {
                 hours: Number(button.dataset.rangeHours || 0),
                 days: Number(button.dataset.rangeDays || 0),
@@ -1054,15 +1094,23 @@ if (typeof document !== "undefined") {
         if (next.length >= 20) { savedMessage.textContent = "Delete a saved filter before adding another (maximum 20)."; return; }
         const params = buildSearchParams(currentFilters());
         params.delete("limit");
-        next.push({name, query: params.toString()});
-        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); savedMessage.textContent = "Saved in this browser. Dates are saved exactly as selected."; }
+        const relativeDate = elements.datePreset.value
+            ? {preset: elements.datePreset.value, field: elements.dateField.value} : null;
+        if (relativeDate) for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo"]) params.delete(key);
+        next.push({name, query: params.toString(), ...(relativeDate ? {relativeDate} : {})});
+        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); savedMessage.textContent = relativeDate
+            ? "Saved in this browser. The period updates when applied or searched again."
+            : "Saved in this browser. Dates are saved exactly as selected."; }
     });
     savedSelect.addEventListener("change", () => {
         if (savedSelect.value === "") return;
         if (state.searching || state.loadingMore) { savedMessage.textContent = "Wait for the current search to finish, then select the filters."; savedSelect.value = ""; return; }
         const saved = savedFilters[Number(savedSelect.value)];
         savedName.value = saved.name;
-        restoreFromUrl(new URLSearchParams(saved.query));
+        try {
+            restoreFromUrl(resolveSavedFilter(saved));
+            elements.datePreset.value = saved.relativeDate?.preset || "";
+        } catch (error) { savedMessage.textContent = error.message; return; }
         savedMessage.textContent = `Applied: ${saved.name}`;
         search();
     });
