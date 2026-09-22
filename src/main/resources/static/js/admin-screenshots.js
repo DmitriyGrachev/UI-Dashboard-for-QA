@@ -32,6 +32,9 @@ function buildSearchParams(filters, cursor = null) {
     appendIfPresent(params, "aiResult", filters.aiResult);
     appendIfPresent(params, "aiTaskStatus", filters.aiTaskStatus);
     appendIfPresent(params, "issuedRuleId", filters.issuedRuleId);
+    if (filters.aiErrorCode) params.set("aiErrorCode", filters.aiErrorCode);
+    if (filters.aiErrorMissing === true || filters.aiErrorMissing === 'true') params.set("aiErrorMissing", 'true');
+    if (filters.issuedRuleMissing === true || filters.issuedRuleMissing === 'true') params.set("issuedRuleMissing", 'true');
     appendIfPresent(params, "aiVerdict", filters.aiVerdict);
     appendIfPresent(params, "confidenceFrom", filters.confidenceFrom);
     appendIfPresent(params, "confidenceTo", filters.confidenceTo);
@@ -235,6 +238,8 @@ if (typeof document !== "undefined") {
         aiResult: byId("explorer-ai-result"),
         aiTaskStatus: byId("explorer-ai-task-status"),
         issuedRuleId: byId("explorer-issued-rule"),
+        aiErrorCode: byId("explorer-ai-error-code"),
+        aiErrorMissing: byId("explorer-ai-error-missing"),
         aiVerdict: byId("explorer-ai-verdict"),
         confidenceFrom: byId("explorer-confidence-from"),
         confidenceTo: byId("explorer-confidence-to"),
@@ -357,7 +362,10 @@ if (typeof document !== "undefined") {
             hasUserHand: elements.hasUserHand.value,
             aiResult: elements.aiResult.value,
             aiTaskStatus: elements.aiTaskStatus.value,
-            issuedRuleId: elements.issuedRuleId.value,
+            issuedRuleId: elements.issuedRuleId.value === 'missing' ? '' : elements.issuedRuleId.value,
+            issuedRuleMissing: elements.issuedRuleId.value === 'missing',
+            aiErrorCode: elements.aiErrorCode.value,
+            aiErrorMissing: elements.aiErrorMissing.value,
             aiVerdict: elements.aiVerdict.value,
             confidenceFrom: elements.confidenceFrom.value,
             confidenceTo: elements.confidenceTo.value,
@@ -391,6 +399,7 @@ if (typeof document !== "undefined") {
                 createdFrom: 'Created from', createdTo: 'Created to', reviewedFrom: 'Reviewed from',
                 reviewedTo: 'Reviewed to', decision: 'Decision', reviewState: 'Review', aiResult: 'AI result',
                 aiVerdict: 'AI verdict', aiTaskStatus: 'AI task status', issuedRuleId: 'Issuing rule',
+                issuedRuleMissing: 'No recorded rule', aiErrorMissing: 'Reason unavailable', aiErrorCode: 'AI error code',
                 confidenceFrom: 'Confidence from', confidenceTo: 'Confidence to'};
             const conditions = Array.from(buildSearchParams(state.appliedFilters))
                 .filter(([key, value]) => key !== 'limit' && !(key === 'reviewState' && value === 'ALL'))
@@ -486,6 +495,10 @@ if (typeof document !== "undefined") {
         setInputFromQuery(elements.aiTaskStatus, params, "aiTaskStatus");
         ensureRuleOption(params.get("issuedRuleId"));
         setInputFromQuery(elements.issuedRuleId, params, "issuedRuleId");
+        if (params.get('issuedRuleMissing') === 'true') elements.issuedRuleId.value = 'missing';
+        setInputFromQuery(elements.aiErrorCode, params, 'aiErrorCode');
+        elements.aiErrorMissing.value = params.get('aiErrorMissing') === 'true' ? 'true' : '';
+        elements.aiErrorCode.disabled = elements.aiErrorMissing.value === 'true';
         setInputFromQuery(elements.aiVerdict, params, "aiVerdict");
         setInputFromQuery(elements.confidenceFrom, params, "confidenceFrom");
         setInputFromQuery(elements.confidenceTo, params, "confidenceTo");
@@ -505,7 +518,7 @@ if (typeof document !== "undefined") {
         try {
             const settings = await fetchJson('/admin/api/ai-queue/settings');
             const selected = elements.issuedRuleId.value;
-            elements.issuedRuleId.replaceChildren(new Option('All issuing rules', ''));
+            elements.issuedRuleId.replaceChildren(new Option('All issuing rules', ''), new Option('No recorded rule', 'missing'));
             settings.rules.forEach(rule => elements.issuedRuleId.add(
                 new Option(`${rule.name}${rule.enabled ? '' : ' (disabled)'}`, rule.id)));
             ensureRuleOption(selected);
@@ -979,9 +992,15 @@ if (typeof document !== "undefined") {
         if (event.target.closest('[data-utc-boundary]')) elements.datePreset.value = "";
     });
     elements.form.addEventListener("input", updateSearchControls);
+    elements.aiErrorMissing.addEventListener('change', () => {
+        elements.aiErrorCode.disabled = elements.aiErrorMissing.value === 'true';
+        if (elements.aiErrorCode.disabled) elements.aiErrorCode.value = '';
+        updateSearchControls();
+    });
     elements.form.addEventListener("change", updateSearchControls);
     elements.resetFilters.addEventListener("click", () => {
         elements.form.reset();
+        elements.aiErrorCode.disabled = false;
         dateRange.clear();
         elements.reviewState.value = "ALL";
         updateCheckedOnlyControls();

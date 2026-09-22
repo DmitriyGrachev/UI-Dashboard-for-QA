@@ -44,6 +44,9 @@ public class AdminScreenshotSearchRequest {
     private Instant reviewedTo;
     private AiTaskStatus aiTaskStatus;
     private UUID issuedRuleId;
+    private String aiErrorCode;
+    private Boolean aiErrorMissing;
+    private Boolean issuedRuleMissing;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -71,7 +74,10 @@ public class AdminScreenshotSearchRequest {
                 reviewedFrom,
                 reviewedTo,
                 aiTaskStatus,
-                issuedRuleId
+                issuedRuleId,
+                aiErrorCode,
+                aiErrorMissing,
+                issuedRuleMissing
         );
     }
 }

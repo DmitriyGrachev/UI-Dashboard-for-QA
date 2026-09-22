@@ -2,6 +2,7 @@ package com.introlabsystems.recognitionvalidator.ai.controller;
 
 import com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiOperationsSnapshot;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiFailureSummary;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleStatisticsSnapshot;
 import lombok.RequiredArgsConstructor;
@@ -19,6 +20,11 @@ import java.time.Clock;
 public class AiOperationsController {
     private final AiOperationsRepository operations;
     private final Clock clock;
+
+    @GetMapping("/failures")
+    public ResponseEntity<AiFailureSummary> failures() {
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.failures(clock.instant()));
+    }
 
     @GetMapping("/activity")
     public ResponseEntity<AiRuleActivitySnapshot> activity() {

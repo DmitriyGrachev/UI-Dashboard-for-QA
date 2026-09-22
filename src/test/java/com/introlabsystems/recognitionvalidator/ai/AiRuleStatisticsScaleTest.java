@@ -85,5 +85,25 @@ class AiRuleStatisticsScaleTest extends AiTestSupport {
         verify(template, times(1)).execute(anyString(), any(SqlParameterSource.class), any(PreparedStatementCallback.class));
         System.out.printf("SCALE_FIXTURE rows=100000 rules=20 ruleQueries=1 ruleMs=%d exportQueries=1 exportMs=%d%n",
                 ruleMillis, (System.nanoTime() - started) / 1_000_000);
+        // A high failed ratio with recent writes exercises heap visibility as well as many groups.
+        jdbc.update("""
+                UPDATE ai_review_task SET status='FAILED',
+                  issued_rule_id=CASE WHEN token_id=0 THEN NULL ELSE ('00000000-0000-0000-0000-'||lpad(token_id::text,12,'0'))::uuid END,
+                  last_error_code=CASE WHEN token_id=0 THEN NULL ELSE 'CODE_'||token_id END
+                WHERE token_id < 16
+                """);
+        jdbc.execute("CREATE INDEX IF NOT EXISTS ix_ai_failed_diagnostics ON ai_review_task(issued_rule_id,last_error_code) WHERE status='FAILED'");
+        jdbc.execute("ANALYZE ai_review_task");
+        var failureJdbc = spy(new org.springframework.jdbc.core.JdbcTemplate(jdbc.getDataSource()));
+        var failures = new com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository(failureJdbc, null, null, null);
+        var failureTransaction = new TransactionTemplate(transactionManager);
+        failureTransaction.setReadOnly(true);
+        failureTransaction.setTimeout(5);
+        long failureStarted = System.nanoTime();
+        var summary = failureTransaction.execute(tx -> failures.failures(Instant.now()));
+        assertThat(summary.total()).isEqualTo(80_000);
+        assertThat(summary.groups()).hasSize(16);
+        verify(failureJdbc, times(1)).query(anyString(), any(RowMapper.class));
+        System.out.printf("AI_FAILURES_HIGH_RATIO rows=100000 failed=80000 groups=16 ms=%d%n", (System.nanoTime() - failureStarted) / 1_000_000);
     }
 }

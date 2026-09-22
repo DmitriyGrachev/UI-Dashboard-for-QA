@@ -71,6 +71,13 @@ public class AdminScreenshotApiController {
     }
 
     private static void validate(AdminScreenshotSearchRequest request, boolean cursorAllowed) {
+        if (request.getAiErrorCode() != null && (request.getAiErrorCode().isBlank() || request.getAiErrorCode().length() > 64)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AI error code must contain 1–64 characters");
+        }
+        if ((request.getAiErrorCode() != null && Boolean.TRUE.equals(request.getAiErrorMissing()))
+                || (request.getIssuedRuleId() != null && Boolean.TRUE.equals(request.getIssuedRuleMissing()))) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Choose an exact value or a missing value, not both");
+        }
         if (request.getCreatedFrom() != null
                 && request.getCreatedTo() != null
                 && !request.getCreatedFrom().isBefore(request.getCreatedTo())) {

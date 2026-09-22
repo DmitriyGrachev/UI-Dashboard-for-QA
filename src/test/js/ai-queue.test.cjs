@@ -265,6 +265,45 @@ test('rule summary keeps selected false and zero conditions', () => {
     assert.match(summary, /token 0/);
 });
 
+test('failure overview loads only on demand, handles unknown reasons and clears stale values on errors', async () => {
+    const {initializeAiFailures, failureExplorerUrl} = require('../../main/resources/static/js/ai-queue.js');
+    assert.equal(failureExplorerUrl(), '/admin/screenshots?aiTaskStatus=FAILED');
+    assert.equal(failureExplorerUrl({ruleId:null,errorCode:null}), '/admin/screenshots?aiTaskStatus=FAILED&issuedRuleMissing=true&aiErrorMissing=true');
+    const root = new FakeElement('main');
+    const doc = new FakeDocument(root);
+    const nodes = Object.fromEntries(['ai-failures', 'ai-failures-refresh', 'ai-failures-message', 'ai-failures-groups', 'ai-failures-total', 'ai-failures-sign-in']
+        .map(id => {const node = new FakeElement('div', {id}); root.append(node); return [id,node];}));
+    doc.register(root);
+    let calls = 0, status = 200;
+    let data = {generatedAt:'2026-09-22T00:00Z',total:4,groups:[
+        {ruleId:'a',ruleName:'<script>rule</script>',errorCode:'AI_REJECTED',count:2},
+        {ruleId:null,errorCode:'constructor',count:1}, {ruleId:null,errorCode:null,count:1}]};
+    const previous = global.fetch;
+    global.fetch = async url => { calls++; assert.equal(url, '/admin/api/ai-queue/operations/failures');
+        return {ok:status===200,status,json:async()=>data}; };
+    try {
+        const overview = initializeAiFailures(doc);
+        assert.equal(calls,0);
+        await overview.refresh();
+        const rows = nodes['ai-failures-groups'].children;
+        assert.equal(rows.length,3);
+        assert.equal(rows[0].children[0].textContent, 'Rejected by AI service (AI_REJECTED)');
+        assert.equal(rows[0].children[1].textContent, '<script>rule</script>');
+        assert.equal(rows[1].children[0].textContent, 'constructor');
+        assert.equal(rows[2].children[2].children[0].href, failureExplorerUrl({ruleId:null,errorCode:null}));
+        nodes['ai-failures'].open = true; nodes['ai-failures'].dispatchEvent({type:'toggle'});
+        assert.equal(calls,1);
+        status = 503; data = {detail:'Database unavailable'}; await overview.refresh();
+        assert.equal(nodes['ai-failures-groups'].children.length,0);
+        assert.equal(nodes['ai-failures-total'].hidden,true);
+        assert.match(nodes['ai-failures-message'].textContent,/Database unavailable/);
+        status = 401; await overview.refresh();
+        assert.equal(nodes['ai-failures-sign-in'].hidden,false);
+        status = 200; data = {generatedAt:'2026-09-22T00:00Z',total:0,groups:[]}; await overview.refresh();
+        assert.match(nodes['ai-failures-message'].textContent,/No failed AI tasks/);
+    } finally { global.fetch = previous; }
+});
+
 test('settings snapshot normalizes server dates while preserving disabled values', () => {
     const snapshot = settingsSnapshot({enabled: false, rules: [{id: 'r1', name: ' Rule ', enabled: false,
         priority: 1, gameCode: 'bj_igt', createdFrom: '2026-09-03T10:15:30Z', tokenId: 0, hasUserHand: null}]});

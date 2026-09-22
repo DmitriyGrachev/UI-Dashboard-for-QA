@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.ai.repository;
 
 import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiFailureSummary;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleStatisticsSnapshot;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiOperationsSnapshot;
@@ -21,6 +22,23 @@ public class AiOperationsRepository {
     private final AiSettingsRepository settingsRepository;
     private final AiTaskRepository tasks;
     private final AiRuleActivityRepository activity;
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
+    public AiFailureSummary failures(Instant now) {
+        jdbc.execute("SET LOCAL statement_timeout='5s'");
+        var groups = jdbc.query("""
+                SELECT g.issued_rule_id,r.name,g.last_error_code,g.failed_count
+                FROM (
+                    SELECT issued_rule_id,last_error_code,COUNT(*) AS failed_count
+                    FROM ai_review_task WHERE status='FAILED'
+                    GROUP BY issued_rule_id,last_error_code
+                ) g
+                LEFT JOIN ai_selection_rule r ON r.id=g.issued_rule_id
+                ORDER BY g.failed_count DESC,g.issued_rule_id NULLS LAST,g.last_error_code NULLS LAST
+                """, (rs, row) -> new AiFailureSummary.Group(rs.getObject("issued_rule_id", java.util.UUID.class),
+                rs.getString("name"), rs.getString("last_error_code"), rs.getLong("failed_count")));
+        return new AiFailureSummary(now, groups.stream().mapToLong(AiFailureSummary.Group::count).sum(), groups);
+    }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
     public AiRuleActivitySnapshot activity(Instant now) {

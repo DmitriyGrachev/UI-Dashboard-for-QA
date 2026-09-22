@@ -229,6 +229,7 @@
                 <label>Issuing AI rule
                     <select id="explorer-issued-rule" aria-describedby="explorer-rule-load-message">
                         <option value="">All issuing rules</option>
+                        <option value="missing">No recorded rule</option>
                     </select>
                 </label>
                 <p id="explorer-rule-load-message" class="wide-filter" role="status" hidden></p>
@@ -253,6 +254,15 @@
             <details class="explorer-more-filters">
                 <summary>More filters and exact lookup</summary>
                 <div class="filter-field-grid">
+                    <label>AI error code
+                        <input id="explorer-ai-error-code" type="text" maxlength="64" placeholder="Exact code, e.g. AI_REJECTED">
+                    </label>
+                    <label>AI error reason
+                        <select id="explorer-ai-error-missing">
+                            <option value="">Any reason</option>
+                            <option value="true">Reason unavailable</option>
+                        </select>
+                    </label>
                     <label>
                         Decision
                         <select id="explorer-decision">

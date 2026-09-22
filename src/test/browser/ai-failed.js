@@ -11,7 +11,8 @@ async (page) => {
         {id: ruleId, name: 'Priority sessions', priority: 1, gameCode: 'bj_igt', enabled: true}]};
     const item = {imageId, fileName: 'fixture.png', gameCode: 'bj_igt', sessionId: 'fixture',
         fileCreatedAt: '2026-09-18T12:00:00Z', reviewState: 'UNCHECKED', storageState: 'LOCAL_ONLY', aiStatus: 'FAILED'};
-    let empty = false, namesUnavailable = false, namesFailed = false;
+    let empty = false, namesUnavailable = false, namesFailed = false, failuresUnavailable = false;
+    let failureCalls = 0;
     await context.route('**/admin/api/**', async route => {
         const url = route.request().url();
         requests.push(url);
@@ -25,6 +26,12 @@ async (page) => {
                 rules: [{ruleId, remaining: 100, processing: 5, completed: 200, failed: 2}]};
         } else if (url.endsWith('/operations/activity')) {
             body = {revision: 1, generatedAt: item.fileCreatedAt, lastIssuedRuleIds: [], rules: []};
+        } else if (url.endsWith('/operations/failures')) {
+            failureCalls++;
+            if (failuresUnavailable) return route.fulfill({status:503,json:{detail:'Failed summary unavailable'}});
+            body = {generatedAt:item.fileCreatedAt,total:3,groups:[
+                {ruleId,ruleName:'Priority sessions',errorCode:'AI_REJECTED',count:2},
+                {ruleId:null,ruleName:null,errorCode:null,count:1}]};
         } else if (url.endsWith('/operations')) {
             body = {enabled: true, hasEligiblePending: true, processing: 5, failed: 2, expired: 0};
         } else if (url.includes('/storage/status')) {
@@ -50,7 +57,23 @@ async (page) => {
         await failed.filter({hasText: '2'}).waitFor();
         check(await p.locator('#ai-operations-failed').getAttribute('href') === '/admin/screenshots?aiTaskStatus=FAILED', 'Global failure link');
         check(await failed.getAttribute('href') === `/admin/screenshots?aiTaskStatus=FAILED&issuedRuleId=${ruleId}`, 'Rule filter link');
-        await failed.focus();
+        check(failureCalls === 0, 'Failures loaded before opening');
+        await p.locator('#ai-failures > summary').click();
+        await p.locator('#ai-failures-total:not([hidden])').waitFor();
+        check(await p.locator('#ai-failures-groups a').nth(1).getAttribute('href') === '/admin/screenshots?aiTaskStatus=FAILED&issuedRuleMissing=true&aiErrorMissing=true', 'Missing-value link widened the filter');
+        for (const width of [1440,1280,768]) {
+            await p.setViewportSize({width,height:900});
+            check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Failed summary overflow');
+            await p.screenshot({path:`C:/Users/dimag/AppData/Local/Temp/rv-failure-summary-${width}.png`,fullPage:true});
+        }
+        failuresUnavailable = true;
+        await p.locator('#ai-failures-refresh').click();
+        await p.getByText('Failed summary unavailable Select Refresh failures to retry.',{exact:true}).waitFor();
+        check(await p.locator('#ai-failures-groups tr').count() === 0, 'Stale failure groups left after an error');
+        failuresUnavailable = false;
+        await p.locator('#ai-failures-refresh').click();
+        const groupLink = p.locator('#ai-failures-groups a').first();
+        await groupLink.waitFor(); await groupLink.focus();
         await p.keyboard.press('Enter');
         await p.locator('#explorer-ai-details').getByText('Assignment attempts: 3', {exact: true}).waitFor();
         await p.waitForFunction(() => document.querySelector('#explorer-image').naturalWidth > 0);
@@ -59,6 +82,7 @@ async (page) => {
         check(await p.locator('#explorer-ai-details img').count() === 0, 'Error was rendered as HTML');
         check(await p.locator('#explorer-ai-task-status').inputValue() === 'FAILED', 'Lost task status');
         check(await p.locator('#explorer-issued-rule').inputValue() === ruleId, 'Lost issuing rule');
+        check(await p.locator('#explorer-ai-error-code').inputValue() === 'AI_REJECTED', 'Lost failure reason');
         check(requests.some(url => url.includes('/screenshots?') && url.includes('aiTaskStatus=FAILED') && url.includes(`issuedRuleId=${ruleId}`)), 'Search omitted filters');
         for (const [width, height, theme] of [[1440, 900, 'dark'], [1280, 720, 'light'], [768, 900, 'dark']]) {
             await p.setViewportSize({width, height});
@@ -74,6 +98,7 @@ async (page) => {
         await p.getByRole('button', {name: 'Download CSV', exact: true}).click();
         check((await download).url().includes('aiTaskStatus=FAILED'), 'CSV download');
         check(requests.some(url => url.includes('/export.csv?') && url.includes('aiTaskStatus=FAILED') && url.includes(`issuedRuleId=${ruleId}`)), 'CSV omitted filters');
+        check(requests.some(url => url.includes('/export.csv?') && url.includes('aiErrorCode=AI_REJECTED')), 'CSV omitted error code');
         namesUnavailable = true;
         await p.reload();
         await p.locator('#explorer-ai-details').getByText('Assignment attempts: 3', {exact: true}).waitFor();
@@ -82,14 +107,24 @@ async (page) => {
         await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
         await p.locator('#search-screenshots').click();
         await p.locator('#screenshot-results').getByText('No screenshots match these filters.', {exact: true}).waitFor();
-        check(errors.length === 0, errors.join('; '));
+        check(errors.length === 1 && errors[0].includes('503'), errors.join('; '));
         namesFailed = true;
         await p.reload();
         await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
         await p.locator('#explorer-rule-load-message:not([hidden])').waitFor();
         check(await p.locator('#explorer-issued-rule').inputValue() === ruleId, 'Unavailable settings widened the search');
-        check(errors.length === 1 && errors[0].includes('503'), 'Unexpected errors: ' + errors.join('; '));
+        check(errors.length === 2 && errors.every(error => error.includes('503')), 'Unexpected errors: ' + errors.join('; '));
+        namesFailed = false; empty = false;
+        await p.goto('http://127.0.0.1:18992/admin/screenshots?aiTaskStatus=FAILED&issuedRuleMissing=true&aiErrorMissing=true');
+        await p.locator('.screenshot-result').first().waitFor();
+        check(await p.locator('#explorer-issued-rule').inputValue() === 'missing', 'Missing rule became All');
+        check(await p.locator('#explorer-ai-error-missing').inputValue() === 'true', 'Missing reason became Any');
+        check(await p.locator('#explorer-ai-error-code').isDisabled(), 'Exact reason still editable in missing mode');
+        await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
+        await p.locator('#saved-filter-name').fill('Missing diagnostics'); await p.locator('#save-filter').click();
+        const savedQuery = await p.evaluate(() => JSON.parse(localStorage.getItem('recognition-validator.admin-saved-filters'))[0].query);
+        check(savedQuery.includes('issuedRuleMissing=true') && savedQuery.includes('aiErrorMissing=true') && !savedQuery.includes('issuedRuleId='), 'Saved NULL filters changed');
         return {flow: 'Failed counter → filtered Explorer → diagnostics → CSV; deleted rule, empty state and settings failure',
-            screenshots, consoleErrors: 'None in normal flow; one expected HTTP 503 during injected settings failure'};
+            screenshots, consoleErrors: 'None in normal flow; two expected HTTP 503 responses during injected failures'};
     } finally { await context.close(); }
 }

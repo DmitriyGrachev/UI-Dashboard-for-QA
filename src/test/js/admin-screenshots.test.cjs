@@ -23,6 +23,18 @@ test('session links use only exact game and session, with safe encoding', () => 
     for (const details of [null, {}, {gameCode:'bj_igt',sessionId:' '}, {sessionId:'s'}]) assert.equal(sessionExplorerUrl(details), null);
 });
 
+test('exact failure reason and missing-value filters survive pagination and CSV', () => {
+    const {csvExportUrl} = require('../../main/resources/static/js/admin-screenshots.js');
+    const filters = {aiTaskStatus:'FAILED', aiErrorCode:'NEW_CODE', issuedRuleMissing:true};
+    const params = buildSearchParams(filters, {createdAt:'2026-09-22T00:00Z', id:'a'});
+    assert.equal(params.get('aiErrorCode'), 'NEW_CODE');
+    assert.equal(params.get('issuedRuleMissing'), 'true');
+    assert.equal(params.has('aiErrorMissing'), false);
+    const csv = new URL(csvExportUrl({aiErrorMissing:true, issuedRuleId:'r'}), 'http://localhost');
+    assert.equal(csv.searchParams.get('aiErrorMissing'), 'true');
+    assert.equal(csv.searchParams.get('issuedRuleId'), 'r');
+});
+
 test('saved relative ranges resolve in UTC on application, retaining legacy exact dates', () => {
     const {resolveSavedFilter} = require('../../main/resources/static/js/admin-screenshots.js');
     const legacy = {query: 'createdFrom=2026-09-01T00%3A00%3A00Z&sessionId=a'};

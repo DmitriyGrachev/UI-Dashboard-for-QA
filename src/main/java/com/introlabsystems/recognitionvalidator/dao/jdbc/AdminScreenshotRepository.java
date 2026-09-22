@@ -116,7 +116,7 @@ public class AdminScreenshotRepository {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
         // Preserve the existing EXISTS-only path for result filters that do not need image metadata.
-        boolean aiOrdered = filters.aiTaskStatus() != null || filters.issuedRuleId() != null;
+        boolean aiOrdered = hasAiTaskFilters(filters);
         String baseConditions = conditions(filters, parameters, aiOrdered);
         String summaryFrom = aiOrdered ? AI_SEARCH_FROM + "WHERE TRUE\n"
                 : requiresImageAsset(filters) ? SEARCH_FROM + "WHERE TRUE\n" : SUMMARY_FROM;
@@ -139,9 +139,14 @@ public class AdminScreenshotRepository {
     }
 
     private static boolean usesAiOrder(AdminScreenshotFilters filters) {
-        return filters.aiTaskStatus() != null || filters.issuedRuleId() != null
+        return hasAiTaskFilters(filters)
                 || AiResultFilterSql.completedOnly(filters.aiResult(), filters.aiVerdict(),
                     filters.confidenceFrom(), filters.confidenceTo());
+    }
+
+    private static boolean hasAiTaskFilters(AdminScreenshotFilters filters) {
+        return filters.aiTaskStatus() != null || filters.issuedRuleId() != null || filters.aiErrorCode() != null
+                || Boolean.TRUE.equals(filters.aiErrorMissing()) || Boolean.TRUE.equals(filters.issuedRuleMissing());
     }
 
     @Transactional(readOnly = true, timeout = 120)
@@ -292,6 +297,12 @@ public class AdminScreenshotRepository {
             sql.append(" AND ai.issued_rule_id = :issuedRuleId");
             parameters.addValue("issuedRuleId", filters.issuedRuleId());
         }
+        if (filters.aiErrorCode() != null) {
+            sql.append(" AND ai.last_error_code = :aiErrorCode");
+            parameters.addValue("aiErrorCode", filters.aiErrorCode());
+        }
+        if (Boolean.TRUE.equals(filters.aiErrorMissing())) sql.append(" AND ai.last_error_code IS NULL");
+        if (Boolean.TRUE.equals(filters.issuedRuleMissing())) sql.append(" AND ai.issued_rule_id IS NULL");
         return sql.toString();
     }
 

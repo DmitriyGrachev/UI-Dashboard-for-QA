@@ -2,6 +2,20 @@
 
 ## Behavior
 
+- The Failed diagnostics disclosure loads `GET /admin/api/ai-queue/operations/failures` on first opening or manual refresh, without polling. The admin-only, `no-store` response is `{generatedAt,total,groups:[{ruleId,ruleName,errorCode,count}]}`. It counts current FAILED tasks, not historical errors, MISMATCH results or expired PROCESSING leases.
+- Diagnostic links add exact `aiErrorCode` (1–64 nonblank characters), `aiErrorMissing=true` or `issuedRuleMissing=true`. Missing flags mean SQL NULL in an existing AI task; false/omitted flags impose no restriction. An exact code plus missing-code flag, or rule ID plus missing-rule flag, is rejected with HTTP 400. Deleted rules keep their UUID; missing names and unknown codes are shown explicitly.
+- Search, summary, pagination, saved filters and the existing 13-column CSV reuse the same conditions. CSV escaping and authorization are unchanged. No task status or download markers change.
+
+## Failed summary index and local scale verification (2026-09-22)
+
+Before enabling the new summary on a large database, run `psql -f scripts/ai-rule-statistics-index.sql` outside a transaction. The added partial index is `ix_ai_failed_diagnostics (issued_rule_id,last_error_code) WHERE status='FAILED'`. It is built concurrently, with a three-second lock timeout, definition validation and recovery of interrupted invalid builds. No production migration was run during implementation.
+
+On the disposable PostgreSQL 17 fixture (4.4 million AI tasks, 44,000 Failed), the unindexed summary exceeded the unchanged five-second budget. Diagnostic EXPLAIN took 10,221 ms with 30,215 buffer reads from wide heap pages. The covering index reduced it to 7.5 ms, 82 buffer hits and zero heap fetches. The migration was run twice successfully. These are local measurements, not a production guarantee.
+
+`AiRuleStatisticsLargeScaleTest` checks a single aggregate query and its covering-index plan against that fixture. `AiRuleStatisticsScaleTest` additionally exercises 80,000 recent Failed tasks out of 100,000 with 16 rule/reason groups under the five-second timeout.
+
+## Screenshot diagnostics and ZIP export
+
 - The global Failed count opens all failed AI tasks. A rule's Failed count opens that rule's failed tasks. Unsaved rule edits remove the stale count link.
 - Screenshot Explorer accepts `aiTaskStatus=PENDING|PROCESSING|COMPLETED|FAILED` and `issuedRuleId=<UUID>`. Omit either to leave it unrestricted. Search, summary, pagination, saved filters and CSV share the same predicates. Other filters still combine with AND; FAILED plus a completed verdict intentionally yields no rows.
 - The rule picker shows saved rules, including disabled ones. Deleted/unavailable rules keep their UUID when opening an existing link, so a settings failure never silently widens that search.

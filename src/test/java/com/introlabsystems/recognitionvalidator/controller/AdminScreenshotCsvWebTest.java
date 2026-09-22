@@ -21,6 +21,48 @@ class AdminScreenshotCsvWebTest extends AbstractWebIntegrationTest {
     private static final String EXPORT = "/admin/api/screenshots/export.csv";
 
     @Test
+    void failureGroupsUseExactSharedFiltersAcrossAllPagesAndCsv() throws Exception {
+        String rule = "11111111-1111-1111-1111-111111111111";
+        for (int i = 1; i <= 57; i++) insertReviewImage(i, "failed-" + i + ".png", false, "bj_igt", "failures", null, "Two", null);
+        jdbc.update("""
+                INSERT INTO ai_review_task(image_id,status,file_created_at,game_code,is_notification,has_user_hand,issued_rule_id,last_error_code)
+                SELECT image_id,'FAILED',file_created_at,game_code,false,true,?::uuid,'AI_REJECTED' FROM review_task
+                """, rule);
+        jdbc.update("UPDATE ai_review_task SET last_error_code=NULL,issued_rule_id=NULL WHERE image_id=?", "%064x".formatted(56));
+        jdbc.update("UPDATE ai_review_task SET last_error_code='NEW_CODE' WHERE image_id=?", "%064x".formatted(57));
+        var before = jdbc.queryForList("SELECT * FROM ai_review_task ORDER BY image_id");
+        for (var filters : List.of(Map.of("aiTaskStatus", "FAILED", "aiErrorCode", "AI_REJECTED", "issuedRuleId", rule),
+                Map.of("aiErrorMissing", "true", "issuedRuleMissing", "true"), Map.of("aiErrorCode", "NEW_CODE"),
+                Map.of("aiErrorCode", "ABSENT"), Map.of("aiErrorMissing", "false", "issuedRuleMissing", "false"))) {
+            int expected = filters.containsKey("issuedRuleId") ? 55 : "ABSENT".equals(filters.get("aiErrorCode")) ? 0
+                    : "false".equals(filters.get("aiErrorMissing")) ? 57 : 1;
+            var params = new java.util.HashMap<>(filters);
+            List<String> ids = new ArrayList<>();
+            while (true) {
+                var result = mapper.readTree(mockMvc.perform(request("/admin/api/screenshots", params))
+                        .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+                result.get("items").forEach(item -> ids.add(item.get("imageId").asText()));
+                if (result.get("nextId").isNull()) break;
+                params.put("cursorId", result.get("nextId").asText());
+                params.put("cursorCreatedAt", result.get("nextCreatedAt").asText());
+            }
+            assertThat(ids).hasSize(expected);
+            mockMvc.perform(request("/admin/api/screenshots/summary", filters)).andExpect(status().isOk())
+                    .andExpect(jsonPath("$.totalCount").value(expected));
+            var rows = parse(mockMvc.perform(request(EXPORT, filters)).andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString(StandardCharsets.UTF_8));
+            assertThat(rows.subList(1, rows.size()).stream().map(List::getFirst).toList()).containsExactlyElementsOf(ids);
+        }
+        assertThat(jdbc.queryForList("SELECT * FROM ai_review_task ORDER BY image_id")).isEqualTo(before);
+        for (String path : List.of("/admin/api/screenshots", "/admin/api/screenshots/summary", EXPORT)) {
+            for (var invalid : List.of(Map.of("aiErrorCode", " "), Map.of("aiErrorCode", "X".repeat(65)),
+                    Map.of("aiErrorCode", "X", "aiErrorMissing", "true"), Map.of("issuedRuleId", rule, "issuedRuleMissing", "true"))) {
+                mockMvc.perform(request(path, invalid)).andExpect(status().isBadRequest());
+            }
+        }
+    }
+
+    @Test
     void failedTaskFiltersAgreeAcrossSearchSummaryAndCsvAndExposeDiagnostics() throws Exception {
         String rule = "11111111-1111-1111-1111-111111111111";
         String other = "22222222-2222-2222-2222-222222222222";

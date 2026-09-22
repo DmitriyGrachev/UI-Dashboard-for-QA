@@ -62,6 +62,20 @@
             <a id="ai-operations-sign-in" th:href="@{/login}" hidden>Sign in again</a>
         </section>
 
+        <details id="ai-failures" class="rejected-export-panel ai-queue-panel">
+            <summary>Failed diagnostics · reasons and issuing rules</summary>
+            <p>Tasks currently marked Failed. Mismatches are completed results; overdue Processing tasks appear in rule activity.</p>
+            <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
+            <p id="ai-failures-message" role="status" aria-live="polite">Open to load the current summary.</p>
+            <p><a id="ai-failures-total" hidden></a></p>
+            <table class="ai-failure-table">
+                <caption>Current failures by reason and issuing rule</caption>
+                <thead><tr><th scope="col">Reason</th><th scope="col">Issuing rule</th><th scope="col">Tasks</th></tr></thead>
+                <tbody id="ai-failures-groups"></tbody>
+            </table>
+            <a id="ai-failures-sign-in" th:href="@{/login}" hidden>Sign in again</a>
+        </details>
+
         <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
             <header>
                 <div><span class="section-kicker">Independent AI review</span><h2 id="ai-queue-title">Issuance settings</h2></div>

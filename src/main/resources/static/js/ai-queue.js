@@ -85,8 +85,69 @@ function ruleSummary(values = {}) {
 
 if (typeof document !== 'undefined') {
     const operations = initializeAiOperations(document);
+    initializeAiFailures(document);
     const form = document.getElementById('ai-queue-form');
     if (form) initializeAiQueue(form, operations);
+}
+
+function failureExplorerUrl(group = null) {
+    const params = new URLSearchParams({aiTaskStatus: 'FAILED'});
+    if (group) {
+        params.set(group.ruleId == null ? 'issuedRuleMissing' : 'issuedRuleId', group.ruleId ?? 'true');
+        params.set(group.errorCode == null ? 'aiErrorMissing' : 'aiErrorCode', group.errorCode ?? 'true');
+    }
+    return '/admin/screenshots?' + params;
+}
+
+function initializeAiFailures(doc) {
+    const panel = doc.getElementById('ai-failures');
+    if (!panel) return;
+    const refresh = doc.getElementById('ai-failures-refresh');
+    const message = doc.getElementById('ai-failures-message');
+    const list = doc.getElementById('ai-failures-groups');
+    const total = doc.getElementById('ai-failures-total');
+    let loaded = false;
+    async function load() {
+        if (refresh.disabled) return;
+        refresh.disabled = true; panel.setAttribute('aria-busy', 'true');
+        message.textContent = 'Loading failed tasks…'; message.dataset.error = 'false';
+        list.replaceChildren(); total.hidden = true;
+        try {
+            const response = await fetch('/admin/api/ai-queue/operations/failures', {cache: 'no-store'});
+            if (response.status === 401 || (response.redirected && response.url.includes('/login'))) {
+                doc.getElementById('ai-failures-sign-in').hidden = false;
+                throw new Error('Your session has expired. Sign in again.');
+            }
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.detail || data.message || `Request failed (${response.status})`);
+            if (!Array.isArray(data.groups) || !Number.isSafeInteger(data.total) || !data.generatedAt) {
+                throw new Error('Could not read failed-task summary.');
+            }
+            total.href = failureExplorerUrl(); total.textContent = `View all ${data.total.toLocaleString('en-US')} failed tasks`;
+            total.hidden = data.total === 0;
+            const labels = {AI_REJECTED: 'Rejected by AI service', DELIVERY_NOT_CONFIGURED: 'Image delivery is not configured',
+                IMAGE_UNAVAILABLE: 'Image source unavailable', DELIVERY_UNAVAILABLE: 'Image delivery unavailable', LEASE_EXPIRED: 'Assignment deadline exceeded'};
+            data.groups.forEach(group => {
+                const row = doc.createElement('tr');
+                const reason = doc.createElement('td'), rule = doc.createElement('td'), count = doc.createElement('td');
+                reason.textContent = group.errorCode == null ? 'Reason unavailable'
+                    : Object.hasOwn(labels, group.errorCode) ? `${labels[group.errorCode]} (${group.errorCode})` : group.errorCode;
+                rule.textContent = group.ruleName || (group.ruleId ? `Rule ${group.ruleId} (name unavailable)` : 'No recorded rule');
+                const link = doc.createElement('a'); link.href = failureExplorerUrl(group);
+                link.textContent = Number(group.count).toLocaleString('en-US');
+                link.setAttribute('aria-label', `${group.count} failed tasks: ${reason.textContent}, ${rule.textContent}`);
+                count.append(link); row.append(reason, rule, count); list.append(row);
+            });
+            message.textContent = (data.total ? '' : 'No failed AI tasks. ') + `Updated ${formatAiTime(data.generatedAt)}. Refresh to update.`;
+            loaded = true;
+        } catch (error) {
+            message.dataset.error = 'true';
+            message.textContent = `${error.message || 'Could not load failed tasks.'} Select Refresh failures to retry.`;
+        } finally { refresh.disabled = false; panel.setAttribute('aria-busy', 'false'); }
+    }
+    panel.addEventListener('toggle', () => { if (panel.open && !loaded) void load(); });
+    refresh.addEventListener('click', load);
+    return {refresh: load};
 }
 
 function initializeAiOperations(doc) {
@@ -679,5 +740,6 @@ function initializeAiQueue(form, operations) {
 }
 
 if (typeof module !== 'undefined' && module.exports) {
-    module.exports = {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue, initializeAiOperations};
+    module.exports = {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue, initializeAiOperations,
+        failureExplorerUrl, initializeAiFailures};
 }

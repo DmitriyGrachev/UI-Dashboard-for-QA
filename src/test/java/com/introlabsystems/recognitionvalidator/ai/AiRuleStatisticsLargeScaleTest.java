@@ -38,6 +38,34 @@ import static org.mockito.Mockito.*;
 @EnabledIfSystemProperty(named = "ai.rules.scale.url", matches = "jdbc:postgresql://.+")
 class AiRuleStatisticsLargeScaleTest {
     @Test
+    void failureSummaryReadsOnlyTheCoveringIndexWithinFiveSeconds() throws Exception {
+        try (var connection = DriverManager.getConnection(System.getProperty("ai.rules.scale.url"), "validator", "validator")) {
+            var dataSource = new SingleConnectionDataSource(connection, true);
+            var jdbc = spy(new org.springframework.jdbc.core.JdbcTemplate(dataSource));
+            assertThat(jdbc.queryForObject("SELECT current_database()", String.class)).isEqualTo("rv_ai_stats_analysis");
+            connection.setReadOnly(true);
+            var repository = new com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository(jdbc, null, null, null);
+            clearInvocations(jdbc); // Exclude the fixture identity check from the query budget.
+            var transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+            transaction.setReadOnly(true);
+            transaction.setTimeout(5);
+            long started = System.nanoTime();
+            var summary = transaction.execute(tx -> repository.failures(Instant.now()));
+            assertThat(summary.total()).isEqualTo(44_000);
+            assertThat(summary.groups().stream().mapToLong(AiFailureSummary.Group::count).sum()).isEqualTo(summary.total());
+            var sql = ArgumentCaptor.forClass(String.class);
+            verify(jdbc, times(1)).query(sql.capture(), any(RowMapper.class));
+            System.out.printf("AI_FAILURES_SCALE rows=4400000 failed=44000 ms=%d%n", (System.nanoTime() - started) / 1_000_000);
+            var plan = jdbc.queryForList("EXPLAIN (ANALYZE, BUFFERS) " + sql.getValue(), String.class);
+            var output = Path.of("target/ai-rule-statistics-scale");
+            Files.createDirectories(output);
+            Files.write(output.resolve("failures-plan.txt"), plan);
+            assertThat(String.join("\n", plan)).contains("Index Only Scan using ix_ai_failed_diagnostics", "Heap Fetches: 0")
+                    .doesNotContain("Seq Scan on ai_review_task");
+        }
+    }
+
+    @Test
     void globalOperationsReadOnlyOperationalIndexes() throws Exception {
         try (var connection = DriverManager.getConnection(System.getProperty("ai.rules.scale.url"), "validator", "validator")) {
             var dataSource = new SingleConnectionDataSource(connection, true);
