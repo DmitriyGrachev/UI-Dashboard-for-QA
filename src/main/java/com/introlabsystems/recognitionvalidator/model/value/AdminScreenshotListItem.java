@@ -1,6 +1,7 @@
 package com.introlabsystems.recognitionvalidator.model.value;
 
 import com.introlabsystems.recognitionvalidator.model.enums.AdminReviewState;
+import com.introlabsystems.recognitionvalidator.model.enums.Decision;
 import com.introlabsystems.recognitionvalidator.model.enums.ImageStorageState;
 
 import java.time.Instant;
@@ -13,6 +14,9 @@ public record AdminScreenshotListItem(
         String sessionId,
         AdminReviewState reviewState,
         ImageStorageState storageState,
-        String aiStatus
+        String aiStatus,
+        String aiVerdict,
+        Integer aiConfidence,
+        Decision decision
 ) {
 }

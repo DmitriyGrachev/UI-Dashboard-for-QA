@@ -27,6 +27,38 @@ class AiResultFiltersTest extends AiTestSupport {
     @Autowired ObjectMapper json;
 
     @Test
+    void screenshotListExposesOutcomesOnlyForCompletedReviews() throws Exception {
+        String[] verdicts = {"MATCH", "MISMATCH", "LOW_CONFIDENCE", "HAND_COUNT_MISMATCH", "NO_HANDS_FOUND"};
+        for (int i = 0; i < verdicts.length; i++) {
+            String id = image(i + 1, 53);
+            jdbc.update("UPDATE ai_review_task SET status='COMPLETED',valid=?,verdict=?,confidence=?,checked_at=now() WHERE image_id=?",
+                    i == 0, verdicts[i], i < 2 ? Integer.valueOf(i == 0 ? 95 : 0) : null, id);
+            jdbc.update("UPDATE review_task SET status='COMPLETED',decision=? WHERE image_id=?",
+                    i == 0 ? "ACCEPTED" : "REJECTED", id);
+        }
+        String failed = image(6, 53);
+        jdbc.update("UPDATE ai_review_task SET status='FAILED',verdict='MATCH',confidence=99 WHERE image_id=?", failed);
+        jdbc.update("UPDATE review_task SET decision='ACCEPTED' WHERE image_id=?", failed);
+        String absent = image(7, 53);
+        jdbc.update("DELETE FROM ai_review_task WHERE image_id=?", absent);
+        var response = mvc.perform(get("/admin/api/screenshots").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andReturn();
+        var rows = json.readTree(response.getResponse().getContentAsString()).get("items");
+        for (int i = 0; i < verdicts.length; i++) {
+            assertThat(rows.get(i).path("aiVerdict").asText()).isEqualTo(verdicts[i]);
+            assertThat(rows.get(i).path("decision").asText()).isEqualTo(i == 0 ? "ACCEPTED" : "REJECTED");
+        }
+        assertThat(rows.get(0).path("aiConfidence").asInt(-1)).isEqualTo(95);
+        assertThat(rows.get(1).path("aiConfidence").asInt(-1)).isZero();
+        assertThat(rows.get(2).get("aiConfidence").isNull()).isTrue();
+        for (int i : new int[]{5, 6}) {
+            assertThat(rows.get(i).get("aiVerdict").isNull()).isTrue();
+            assertThat(rows.get(i).get("aiConfidence").isNull()).isTrue();
+            assertThat(rows.get(i).get("decision").isNull()).isTrue();
+        }
+    }
+
+    @Test
     void screenshotListExposesAiStateIndependentlyOfOperatorReview() throws Exception {
         String pending = image(1, 53);
         String absent = image(2, 53);

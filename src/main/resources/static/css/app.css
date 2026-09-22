@@ -2843,7 +2843,15 @@ span.flatpickr-weekday {
     text-transform: uppercase;
 }
 
-.result-badge.is-checked,
+.screenshot-result-statuses {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.result-badge[data-tone="danger"] { color: var(--reject); border-color: currentColor; }
+.result-badge[data-tone="warning"] { color: var(--warning); border-color: currentColor; }
+.result-badge[data-tone="success"],
 .detail-status[data-state="checked"] {
     border-color: var(--accept);
     color: var(--accept);

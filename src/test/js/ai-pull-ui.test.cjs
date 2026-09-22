@@ -92,7 +92,8 @@ test('screenshot list and grid distinguish operator and AI states without extra 
         const results = document.createElement('div');
         const items = [null, 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'].map((aiStatus, i) => ({
             imageId: String(i), aiStatus, reviewState: i === 1 ? 'CHECKED' : 'UNCHECKED',
-            fileName: 'screenshot.png', gameCode: 'bj_igt', storageState: 'LOCAL_ONLY'
+            fileName: 'screenshot.png', gameCode: 'bj_igt', storageState: 'LOCAL_ONLY',
+            aiVerdict: 'MISMATCH', aiConfidence: 0, decision: i === 1 ? 'REJECTED' : null
         }));
         const state = {items, selectedIndex: 2};
         const focused = document.createElement('button');
@@ -101,14 +102,15 @@ test('screenshot list and grid distinguish operator and AI states without extra 
         document.activeElement = focused;
         require('node:vm').runInNewContext(code + '\nrenderResults();', {
             document, state, elements: {results}, byId: () => ({value: view}),
-            formatUtcDate: () => '14/09/2026 UTC', selectResult() {}
+            formatUtcDate: () => '14/09/2026 UTC', selectResult() {},
+            aiPresentation: require('../../main/resources/static/js/ai-result.js').aiPresentation
         });
         assert.equal(results.children.length, 5);
         for (const [i, row] of results.children.entries()) {
             const statuses = row.children.find(node => node.className === 'screenshot-result-statuses');
             assert.ok(statuses, view);
-            assert.equal(statuses.children[0].textContent, i === 1 ? 'Operator: Checked' : 'Operator: Unchecked');
-            assert.equal(statuses.children[1].textContent, ['AI: Not checked', 'AI: Not checked', 'AI: Assigned', 'AI: Checked', 'AI: Failed'][i]);
+            assert.equal(statuses.children[0].textContent, i === 1 ? 'Operator: Does not match' : 'Operator: Unchecked');
+            assert.equal(statuses.children[1].textContent, ['AI: Not checked', 'AI: Not checked', 'AI: Assigned to AI', 'AI: Mismatch · 0%', 'AI: Check failed'][i]);
             assert.equal(row.attributes['aria-pressed'], String(i === 2));
             assert.equal(row.children.filter(node => node.tagName === 'img').length, view === 'grid' ? 1 : 0);
         }

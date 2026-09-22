@@ -517,16 +517,20 @@ if (typeof document !== "undefined") {
             const time = document.createElement("time");
             time.textContent = formatUtcDate(item.fileCreatedAt);
             const review = document.createElement("span");
-            review.className = `result-badge is-${item.reviewState.toLowerCase()}`;
-            review.textContent = reviewLabel(item.reviewState);
+            review.className = "result-badge";
+            review.dataset.tone = item.decision === "ACCEPTED" ? "success" : item.decision === "REJECTED" ? "danger" : "neutral";
+            review.textContent = item.decision === "ACCEPTED" ? "Operator: Matches"
+                : item.decision === "REJECTED" ? "Operator: Does not match" : reviewLabel(item.reviewState);
             top.append(time);
             const statuses = document.createElement("span");
             statuses.className = "screenshot-result-statuses";
             const ai = document.createElement("span");
             ai.className = "result-badge";
             ai.dataset.aiStatus = item.aiStatus || "PENDING";
-            ai.textContent = "AI: " + ({PENDING: "Not checked", PROCESSING: "Assigned",
-                COMPLETED: "Checked", FAILED: "Failed"}[item.aiStatus || "PENDING"] || "Unknown");
+            const result = aiPresentation({status: item.aiStatus, verdict: item.aiVerdict, confidence: item.aiConfidence});
+            ai.dataset.tone = result.tone;
+            ai.textContent = "AI: " + result.label + (item.aiStatus === "COMPLETED"
+                ? ` · ${result.confidence == null ? "—" : result.confidence + "%"}` : "");
             statuses.append(review, ai);
 
             const file = document.createElement("strong");

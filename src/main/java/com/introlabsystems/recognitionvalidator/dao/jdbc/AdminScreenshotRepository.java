@@ -77,6 +77,9 @@ public class AdminScreenshotRepository {
         String listFrom = searchFrom(aiOrdered);
         List<AdminScreenshotListItem> items = jdbc.query("""
                 SELECT ia.id, ia.file_name, rt.file_created_at, ia.game_code, ia.session_id, ai.status AS ai_status,
+                       CASE WHEN ai.status = 'COMPLETED' THEN ai.verdict END AS ai_verdict,
+                       CASE WHEN ai.status = 'COMPLETED' THEN ai.confidence END AS ai_confidence,
+                       CASE WHEN rt.status = 'COMPLETED' THEN rt.decision END AS decision,
                        CASE WHEN rt.status = 'COMPLETED' THEN 'CHECKED' ELSE 'UNCHECKED' END
                            AS review_state,
                        CASE
@@ -332,6 +335,7 @@ public class AdminScreenshotRepository {
 
     private static AdminScreenshotListItem mapItem(ResultSet resultSet, int rowNumber)
             throws SQLException {
+        String decision = resultSet.getString("decision");
         return new AdminScreenshotListItem(
                 resultSet.getString("id"),
                 resultSet.getString("file_name"),
@@ -340,7 +344,10 @@ public class AdminScreenshotRepository {
                 resultSet.getString("session_id"),
                 AdminReviewState.valueOf(resultSet.getString("review_state")),
                 ImageStorageState.valueOf(resultSet.getString("storage_state")),
-                resultSet.getString("ai_status")
+                resultSet.getString("ai_status"),
+                resultSet.getString("ai_verdict"),
+                resultSet.getObject("ai_confidence", Integer.class),
+                decision == null ? null : Decision.valueOf(decision)
         );
     }
 
