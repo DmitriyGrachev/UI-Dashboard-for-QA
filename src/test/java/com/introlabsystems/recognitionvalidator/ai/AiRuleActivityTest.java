@@ -20,6 +20,34 @@ class AiRuleActivityTest extends AiTestSupport {
     @Autowired com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository operations;
 
     @Test
+    void activitySeparatesActiveExpiredUnknownAndDeletedRulesWhilePaused() throws Exception {
+        var first = AiSettingsRepositoryTest.rule(1, 53L);
+        var second = AiSettingsRepositoryTest.rule(2, null);
+        var deleted = UUID.randomUUID();
+        settings.save(new AiSettings(0, false, List.of(first, second)));
+        var now = java.time.Instant.parse("2026-09-22T10:00:00Z");
+        for (int i = 1; i <= 7; i++) image(i, 53);
+        jdbc.update("UPDATE ai_review_task SET status='PROCESSING',issued_rule_id=?,lease_expires_at=?", first.id(), Timestamp.from(now.plusSeconds(60)));
+        jdbc.update("UPDATE ai_review_task SET lease_expires_at=? WHERE image_id=?", Timestamp.from(now), "%064x".formatted(2));
+        jdbc.update("UPDATE ai_review_task SET lease_expires_at=NULL WHERE image_id=?", "%064x".formatted(3));
+        jdbc.update("UPDATE ai_review_task SET issued_rule_id=? WHERE image_id=?", second.id(), "%064x".formatted(4));
+        jdbc.update("UPDATE ai_review_task SET issued_rule_id=? WHERE image_id=?", deleted, "%064x".formatted(5));
+        jdbc.update("UPDATE ai_review_task SET issued_rule_id=NULL WHERE image_id=?", "%064x".formatted(6));
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED' WHERE image_id=?", "%064x".formatted(7));
+        var rows = new com.fasterxml.jackson.databind.ObjectMapper().findAndRegisterModules().valueToTree(activities.read(now));
+        assertThat(rows.size()).isEqualTo(4);
+        var counts = new java.util.HashMap<String, com.fasterxml.jackson.databind.JsonNode>();
+        rows.forEach(row -> counts.put(row.path("ruleId").asText(), row));
+        assertThat(counts.get(first.id().toString()).path("processing").asLong(-1)).isEqualTo(3);
+        assertThat(counts.get(first.id().toString()).path("active").asLong(-1)).isOne();
+        assertThat(counts.get(first.id().toString()).path("expired").asLong(-1)).isOne();
+        for (String id : List.of(second.id().toString(), deleted.toString(), "null")) {
+            assertThat(counts.get(id).path("active").asLong(-1)).isOne();
+        }
+        assertThat(operations.activity(now).lastIssuedRuleIds()).isEmpty();
+    }
+
+    @Test
     void cursorMarksEveryRuleInTheSameBatchAndNeverInventsHistoricalActivity() {
         var first = AiSettingsRepositoryTest.rule(1, 53L);
         var second = AiSettingsRepositoryTest.rule(2, null);

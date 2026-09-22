@@ -208,8 +208,9 @@ test('rule activity shows the last batch, safe diagnostic links, and hides stale
     form.append(refresh, message);
     const source = document.getElementById('ai-rule-template').content.firstElementChild;
     const cursor = new FakeElement('span'); cursor.dataset.ruleCursor = '';
+    const active = new FakeElement('span'); active.dataset.ruleActive = '';
     const details = new FakeElement('div'); details.dataset.ruleActivity = '';
-    source.append(cursor, details); document.register(document.root);
+    source.append(cursor, active, details); document.register(document.root);
     const settings = {revision: 1, enabled: true, games: ['bj_igt'], rules: [
         {id: 'a', name: 'First', priority: 1, enabled: true, gameCode: 'bj_igt'},
         {id: 'b', name: 'Default', priority: 2, enabled: true, gameCode: 'bj_igt'}]};
@@ -224,19 +225,22 @@ test('rule activity shows the last batch, safe diagnostic links, and hides stale
         if (failure) throw new Error('Unavailable');
         return {ok: true, json: async () => ({revision, generatedAt: '2026-09-17T10:00:00Z',
             lastIssuedRuleIds: ['a', 'b'], rules: [{ruleId: 'a', lastIssuedAt: '2026-09-17T09:59:00Z', lastIssuedCount: 3,
-                expired: 2, expiredImageId: imageId, oldestDeadline: '2026-09-17T09:58:00Z',
+                processing: 6, active: 3, expired: 2, expiredImageId: imageId, oldestDeadline: '2026-09-17T09:58:00Z',
                 lastErrorAt: '2026-09-17T09:50:00Z', lastErrorCode: 'AI_REJECTED', lastErrorMessage: '<img onerror=alert(1)>',
-                lastErrorImageId: imageId}, {ruleId: 'b', expired: 0, lastIssuedAt: '2026-09-17T09:59:00Z', lastIssuedCount: 1}]})};
+                lastErrorImageId: imageId}, {ruleId: 'b', processing: 1, active: 1, expired: 0, lastIssuedAt: '2026-09-17T09:59:00Z', lastIssuedCount: 1}]})};
     };
     try {
         const queue = initializeAiQueue(form);
         await new Promise(resolve => setTimeout(resolve, 0));
         assert.equal(rules.children[0].querySelector('[data-rule-cursor]').hidden, false);
         assert.equal(rules.children[1].querySelector('[data-rule-cursor]').hidden, false);
+        assert.equal(rules.children[0].querySelector('[data-rule-active]').textContent, 'Awaiting results: 3');
+        assert.equal(rules.children[1].querySelector('[data-rule-active]').hidden, false);
         const activity = rules.children[0].querySelector('[data-rule-activity]');
         assert.ok(activity.querySelectorAll('a').some(link => link.href === '/admin/screenshots?imageId=' + imageId));
         assert.ok(activity.querySelectorAll('p').some(p => p.textContent.includes('<img onerror=alert(1)>')));
         assert.equal(activity.querySelectorAll('img').length, 0);
+        assert.ok(activity.querySelectorAll('p').some(p => p.textContent.includes('Unknown deadline: 1')));
         assert.equal(calls.some(call => call.options.method === 'PUT'), false);
         const name = rules.children[0].querySelector('[name="name"]');
         name.value = 'Draft'; form.dispatchEvent({type: 'input', target: name});

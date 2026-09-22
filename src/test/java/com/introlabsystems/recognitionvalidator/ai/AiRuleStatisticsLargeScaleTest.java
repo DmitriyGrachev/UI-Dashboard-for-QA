@@ -137,7 +137,9 @@ class AiRuleStatisticsLargeScaleTest {
                     long started = System.nanoTime();
                     var values = activity.read(Instant.parse("2026-09-16T10:00:00Z"));
                     assertThat(values).extracting(com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivity::expired)
-                            .containsExactly(8800L, 13200L, 13200L);
+                            .containsExactly(8800L, 13200L, 13200L, 8800L);
+                    assertThat(values.stream().mapToLong(AiRuleActivity::processing).sum()).isEqualTo(44_000);
+                    assertThat(values.stream().mapToLong(AiRuleActivity::active).sum()).isZero();
                     System.out.printf("AI_ACTIVITY_SCALE run=%d ms=%d%n", run + 1, (System.nanoTime() - started) / 1_000_000);
                 }
                 var activitySql = ArgumentCaptor.forClass(String.class);

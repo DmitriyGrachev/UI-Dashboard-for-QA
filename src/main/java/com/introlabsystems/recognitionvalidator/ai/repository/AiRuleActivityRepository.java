@@ -52,20 +52,26 @@ public class AiRuleActivityRepository {
     public List<AiRuleActivity> read(Instant now) {
         // Only currently PROCESSING rows are examined. Completed history is never scanned by polling.
         return jdbc.query("""
-                WITH overdue AS (
-                  SELECT issued_rule_id,COUNT(*) AS expired,MIN(lease_expires_at) AS oldest_deadline,
-                         MIN(image_id) AS expired_image_id
-                  FROM ai_review_task WHERE status='PROCESSING' AND lease_expires_at <= :now
+                WITH in_progress AS (
+                  SELECT issued_rule_id,COUNT(*) AS processing,
+                         COUNT(*) FILTER (WHERE lease_expires_at > :now) AS active,
+                         COUNT(*) FILTER (WHERE lease_expires_at <= :now) AS expired,
+                         MIN(lease_expires_at) FILTER (WHERE lease_expires_at <= :now) AS oldest_deadline,
+                         MIN(image_id) FILTER (WHERE lease_expires_at <= :now) AS expired_image_id
+                  FROM ai_review_task WHERE status='PROCESSING'
                   GROUP BY issued_rule_id
                 )
-                SELECT r.id AS rule_id,a.last_issued_at,a.last_issued_count,a.last_result_at,
+                SELECT COALESCE(r.id,o.issued_rule_id) AS rule_id,a.last_issued_at,a.last_issued_count,a.last_result_at,
+                       COALESCE(o.processing,0) AS processing,COALESCE(o.active,0) AS active,
                        COALESCE(o.expired,0) AS expired,o.oldest_deadline,o.expired_image_id,
                        a.last_error_at,a.last_error_image_id,a.last_error_code,a.last_error_message
-                FROM ai_selection_rule r LEFT JOIN ai_rule_activity a ON a.rule_id=r.id
-                LEFT JOIN overdue o ON o.issued_rule_id=r.id ORDER BY r.priority,r.id
+                FROM ai_selection_rule r FULL JOIN in_progress o ON o.issued_rule_id=r.id
+                LEFT JOIN ai_rule_activity a ON a.rule_id=r.id
+                ORDER BY r.priority NULLS LAST,COALESCE(r.id,o.issued_rule_id) NULLS LAST
                 """, new MapSqlParameterSource("now", timestamp(now)), (rs, row) -> new AiRuleActivity(
                 rs.getObject("rule_id", UUID.class), instant(rs, "last_issued_at"), rs.getObject("last_issued_count", Integer.class),
                 instant(rs, "last_result_at"), rs.getLong("expired"), instant(rs, "oldest_deadline"), rs.getString("expired_image_id"),
-                instant(rs, "last_error_at"), rs.getString("last_error_image_id"), rs.getString("last_error_code"), rs.getString("last_error_message")));
+                instant(rs, "last_error_at"), rs.getString("last_error_image_id"), rs.getString("last_error_code"), rs.getString("last_error_message"),
+                rs.getLong("processing"), rs.getLong("active")));
     }
 }

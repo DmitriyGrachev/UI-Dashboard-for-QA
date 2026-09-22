@@ -79,6 +79,8 @@
                 <p>Activity records assignments and accepted results since tracking was enabled. A batch may use several rules; the marker shows the latest recorded batch among saved rules. An assignment may still fail during image preparation. A recorded error describes the last failure, not necessarily the task's current state.</p>
             </details>
             <p id="ai-activity-message" role="status" aria-live="polite">Loading rule activity…</p>
+            <p>Awaiting results means the assignment deadline has not passed; it does not confirm the AI service is executing the task. Several rules may have outstanding assignments. Processing updates with activity; other statistics update separately.</p>
+            <div id="ai-other-assignments" class="ai-rule-activity" aria-label="Assignments outside current rules" hidden></div>
             <form id="ai-queue-form">
                 <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI assignments</label>
                 <p>Each rule must match all its conditions. Enabled rules run from top to bottom; screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
@@ -98,6 +100,7 @@
                 <details class="ai-rule">
                     <summary><span data-rule-summary>Selection rule</span>
                         <span class="ai-rule-cursor" data-rule-cursor hidden>Last assignment batch</span>
+                        <span class="ai-rule-cursor" data-rule-active hidden></span>
                         <span class="ai-rule-stats">
                             <span>Remaining <strong data-rule-stat="remaining">—</strong></span>
                             <span>Processing <strong data-rule-stat="processing">—</strong></span>

@@ -171,12 +171,24 @@ function initializeAiQueue(form, operations) {
     let activityController = null;
     let disposed = false;
 
+    function assignmentCounts(value) {
+        return value && ['processing', 'active', 'expired'].every(key => Number.isSafeInteger(value[key]) && value[key] >= 0)
+            && value.active + value.expired <= value.processing ? value : null;
+    }
+
     function renderActivity() {
         if (!activityMessage) return;
         const matches = current && activity?.revision === current.revision && !dirty();
         const values = new Map((matches ? activity.rules : []).map(value => [value.ruleId, value]));
         const latest = new Set(matches ? activity.lastIssuedRuleIds : []);
         Array.from(rules.children).forEach(node => {
+            const value = values.get(node.dataset.ruleId);
+            const counts = assignmentCounts(value);
+            const active = node.querySelector('[data-rule-active]');
+            if (active) {
+                active.hidden = !counts?.active;
+                active.textContent = counts ? `Awaiting results: ${counts.active}` : '';
+            }
             const cursor = node.querySelector('[data-rule-cursor]');
             if (cursor) {
                 cursor.hidden = !latest.has(node.dataset.ruleId);
@@ -186,7 +198,6 @@ function initializeAiQueue(form, operations) {
             if (!container) return;
             const focusedLink = container.querySelector('a:focus')?.textContent;
             container.replaceChildren();
-            const value = values.get(node.dataset.ruleId);
             if (!value) return;
             const line = text => {
                 const p = doc.createElement('p'); p.textContent = text; container.append(p); return p;
@@ -199,6 +210,11 @@ function initializeAiQueue(form, operations) {
             line(value.lastIssuedAt ? `Last assigned: ${formatAiTime(value.lastIssuedAt)} · ${value.lastIssuedCount} tasks`
                 : 'Last assigned: no recorded activity');
             line(value.lastResultAt ? `Last accepted result: ${formatAiTime(value.lastResultAt)}` : 'Last accepted result: no recorded activity');
+            line(counts ? `Processing: ${counts.processing} · Awaiting results: ${counts.active} · Deadline exceeded: ${counts.expired}`
+                : 'Assignment counts unavailable. Refresh activity to retry.');
+            if (counts && counts.processing > counts.active + counts.expired) {
+                line(`Unknown deadline: ${counts.processing - counts.active - counts.expired}`);
+            }
             if (value.expired > 0) {
                 const p = line(`Response deadline exceeded: ${value.expired}. Oldest deadline: ${formatAiTime(value.oldestDeadline)}. `);
                 p.dataset.error = 'true'; link(p, value.expiredImageId, 'Inspect an overdue task');
@@ -210,6 +226,22 @@ function initializeAiQueue(form, operations) {
             if (focusedLink) Array.from(container.querySelectorAll('a'))
                 .find(a => a.textContent === focusedLink)?.focus({preventScroll: true});
         });
+        const other = byId('ai-other-assignments');
+        if (other) {
+            const savedIds = new Set(current?.rules.map(rule => rule.id));
+            const rows = matches ? activity.rules.filter(value => !savedIds.has(value.ruleId)) : [];
+            other.replaceChildren();
+            other.hidden = rows.length === 0;
+            rows.forEach(value => {
+                const counts = assignmentCounts(value), p = doc.createElement('p');
+                p.textContent = (value.ruleId ? `Rule ${value.ruleId} (no longer in settings)` : 'No recorded rule')
+                    + (counts ? `: Processing ${counts.processing} · Awaiting results ${counts.active} · Deadline exceeded ${counts.expired}`
+                        + (counts.processing > counts.active + counts.expired ? ` · Unknown deadline ${counts.processing - counts.active - counts.expired}` : '')
+                        : ': assignment counts unavailable');
+                other.append(p);
+            });
+        }
+        renderStatistics();
         activityMessage.dataset.error = String(Boolean(activityError));
         activityMessage.textContent = activityError ? `${activityError} Select Refresh activity to retry.`
             : dirty() ? 'Activity applies to saved settings. Save or reload settings to see these rules.'
@@ -257,6 +289,10 @@ function initializeAiQueue(form, operations) {
             const value = counts.get(node.dataset.ruleId);
             node.querySelectorAll('[data-rule-stat]').forEach(target => {
                 target.textContent = value ? Number(value[target.dataset.ruleStat]).toLocaleString('en-US') : '—';
+                if (target.dataset.ruleStat === 'processing' && activity?.revision === current?.revision && !dirty()) {
+                    const live = assignmentCounts(activity.rules.find(row => row.ruleId === node.dataset.ruleId));
+                    if (live) target.textContent = live.processing.toLocaleString('en-US');
+                }
                 if (target.dataset.ruleStat === 'failed') {
                     if (value) target.setAttribute('href', `/admin/screenshots?aiTaskStatus=FAILED&issuedRuleId=${encodeURIComponent(value.ruleId)}`);
                     else target.removeAttribute('href');

@@ -21,6 +21,7 @@ async (page) => {
             body = {revision: settings.revision, generatedAt: '2026-09-17T12:00:00Z', lastIssuedRuleIds: [settings.rules[0].id],
                 rules: settings.rules.map((rule, index) => ({ruleId: rule.id, lastIssuedAt: index ? null : '2026-09-17T11:59:00Z',
                     lastIssuedCount: index ? null : 10, lastResultAt: index ? null : '2026-09-17T11:59:45Z',
+                    processing: index ? 3 : 10, active: index ? 3 : 8,
                     expired: index ? 0 : 2, oldestDeadline: '2026-09-17T11:58:00Z', expiredImageId: imageId,
                     lastErrorAt: index ? null : '2026-09-17T11:57:00Z', lastErrorImageId: imageId,
                     lastErrorCode: 'AI_REJECTED', lastErrorMessage: 'Cards could not be read. <img onerror=alert(1)>'}))};
@@ -37,6 +38,7 @@ async (page) => {
         await p.locator('#ai-activity-message').filter({hasText: 'Activity updated'}).waitFor();
         check((await p.title()).startsWith('AI queue'), 'Wrong page');
         check(await p.locator('[data-rule-cursor]:visible').count() === 1, 'Missing latest batch cursor');
+        check(await p.locator('[data-rule-active]:visible').count() === 2, 'Active assignments collapsed into one cursor');
         const first = p.locator('.ai-rule').first();
         await first.locator('summary').click();
         await first.getByRole('link', {name: 'Inspect an overdue task'}).waitFor();
