@@ -16,6 +16,13 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
+test('session links use only exact game and session, with safe encoding', () => {
+    const {sessionExplorerUrl} = require('../../main/resources/static/js/admin-screenshots.js');
+    assert.equal(sessionExplorerUrl({gameCode:'bj_igt', sessionId:'table A&B', imageId:'x', createdFrom:'old'}),
+        '/admin/screenshots?gameCode=bj_igt&sessionId=table+A%26B');
+    for (const details of [null, {}, {gameCode:'bj_igt',sessionId:' '}, {sessionId:'s'}]) assert.equal(sessionExplorerUrl(details), null);
+});
+
 test('saved relative ranges resolve in UTC on application, retaining legacy exact dates', () => {
     const {resolveSavedFilter} = require('../../main/resources/static/js/admin-screenshots.js');
     const legacy = {query: 'createdFrom=2026-09-01T00%3A00%3A00Z&sessionId=a'};
@@ -154,7 +161,7 @@ test("screenshot selection and navigation keep zoom until an explicit reset", as
         selectionSequence: 0, scale: 1, x: 12, y: -7, dragging: true};
     const elements = Object.fromEntries(['image', 'zoomValue', 'fileSummary', 'viewerMessage',
         'detailContent', 'detailPlaceholder', 'detailReviewState', 'download', 'temporaryLink',
-        'copyLink', 'copyReport', 'stage'].map(name => [name, {
+        'copyLink', 'copyReport', 'openSession', 'stage'].map(name => [name, {
         style: {}, setAttribute() {}, removeAttribute() {}, classList: {remove() {}}
     }]));
     const viewer = require('node:vm').runInNewContext(`(() => {

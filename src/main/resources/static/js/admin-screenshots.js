@@ -81,6 +81,11 @@ function presetRange(now, {hours = 0, days = 0, day} = {}) {
     return {from: canonicalUtcMinute(from), to: canonicalUtcMinute(to)};
 }
 
+function sessionExplorerUrl(details) {
+    if (!details?.gameCode?.trim() || !details?.sessionId?.trim()) return null;
+    return '/admin/screenshots?' + new URLSearchParams({gameCode: details.gameCode, sessionId: details.sessionId});
+}
+
 function resolveSavedFilter(saved, now = new Date()) {
     const params = new URLSearchParams(saved.query);
     if (saved.relativeDate == null) return params;
@@ -189,6 +194,7 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
         csvExportUrl,
+        sessionExplorerUrl,
         copyShareLink,
         createTechnicalReport,
         formatUtcDate,
@@ -258,6 +264,7 @@ if (typeof document !== "undefined") {
         temporaryLink: byId("open-temporary-link"),
         copyLink: byId("copy-screenshot-link"),
         copyReport: byId("copy-technical-report"),
+        openSession: byId("open-screenshot-session"),
         detailPlaceholder: byId("detail-placeholder"),
         detailContent: byId("detail-content"),
         detailReviewState: byId("detail-review-state"),
@@ -702,6 +709,10 @@ if (typeof document !== "undefined") {
     }
 
     function renderDetails(details) {
+        const sessionUrl = sessionExplorerUrl(details);
+        elements.openSession.hidden = !sessionUrl;
+        if (sessionUrl) elements.openSession.href = sessionUrl;
+        else elements.openSession.removeAttribute('href');
         renderAiResult(elements.aiDetails, details.ai);
         elements.detailPlaceholder.hidden = true;
         elements.detailContent.hidden = false;
@@ -739,6 +750,8 @@ if (typeof document !== "undefined") {
     }
 
     function clearSelection() {
+        elements.openSession.hidden = true;
+        elements.openSession.removeAttribute('href');
         state.selectionSequence++;
         state.selectedIndex = -1;
         state.selectedDetails = null;
@@ -760,6 +773,8 @@ if (typeof document !== "undefined") {
 
     async function selectResult(index) {
         if (index < 0 || index >= state.items.length) return;
+        elements.openSession.hidden = true;
+        elements.openSession.removeAttribute('href');
         state.selectionSequence++;
         state.selectedIndex = index;
         state.selectedDetails = null;

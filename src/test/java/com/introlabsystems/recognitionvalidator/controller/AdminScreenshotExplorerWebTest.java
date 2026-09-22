@@ -18,6 +18,25 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
 
     @Test
+    void wholeSessionIncludesEveryDateAndReviewStateOnlyWithinItsGame() throws Exception {
+        String oldest = insertReviewImage(780, "old.png", true, "bj_igt", "table A&B", null, "Two", null);
+        String newest = insertReviewImage(781, "new.png", true, "bj_igt", "table A&B", null, "Two", null);
+        insertReviewImage(782, "other-game.png", true, "bj_playtech", "table A&B", null, "Two", null);
+        setCreatedAt(oldest, "2026-08-01T00:00:00Z");
+        setCreatedAt(newest, "2026-09-20T00:00:00Z");
+        complete(oldest, insertOperator("session-reviewer", "password"), "REJECTED", "2026-08-02T00:00:00Z");
+        mockMvc.perform(get("/admin/api/screenshots").param("gameCode", "bj_igt").param("sessionId", "table A&B")
+                        .param("limit", "1").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items[0].imageId").value(oldest))
+                .andExpect(jsonPath("$.nextId").value(oldest));
+        mockMvc.perform(get("/admin/api/screenshots").param("gameCode", "bj_igt").param("sessionId", "table A&B")
+                        .param("cursorCreatedAt", "2026-08-01T00:00:00Z").param("cursorId", oldest)
+                        .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].imageId").value(newest));
+    }
+
+    @Test
     void thumbnailIsSmallAndRestrictedToAdministrators() throws Exception {
         var image = new java.awt.image.BufferedImage(1600, 900, java.awt.image.BufferedImage.TYPE_INT_RGB);
         javax.imageio.ImageIO.write(image, "png", imageRoot.resolve("preview.png").toFile());
