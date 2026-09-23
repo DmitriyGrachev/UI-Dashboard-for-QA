@@ -51,6 +51,11 @@ SELECT image_id, filename, filename, created_at, created_at, now(), now(), true,
     'demo-session-' || priority, 'K', 'A,8', false, true, true, false, false, 'SUCCESS'
 FROM demo_tasks ON CONFLICT (id) DO NOTHING;
 
+-- Explorer and the operator queue both use this projection, even for AI-only work.
+INSERT INTO review_task (image_id, status, file_created_at, game_code, token_id, session_id, is_notification, has_user_hand)
+SELECT image_id, 'PENDING', created_at, game_code, token_id, 'demo-session-' || priority, false, true
+FROM demo_tasks ON CONFLICT (image_id) DO NOTHING;
+
 INSERT INTO ai_review_task (image_id, status, file_created_at, game_code, token_id, session_id,
     is_notification, has_user_hand, file_available, attempt_count, issued_rule_id, claim_id, lease_expires_at,
     valid, verdict, confidence, certainty, message, checked_at, last_error_code, last_error_message, last_error_at)

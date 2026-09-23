@@ -2,7 +2,7 @@
 
 The preview uses `recognition_validator_ui_demo` on local PostgreSQL port 5436. The original `recognition_validator` database is unchanged. Existing users were copied, so the same login credentials work. The header displays **Local demo · synthetic data**.
 
-Fixtures in `scripts/ui-demo.sql` provide 30 days of daily statistics, four AI rules (including a fallback and a disabled rule), and 400 retained tasks: 256 completed, 20 failed, 40 processing, 84 pending. Historical daily totals intentionally exceed retained task counts. This represents history retained after image cleanup, not additional live tasks.
+Fixtures in `scripts/ui-demo.sql` provide 30 days of daily statistics, four AI rules (including a fallback and a disabled rule), and 400 retained AI tasks: 256 completed, 20 failed, 40 processing, 84 pending. Each image also has its operator queue projection so Explorer can list it. Historical daily totals intentionally exceed retained task counts. This represents history retained after image cleanup, not additional live tasks.
 
 The image files are demo copies of one local screenshot, under `%LOCALAPPDATA%\RecognitionValidator\ui-demo-images`. They are illustrative; game/card metadata is synthetic. No AI service is connected. Processing deadlines expire normally, so the number of overdue tasks increases over time.
 
