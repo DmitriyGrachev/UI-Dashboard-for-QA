@@ -171,7 +171,7 @@ test("screenshot selection and navigation keep zoom until an explicit reset", as
     const stopDragging = source.slice(source.indexOf('const stopDragging ='), source.indexOf('elements.stage.addEventListener("pointerup"'));
     const state = {items: [{imageId: 'a'}, {imageId: 'b'}, {imageId: 'c'}], selectedIndex: 0,
         selectionSequence: 0, scale: 1, x: 12, y: -7, dragging: true};
-    const elements = Object.fromEntries(['image', 'zoomValue', 'fileSummary', 'viewerMessage',
+    const elements = Object.fromEntries(['image', 'zoomValue', 'fileSummary', 'imageMeta', 'viewerMessage',
         'detailContent', 'detailPlaceholder', 'detailReviewState', 'download', 'temporaryLink',
         'copyLink', 'copyReport', 'openSession', 'stage'].map(name => [name, {
         style: {}, setAttribute() {}, removeAttribute() {}, classList: {remove() {}}
@@ -181,7 +181,7 @@ test("screenshot selection and navigation keep zoom until an explicit reset", as
         ${stopDragging}
         return {selectResult, nextResult, previousResult, setScale, resetZoom};
     })()`, {
-        state, elements, storageSupportsTemporaryLink,
+        state, elements: {...elements, results: {querySelectorAll: () => []}}, storageSupportsTemporaryLink, formatUtcDate,
         renderResults() {}, updateNavigation() {}, writeSearchUrl() {}, renderDetails() {},
         fetchJson: async () => ({imageUrl: '/image.png', downloadUrl: '/download', storageState: 'LOCAL_ONLY'})
     });
@@ -405,7 +405,7 @@ test('saved filters persist, restore exact filter values, replace and delete wit
         elements:{form:{reportValidity:()=>true}, datePreset:{value:''}, dateField:{value:'reviewed'}}, dateRange:{validate:()=>true}, state:{}, buildSearchParams,
         resolveSavedFilter: require('../../main/resources/static/js/admin-screenshots.js').resolveSavedFilter,
         currentFilters:()=>({sessionId:'session-a', aiVerdict:'MISMATCH', reviewedFrom:'2026-09-10T00:00'}),
-        closeFilterPopups() {}, restoreFromUrl:params=>{restored=params;},search:()=>{searches++;}};
+        validateFilters:()=>true, closeFilterPopups() {}, restoreFromUrl:params=>{restored=params;},search:()=>{searches++;}};
     const run = () => require('node:vm').runInNewContext(setup, {...context});
     run();
     byId('saved-filter-name').value='My filter';

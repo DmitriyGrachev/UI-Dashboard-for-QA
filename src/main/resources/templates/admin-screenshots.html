@@ -365,7 +365,7 @@
                         <strong id="results-title"><output id="result-count">0</output> found</strong>
                         <small id="loaded-result-count">0 loaded</small>
                     </span>
-                    <span class="result-range" id="result-range">—</span>
+                    <details class="result-range-disclosure"><summary>Date range</summary><span class="result-range" id="result-range">—</span></details>
                 </header>
                 <label class="results-view-control">View <select id="results-view"><option value="list">List</option><option value="grid">Grid</option></select></label>
                 <div class="screenshot-results" id="screenshot-results"
@@ -380,6 +380,7 @@
             <header class="viewer-bar">
                 <div>
                     <strong id="explorer-file-summary">Choose a result</strong>
+                    <span id="explorer-image-meta" class="explorer-image-meta"></span>
                 </div>
                 <div class="viewer-tools" aria-label="Image controls">
                     <button type="button" id="explorer-zoom-out" aria-label="Zoom out">−</button>
@@ -427,15 +428,21 @@
                 Select a screenshot to see parsed data and review information.
             </div>
             <div class="detail-content" id="detail-content" hidden>
-                <label th:replace="~{fragments/card-presentation :: control}"></label>
                 <dl class="detail-primary">
                     <div><dt>Game</dt><dd id="detail-game">—</dd></div>
                     <div><dt>Operator decision</dt><dd id="detail-decision">—</dd></div>
+                </dl>
+                <section class="explorer-detail-section" aria-labelledby="recognized-cards-title">
+                    <header><h3 id="recognized-cards-title">Recognized cards</h3><label th:replace="~{fragments/card-presentation :: control}"></label></header>
+                    <dl class="detail-cards">
                     <div><dt>Dealer</dt><dd id="detail-dealer" data-recognized-cards>—</dd></div>
                     <div><dt>Active hand</dt><dd id="detail-active-hand" data-recognized-cards>—</dd></div>
                     <div><dt>Other hands</dt><dd id="detail-other-hands" data-recognized-cards>—</dd></div>
-                    <div><dt>Available actions</dt><dd id="detail-actions">—</dd></div>
-                </dl>
+                    </dl>
+                </section>
+                <section class="explorer-detail-section" aria-labelledby="available-actions-title">
+                    <h3 id="available-actions-title">Available actions</h3><div id="detail-actions" class="recognized-actions">—</div>
+                </section>
                 <section id="explorer-ai-details" class="ai-review-card" aria-label="AI review">AI: Unchecked</section>
                 <details class="explorer-technical-disclosure">
                     <summary>Technical details</summary>
@@ -444,15 +451,15 @@
                     <div><dt>Image ID</dt><dd id="detail-image-id">—</dd></div>
                     <div><dt>File name</dt><dd id="detail-file-name">—</dd></div>
                     <div><dt>Token ID</dt><dd id="detail-token-id">—</dd></div>
+                    <div><dt>Created, UTC</dt><dd id="detail-created-at">—</dd></div>
+                    <div><dt>Notification</dt><dd id="detail-notification">—</dd></div>
                     <div><dt>Session</dt><dd><span id="detail-session-id">—</span>
                         <a id="open-screenshot-session" target="_blank" rel="noopener" hidden>Open session (new tab)</a>
                     </dd></div>
-                    <div><dt>Created, UTC</dt><dd id="detail-created-at">—</dd></div>
                     <div><dt>Processed, UTC</dt><dd id="detail-processed-at">—</dd></div>
                     <div><dt>Reviewed by</dt><dd id="detail-reviewed-by">—</dd></div>
                     <div><dt>Reviewed, UTC</dt><dd id="detail-reviewed-at">—</dd></div>
                     <div><dt>Recognition time</dt><dd id="detail-duration">—</dd></div>
-                    <div><dt>Notification</dt><dd id="detail-notification">—</dd></div>
                     <div><dt>Parse status</dt><dd id="detail-parse-status">—</dd></div>
                     <div><dt>Storage</dt><dd id="detail-storage-state">—</dd></div>
                     <div><dt>Cloud uploaded</dt><dd id="detail-cloud-uploaded-at">—</dd></div>

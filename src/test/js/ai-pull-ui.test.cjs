@@ -112,7 +112,10 @@ test('screenshot list and grid distinguish operator and AI states without extra 
             assert.equal(statuses.children[0].textContent, i === 1 ? 'Operator: Does not match' : 'Operator: Unchecked');
             assert.equal(statuses.children[1].textContent, ['AI: Not checked', 'AI: Not checked', 'AI: Assigned to AI', 'AI: Mismatch · 0%', 'AI: Check failed'][i]);
             assert.equal(row.attributes['aria-pressed'], String(i === 2));
-            assert.equal(row.children.filter(node => node.tagName === 'img').length, view === 'grid' ? 1 : 0);
+            const thumbnail = row.children.find(node => node.tagName === 'img');
+            assert.ok(thumbnail, view);
+            assert.equal(thumbnail.loading, 'lazy');
+            assert.equal(thumbnail.width, 320);
         }
         assert.equal(document.activeElement, results.children[2]);
     }

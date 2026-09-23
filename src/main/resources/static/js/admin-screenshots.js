@@ -257,6 +257,7 @@ if (typeof document !== "undefined") {
         previous: byId("previous-screenshot"),
         next: byId("next-screenshot"),
         fileSummary: byId("explorer-file-summary"),
+        imageMeta: byId("explorer-image-meta"),
         stage: byId("explorer-image-stage"),
         image: byId("explorer-image"),
         viewerMessage: byId("explorer-viewer-message"),
@@ -342,6 +343,14 @@ if (typeof document !== "undefined") {
             updateSearchControls();
         }
     });
+
+    function validateFilters() {
+        if (!dateRange.validate()) {
+            document.querySelector('.explorer-period').open = true;
+            return false;
+        }
+        return elements.form.reportValidity();
+    }
 
     function currentFilters() {
         const reviewed = elements.dateField.value === "reviewed";
@@ -568,6 +577,7 @@ if (typeof document !== "undefined") {
             top.className = "screenshot-result-top";
             const time = document.createElement("time");
             time.textContent = formatUtcDate(item.fileCreatedAt);
+            time.dateTime = item.fileCreatedAt || '';
             const review = document.createElement("span");
             review.className = "result-badge";
             review.dataset.tone = item.decision === "ACCEPTED" ? "success" : item.decision === "REJECTED" ? "danger" : "neutral";
@@ -587,25 +597,26 @@ if (typeof document !== "undefined") {
 
             const file = document.createElement("strong");
             file.textContent = item.fileName;
+            file.title = item.fileName;
             const bottom = document.createElement("span");
             bottom.className = "screenshot-result-bottom";
             const game = document.createElement("span");
             game.textContent = item.gameCode;
-            const storage = document.createElement("span");
-            storage.textContent = storageLabel(item.storageState);
-            bottom.append(game, storage);
-            if (byId("results-view").value === "grid") {
-                const preview = document.createElement("img");
-                preview.className = "result-thumbnail";
-                preview.alt = "";
-                preview.loading = "lazy";
-                preview.decoding = "async";
-                preview.width = 320;
-                preview.height = 180;
-                if (item.storageState !== "MISSING") preview.src = `/admin/api/screenshots/${encodeURIComponent(item.imageId)}/thumbnail`;
-                preview.addEventListener("error", () => { preview.alt = "Preview unavailable"; });
-                button.append(preview);
-            }
+            const id = document.createElement("span");
+            id.className = 'result-image-id';
+            id.textContent = '#' + item.imageId.slice(0, 8);
+            id.title = item.imageId;
+            bottom.append(game, id);
+            const preview = document.createElement("img");
+            preview.className = "result-thumbnail";
+            preview.alt = "";
+            preview.loading = "lazy";
+            preview.decoding = "async";
+            preview.width = 320;
+            preview.height = 180;
+            if (item.storageState !== "MISSING") preview.src = `/admin/api/screenshots/${encodeURIComponent(item.imageId)}/thumbnail`;
+            preview.addEventListener("error", () => { preview.classList.add('unavailable'); preview.title = 'Preview unavailable'; });
+            button.append(preview);
             button.append(top, file, statuses, bottom);
             button.addEventListener("click", () => selectResult(index));
             elements.results.append(button);
@@ -659,7 +670,7 @@ if (typeof document !== "undefined") {
     async function search({append = false, selectedId = null} = {}) {
         if (state.searching || state.loadingMore) return;
         if (!append) resolveDatePeriod();
-        if (!append && !dateRange.validate()) return;
+        if (!append && !validateFilters()) return;
         const sequence = nextSearchSequence(state.searchSequence, append);
         state.searchSequence = sequence;
         const filters = resolveSearchFilters(
@@ -734,6 +745,22 @@ if (typeof document !== "undefined") {
         if (sessionUrl) elements.openSession.href = sessionUrl;
         else elements.openSession.removeAttribute('href');
         renderAiResult(elements.aiDetails, details.ai);
+        const [guidance, message] = elements.aiDetails.querySelectorAll('.ai-explanation');
+        if (guidance && message) {
+            guidance.before(message);
+            guidance.classList.add('ai-guidance');
+        }
+        if (details.ai?.status === 'COMPLETED' && Number.isFinite(details.ai.confidence)
+                && details.ai.confidence >= 0 && details.ai.confidence <= 100) {
+            const confidence = document.createElement('meter');
+            confidence.className = 'ai-confidence-meter';
+            confidence.min = 0;
+            confidence.max = 100;
+            confidence.value = details.ai.confidence;
+            confidence.setAttribute('aria-label', 'AI confidence');
+            confidence.textContent = details.ai.confidence + '%';
+            elements.aiDetails.querySelector('.ai-metrics').after(confidence);
+        }
         elements.detailPlaceholder.hidden = true;
         elements.detailContent.hidden = false;
         elements.detailReviewState.textContent = reviewLabel(details.reviewState);
@@ -745,13 +772,21 @@ if (typeof document !== "undefined") {
         setText(detailElements.activeUserCards, details.activeUserCards);
         setText(detailElements.inactiveUserCards, details.inactiveUserCards);
         setText(detailElements.buttonsRaw, details.buttonsRaw);
-        setText(detailElements.actions, [
+        const actions = [
             details.stand && "stand",
             details.hit && "hit",
             details.doubleAction && "double",
             details.split && "split",
             details.surrender && "surrender"
-        ].filter(Boolean).join(" · "));
+        ].filter(Boolean);
+        detailElements.actions.replaceChildren();
+        for (const action of actions) {
+            const chip = document.createElement('span');
+            chip.className = 'recognized-action';
+            chip.textContent = action;
+            detailElements.actions.append(chip);
+        }
+        if (!actions.length) detailElements.actions.textContent = '—';
         setText(detailElements.imageId, details.imageId);
         setText(detailElements.fileName, details.fileName);
         setText(detailElements.tokenId, details.tokenId);
@@ -780,6 +815,7 @@ if (typeof document !== "undefined") {
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = "No screenshot selected.";
         elements.fileSummary.textContent = "Choose a result";
+        elements.imageMeta.textContent = '';
         elements.detailPlaceholder.hidden = false;
         elements.detailContent.hidden = true;
         elements.detailReviewState.textContent = "—";
@@ -799,10 +835,14 @@ if (typeof document !== "undefined") {
         state.selectedIndex = index;
         state.selectedDetails = null;
         const item = state.items[index];
-        renderResults();
+        elements.results.querySelectorAll('.screenshot-result').forEach((row, rowIndex) => {
+            row.setAttribute('aria-pressed', String(rowIndex === index));
+        });
         updateNavigation();
         stopDragging();
         elements.fileSummary.textContent = item.fileName;
+        elements.fileSummary.title = item.fileName;
+        elements.imageMeta.textContent = `${item.gameCode} · ${formatUtcDate(item.fileCreatedAt)}`;
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = "Loading screenshot…";
         elements.image.hidden = true;
@@ -971,7 +1011,7 @@ if (typeof document !== "undefined") {
     function closeFilterPopups() {
         filterPopups.forEach(popup => { popup.open = false; });
     }
-    document.addEventListener('click', event => {
+    document.addEventListener('pointerdown', event => {
         if (event.target.closest('.flatpickr-calendar')) return;
         filterPopups.forEach(popup => { if (!popup.contains(event.target)) popup.open = false; });
     });
@@ -991,13 +1031,13 @@ if (typeof document !== "undefined") {
     elements.form.addEventListener("submit", event => {
         event.preventDefault();
         updateCheckedOnlyControls();
-        if (!dateRange.validate()) { document.querySelector('.explorer-period').open = true; return; }
+        if (!validateFilters()) return;
         closeFilterPopups();
         search();
     });
     byId('download-screenshot-csv').addEventListener('click', () => {
         updateCheckedOnlyControls();
-        if (!dateRange.validate() || !elements.form.reportValidity()) return;
+        if (!validateFilters()) return;
         window.open(csvExportUrl(currentFilters()), '_blank', 'noopener');
     });
     byId("review-state").addEventListener("change", updateCheckedOnlyControls);
@@ -1154,7 +1194,7 @@ if (typeof document !== "undefined") {
     byId("save-filter").addEventListener("click", () => {
         const name = savedName.value.trim();
         if (!name) { savedMessage.textContent = "Enter a name for these filters."; savedName.focus(); return; }
-        if (!dateRange.validate() || !elements.form.reportValidity()) return;
+        if (!validateFilters()) return;
         const next = savedFilters.filter(item => item.name !== name);
         if (next.length >= 20) { savedMessage.textContent = "Delete a saved filter before adding another (maximum 20)."; return; }
         const params = buildSearchParams(currentFilters());

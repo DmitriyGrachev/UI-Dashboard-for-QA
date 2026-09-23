@@ -3,7 +3,8 @@ async (page) => {
     const context = await page.context().browser().newContext({viewport: {width: 1440, height: 900}});
     const p = await context.newPage();
     const check = (ok, message) => { if (!ok) throw new Error(message); };
-    const errors = [], requests = [];
+    const errors = [], requests = [], screenshots = [];
+    let searchState = 'ready';
     p.on('pageerror', e => errors.push(e.message));
     const items = ['MATCH', 'MISMATCH', 'LOW_CONFIDENCE', 'HAND_COUNT_MISMATCH', 'NO_HANDS_FOUND', null].map((verdict, i) => ({
         imageId: String(i + 1).repeat(64), fileName: `screen-${i}.png`, gameCode: 'bj_igt', sessionId: 'table A&B',
@@ -20,11 +21,17 @@ async (page) => {
         else if (url.pathname.endsWith('/summary')) body = {totalCount: 6, oldestCreatedAt: items[0].fileCreatedAt, newestCreatedAt: items[5].fileCreatedAt};
         else if (/\/(content|thumbnail)$/.test(url.pathname)) return route.fulfill({contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="540" fill="#243b37"/></svg>'});
         else if (url.pathname.endsWith('/export.csv')) return route.fulfill({contentType: 'text/csv', body: 'image_id\r\n'});
-        else if (url.pathname === '/admin/api/screenshots') body = {items, nextCreatedAt: href.includes('cursorId=') ? null : items[5].fileCreatedAt, nextId: href.includes('cursorId=') ? null : items[5].imageId};
+        else if (url.pathname === '/admin/api/screenshots') {
+            if (searchState === 'error') return route.fulfill({status: 503, json: {detail: 'Test database unavailable'}});
+            body = {items: searchState === 'empty' ? [] : items,
+                nextCreatedAt: href.includes('cursorId=') || searchState === 'empty' ? null : items[5].fileCreatedAt,
+                nextId: href.includes('cursorId=') || searchState === 'empty' ? null : items[5].imageId};
+        }
         else {
             const item = items.find(item => url.pathname.endsWith('/' + item.imageId)) || items[0];
             body = {...item, imageUrl: `/admin/api/screenshots/${item.imageId}/content`, downloadUrl: '#',
-                ai: {status: item.aiStatus, verdict: item.aiVerdict, confidence: item.aiConfidence}};
+                dealerCards: 'KS', activeUserCards: 'AC 8H', inactiveUserCards: '7D 4C', hit: true, stand: true,
+                ai: {status: item.aiStatus, verdict: item.aiVerdict, confidence: item.aiConfidence, message: 'Test result, not production data.'}};
         }
         return route.fulfill({json: body});
     });
@@ -37,11 +44,32 @@ async (page) => {
         check((await results.nth(1).innerText()).includes('Operator: Does not match'), 'Operator rejected shown as checked');
         check((await results.nth(2).innerText()).includes('Not enough confidence · —'), 'Missing confidence coerced to zero');
         check(!(await results.nth(5).innerText()).includes('%'), 'Failed task shows a result');
-        for (const [width, height, theme] of [[1440,900,'dark'], [1280,720,'light'], [768,900,'dark']]) {
-            await p.setViewportSize({width, height});
-            await p.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
-            check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Overflow at ' + width);
+        check(await p.locator('.result-thumbnail[loading="lazy"]').count() === 6, 'List thumbnails are not lazy');
+        await p.evaluate(() => { window.initialThumbnail = document.querySelector('.result-thumbnail'); });
+        await p.getByRole('checkbox', {name: 'Show cards'}).check();
+        for (const [index, value] of [[0, '95'], [1, '0'], [2, null], [5, null]]) {
+            await results.nth(index).click();
+            await p.waitForFunction(() => !document.querySelector('#detail-content').hidden);
+            const meter = p.getByRole('meter', {name: 'AI confidence'});
+            if (value === null) check(await meter.count() === 0, 'Unknown or failed confidence has a meter');
+            else check(await meter.getAttribute('value') === value, 'Incorrect confidence meter');
         }
+        await results.first().click();
+        check(await p.evaluate(() => window.initialThumbnail === document.querySelector('.result-thumbnail')), 'Selection recreated thumbnails');
+        await p.waitForFunction(() => !document.querySelector('#detail-content').hidden);
+        check(await p.locator('#detail-actions button').count() === 0, 'Recognized actions look actionable');
+        for (const [width, height, theme] of [[1440,900,'dark'], [1440,900,'light'], [1280,720,'dark'], [1280,720,'light'], [768,900,'dark'], [390,844,'light']]) {
+            await p.setViewportSize({width, height});
+            if (await p.evaluate(() => document.documentElement.dataset.theme) !== theme) {
+                await p.locator('[data-theme-toggle]').click();
+            }
+            await p.locator('h1').hover();
+            check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Overflow at ' + width);
+            const path = `C:/Users/dimag/AppData/Local/Temp/rv-explorer-${width}-${theme}.png`;
+            await p.screenshot({path, fullPage: true, animations: 'disabled'});
+            screenshots.push(path);
+        }
+        await p.setViewportSize({width:1440,height:900});
         await p.locator('#results-view').selectOption('grid');
         check(await p.locator('.result-thumbnail').count() === 6, 'Grid lost results');
         await results.nth(1).focus(); await p.keyboard.press('Enter');
@@ -85,7 +113,50 @@ async (page) => {
         await p.locator('.explorer-period > summary').click();
         await p.locator('#explorer-created-from-date').fill('29.09.2026');
         check(await p.locator('#explorer-date-preset').inputValue() === '', 'Manual date edit kept relative mode');
+        await p.keyboard.press('Escape');
+        check(await p.locator('.explorer-period > summary').evaluate(el => el === document.activeElement), 'Escape lost focus');
+        await p.locator('.explorer-more-filters > summary').click();
+        await p.locator('#explorer-confidence-from').fill('0');
+        check(await p.locator('#explorer-more-count').innerText() === '1', 'Zero confidence omitted from active filter count');
+        await p.locator('#explorer-confidence-from').fill('101');
+        await p.keyboard.press('Escape');
+        const searchesBeforeInvalid = requests.filter(url => /screenshots\?/.test(url)).length;
+        await p.locator('#search-screenshots').click();
+        check(await p.locator('.explorer-more-filters').getAttribute('open') !== null, 'Invalid hidden field did not open its panel');
+        check(requests.filter(url => /screenshots\?/.test(url)).length === searchesBeforeInvalid, 'Invalid filter sent a request');
+        await p.keyboard.press('Escape');
+        const exportsBeforeInvalid = requests.filter(url => url.includes('export.csv')).length;
+        await p.locator('#download-screenshot-csv').click();
+        check(await p.locator('.explorer-more-filters').getAttribute('open') !== null, 'CSV hid the invalid field');
+        check(requests.filter(url => url.includes('export.csv')).length === exportsBeforeInvalid, 'Invalid CSV started a download');
+        await p.locator('#explorer-confidence-from').fill('0');
+        await p.locator('#search-screenshots').click();
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        check(await p.locator('.explorer-filter-popup[open]').count() === 0, 'Search did not close panels');
+        check(requests.some(url => url.includes('confidenceFrom=0')), 'Search lost zero confidence');
+        await p.locator('#explorer-zoom-in').click();
+        const zoom = await p.locator('#explorer-zoom-value').innerText();
+        await p.locator('#next-screenshot').click();
+        check(await p.locator('#explorer-zoom-value').innerText() === zoom, 'Selection reset zoom');
+        await p.locator('#explorer-image-stage').focus();
+        await p.keyboard.press('Shift+ArrowRight');
+        check((await p.locator('#explorer-image').getAttribute('style')).includes('40px'), 'Keyboard pan broke');
+        await p.keyboard.press('0');
+        check(await p.locator('#explorer-zoom-value').innerText() === '100%', 'Keyboard reset broke');
+        await p.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
+        check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Overflow at 200% text size');
+        await p.evaluate(() => { document.documentElement.style.fontSize = ''; });
+        searchState = 'empty';
+        await p.locator('#search-screenshots').click();
+        await p.getByText('No screenshots match these filters.', {exact: true}).waitFor();
+        check(await p.locator('#next-screenshot').isDisabled(), 'Empty results allow navigation');
+        searchState = 'error';
+        await p.locator('#search-screenshots').click();
+        await p.getByText('Test database unavailable', {exact: true}).waitFor();
+        searchState = 'ready';
+        await p.locator('#search-screenshots').click();
+        await results.first().waitFor();
         check(errors.length === 0, errors.join('; '));
-        return {passed: 'List outcomes; relative saved dates across midnight; frozen pagination/CSV; manual date edit; keyboard and three sizes', requests: requests.length};
+        return {passed: 'List/grid, confidence, relative dates, pagination/CSV, popup focus and validation, zoom/pan, empty/error recovery, six theme/size combinations and 200% text', requests: requests.length, screenshots};
     } finally { await context.close(); }
 }

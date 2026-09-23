@@ -1,5 +1,6 @@
 package com.introlabsystems.recognitionvalidator.controller;
 
+import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import com.introlabsystems.recognitionvalidator.model.value.AdminStatisticsPage;
 import com.introlabsystems.recognitionvalidator.model.value.AdminOperatorStatistics;
 import com.introlabsystems.recognitionvalidator.model.value.DailyReviewCount;
@@ -30,7 +31,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest(controllers = AdminController.class)
+@WebMvcTest(controllers = {AdminController.class, AdminScreenshotPageController.class})
 @Import({SecurityConfig.class, SecurityFailureHandler.class})
 class AdminUiRenderingWebTest {
 
@@ -48,6 +49,29 @@ class AdminUiRenderingWebTest {
 
     @MockitoBean
     private UserDetailsService userDetailsService;
+
+    @MockitoBean
+    private ValidatorProperties properties;
+
+    @Test
+    void explorerRendersRealFragmentsAndKeepsAllFiltersInOneForm() throws Exception {
+        when(properties.games()).thenReturn(List.of("bj_igt", "bj_netent"));
+        String html = mockMvc.perform(get("/admin/screenshots").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(html)
+                .contains("/css/explorer.css", "href=\"/admin/ai-queue\"", "aria-current=\"page\"",
+                        "value=\"bj_netent\"", "data-card-presentation", "name=\"_csrf\"")
+                .doesNotContain("th:replace=");
+        var ids = java.util.regex.Pattern.compile("\\bid=\"([^\"]+)\"").matcher(html)
+                .results().map(match -> match.group(1)).toList();
+        org.assertj.core.api.Assertions.assertThat(ids).doesNotHaveDuplicates();
+        String form = html.substring(html.indexOf("<form id=\"screenshot-filter-form\""));
+        form = form.substring(0, form.indexOf("</form>"));
+        org.assertj.core.api.Assertions.assertThat(form).contains("id=\"explorer-created-from\"",
+                "id=\"explorer-game-code\"", "id=\"explorer-ai-result\"", "id=\"explorer-issued-rule\"",
+                "id=\"explorer-confidence-from\"", "id=\"explorer-ai-error-code\"", "name=\"reviewState\"");
+        verifyNoInteractions(statistics);
+    }
 
     @Test
     void adminNavigationRendersEachSectionAndKeepsRosterOnOperatorsPage() throws Exception {
@@ -121,6 +145,10 @@ class AdminUiRenderingWebTest {
 
     @Test
     void operatorCannotOpenAdminTaskPages() throws Exception {
+        mockMvc.perform(get("/admin/screenshots").with(user("operator").roles("OPERATOR")))
+                .andExpect(status().isFound()).andExpect(redirectedUrl("/review"));
+        mockMvc.perform(get("/admin/screenshots"))
+                .andExpect(status().isFound()).andExpect(redirectedUrl("/login"));
         mockMvc.perform(get("/admin/ai-queue").with(user("operator").roles("OPERATOR")))
                 .andExpect(status().isFound())
                 .andExpect(redirectedUrl("/review"));
