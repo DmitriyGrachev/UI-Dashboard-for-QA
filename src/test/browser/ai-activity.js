@@ -121,7 +121,22 @@ async (page) => {
         await p.locator('#ai-operations-state').filter({hasText: 'Paused'}).waitFor();
         check(settings.enabled === false && settings.rules[0].name === 'Default', 'Pause changed saved rule order');
         check((await p.locator('#ai-rule-route-message').textContent()).includes('paused'), 'Paused queue presented as issuing new tasks');
+        await p.getByRole('button', {name: 'Resume new assignments', exact: true}).waitFor();
+        check(await p.locator('#ai-queue-toggle-message').isVisible(), 'Pause feedback is hidden from the action');
+        await p.locator('#ai-queue-enabled').check();
+        await Promise.all([p.waitForResponse(r => r.url().endsWith('/operations')),
+            p.locator('#ai-operations-refresh').click()]);
+        check(settings.enabled === false, 'Refresh saved the checkbox without explicit submission');
+        check(await p.locator('#ai-queue-enabled').isChecked(), 'Refresh discarded the draft checkbox');
+        await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'),
+            p.getByRole('button', {name: 'Resume new assignments', exact: true}).click()]);
+        await p.locator('#ai-operations-state').filter({hasText: 'Allowed'}).waitFor();
+        await p.locator('#ai-queue-toggle-message').filter({hasText: 'resumed'}).waitFor();
+        check(settings.enabled === true && settings.rules[0].name === 'Default', 'Resume changed saved rule order');
+        check(await p.locator('#ai-queue-enabled').isChecked(), 'Resume did not synchronize the checkbox');
+        check(await p.getByRole('button', {name: 'Pause new assignments', exact: true}).isEnabled(), 'Pause not available after resume');
+        await p.locator('[aria-labelledby="ai-operations-title"]').screenshot({path: 'C:/Users/dimag/AppData/Local/Temp/rv-ai-resume.png'});
         check(errors.length === 0, errors.join('; '));
-        return {viewports, polling: 'light endpoint only, paused while hidden', draft: 'preserved', errors: 'clear cursor and retry', keyboard: 'passed', consoleErrors: errors};
+        return {viewports, assignments: 'pause/resume and read-only Refresh passed', polling: 'light endpoint only, paused while hidden', draft: 'preserved', errors: 'clear cursor and retry', keyboard: 'passed', consoleErrors: errors};
     } finally { await context.close(); }
 }

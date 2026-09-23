@@ -382,6 +382,75 @@ test('queue renders rules and keeps the draft across stop, save, and reload', as
     }
 });
 
+test('pause and resume use saved settings, preserve drafts, and report failures beside the action', async () => {
+    const {form, enabled, rules, stop, document} = fakeQueueDom();
+    const feedback = new FakeElement('p', {id: 'ai-queue-toggle-message'});
+    document.root.append(feedback);
+    let saved = {revision: 1, enabled: false, games: ['bj_igt'], rules: [
+        {id: 'saved', name: 'Saved', enabled: true, priority: 1, gameCode: 'bj_igt'}]};
+    let failure = 0, refreshes = 0;
+    const writes = [], previousFetch = global.fetch;
+    const settle = () => new Promise(resolve => setTimeout(resolve, 0));
+    global.fetch = async (_url, options) => {
+        if (options.body) {
+            const body = JSON.parse(options.body);
+            writes.push(body);
+            assert.equal(options.headers['X-CSRF'], 'token');
+            if (failure) return {ok: false, status: failure, json: async () => ({message: 'Unavailable'})};
+            saved = {...saved, ...body, revision: saved.revision + 1};
+        }
+        return {ok: true, status: 200, json: async () => saved};
+    };
+    try {
+        const queue = initializeAiQueue(form, {refresh: () => refreshes++});
+        await settle();
+        assert.equal(stop.textContent, 'Resume new assignments');
+        assert.equal(stop.disabled, false);
+        const name = rules.firstElementChild.querySelector('[name="name"]');
+        name.value = 'Unsaved rule';
+        form.dispatchEvent({type: 'input', target: name});
+        stop.dispatchEvent({type: 'click'});
+        assert.equal(stop.disabled, true);
+        stop.dispatchEvent({type: 'click'});
+        await settle();
+        assert.equal(writes.length, 1);
+        assert.deepEqual(writes[0], {revision: 1, enabled: true, rules: [
+            {id: 'saved', name: 'Saved', enabled: true, priority: 1, gameCode: 'bj_igt'}]});
+        assert.equal(enabled.checked, true);
+        assert.equal(stop.textContent, 'Pause new assignments');
+        assert.match(feedback.textContent, /resumed/i);
+        assert.equal(name.value, 'Unsaved rule');
+        assert.equal(queue.dirty(), true);
+
+        stop.dispatchEvent({type: 'click'});
+        await settle();
+        assert.equal(writes[1].revision, 2);
+        assert.equal(saved.enabled, false);
+        assert.equal(enabled.checked, false);
+        assert.equal(stop.textContent, 'Resume new assignments');
+        assert.match(feedback.textContent, /paused/i);
+        assert.equal(refreshes, 2);
+
+        failure = 503;
+        stop.dispatchEvent({type: 'click'});
+        await settle();
+        assert.equal(stop.disabled, false);
+        assert.equal(stop.textContent, 'Resume new assignments');
+        assert.equal(enabled.checked, false);
+        assert.equal(feedback.textContent, 'Unavailable');
+        assert.equal(feedback.dataset.error, 'true');
+        assert.equal(refreshes, 2);
+
+        failure = 409;
+        saved = {...saved, enabled: true, revision: 4};
+        stop.dispatchEvent({type: 'click'});
+        await settle();
+        assert.equal(stop.textContent, 'Pause new assignments');
+        assert.match(feedback.textContent, /another session/i);
+        assert.equal(name.value, 'Unsaved rule');
+    } finally { global.fetch = previousFetch; }
+});
+
 test('move and remove keep priorities unique and sequential without saving', async () => {
     const {form, rules, document} = fakeQueueDom();
     const initial = {revision: 1, enabled: true, rules: [

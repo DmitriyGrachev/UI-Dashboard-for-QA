@@ -62,8 +62,8 @@
             </section>
             <div id="ai-other-assignments" class="ai-rule-activity" aria-label="Assignments outside current rules" hidden></div>
             <form id="ai-queue-form">
-                <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI assignments</label>
-                <p class="admin-form-help">Enabled rules run from top to bottom. Save AI settings to apply changes to future assignments.</p>
+                <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox" aria-describedby="ai-queue-enabled-help"> Allow new AI assignments</label>
+                <p id="ai-queue-enabled-help" class="admin-form-help">Select Save AI settings to apply this checkbox and rule changes. Refresh only updates statistics. To pause or resume immediately, use the button in AI Operations.</p>
                 <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
                 <div id="ai-rules"></div>
                 <div class="ai-queue-actions">

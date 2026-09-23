@@ -281,6 +281,7 @@ function initializeAiQueue(form, operations) {
     const rules = byId('ai-rules') || form.querySelector('#ai-rules');
     const enabled = byId('ai-queue-enabled') || form.querySelector('#ai-queue-enabled');
     const message = byId('ai-queue-message') || form.querySelector('#ai-queue-message');
+    const toggleMessage = byId('ai-queue-toggle-message');
     const summary = byId('ai-queue-state') || form.querySelector('#ai-queue-state');
     const add = byId('ai-rule-add') || form.querySelector('#ai-rule-add');
     const reload = byId('ai-queue-reload') || form.querySelector('#ai-queue-reload');
@@ -543,9 +544,10 @@ function initializeAiQueue(form, operations) {
         return Boolean(current && savedDraft && JSON.stringify(settingsSnapshot(draftSettings())) !== JSON.stringify(savedDraft));
     }
 
-    function setMessage(text, error = false) {
-        message.textContent = String(text || '');
-        message.dataset.error = String(error);
+    function setMessage(text, error = false, target = message) {
+        target.textContent = String(text || '');
+        target.dataset.error = String(error);
+        target.hidden = !text;
     }
 
     function updateDirty() {
@@ -562,7 +564,8 @@ function initializeAiQueue(form, operations) {
     function controls() {
         const hasCurrent = Boolean(current);
         save.disabled = busy || !hasCurrent || !dirty();
-        stop.disabled = busy || !hasCurrent || !current.enabled;
+        stop.disabled = busy || !hasCurrent;
+        stop.textContent = current?.enabled === false ? 'Resume new assignments' : 'Pause new assignments';
         add.disabled = busy || !hasCurrent || rules.children.length >= MAX_RULES;
         reload.disabled = busy;
     }
@@ -728,13 +731,15 @@ function initializeAiQueue(form, operations) {
         return data;
     }
 
-    async function perform(action, success, reconcile = render, refreshOperations = false) {
+    async function perform(action, success, reconcile = render, refreshOperations = false, feedback = message) {
         if (busy) return null;
         busy = true;
         form.setAttribute('aria-busy', 'true');
         lockFields(true);
         controls();
-        setMessage('Working…');
+        setMessage('');
+        if (toggleMessage) setMessage('', false, toggleMessage);
+        setMessage('Working…', false, feedback);
         try {
             const data = await action();
             reconcile(data);
@@ -742,7 +747,7 @@ function initializeAiQueue(form, operations) {
             void refreshActivity();
             if (refreshOperations) operations?.refresh();
             lockFields(true);
-            setMessage(success);
+            setMessage(success, false, feedback);
             return data;
         } catch (error) {
             if (!current) summary.textContent = 'Settings unavailable. Select Reload saved settings to retry.';
@@ -752,7 +757,7 @@ function initializeAiQueue(form, operations) {
             }
             setMessage(error.status === 409 && !conflictRefreshed
                 ? 'Settings changed in another session. Draft kept; latest revision could not be loaded.'
-                : error.message || 'Could not update AI settings.', true);
+                : error.message || 'Could not update AI settings.', true, feedback);
             return null;
         } finally {
             busy = false;
@@ -814,16 +819,19 @@ function initializeAiQueue(form, operations) {
         perform(() => request(), 'Loaded saved settings.');
     });
     stop.addEventListener('click', () => {
-        if (busy || !current?.enabled) return;
-        perform(() => request({revision: current.revision, enabled: false, rules: current.rules}),
-            'New claims stopped. Already issued tasks may still finish.', data => {
+        if (busy || !current) return;
+        const allowAssignments = !current.enabled;
+        perform(() => request({revision: current.revision, enabled: allowAssignments, rules: current.rules}),
+            allowAssignments
+                ? 'New assignments resumed. The AI service can request tasks using the saved rules.'
+                : 'New assignments paused. Already assigned tasks may still finish.', data => {
                 current = cloneSettings(data);
                 savedDraft = settingsSnapshot(current);
-                enabled.checked = false;
+                enabled.checked = data.enabled;
                 updateRuleSummaries();
                 updateQueueSummary();
                 refreshControls();
-            }, true);
+            }, true, toggleMessage || message);
     });
     form.addEventListener('submit', event => {
         event.preventDefault();
