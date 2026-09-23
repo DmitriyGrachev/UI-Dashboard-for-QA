@@ -242,9 +242,43 @@ function initializeAiQueue(form, operations) {
         const matches = current && activity?.revision === current.revision && !dirty();
         const values = new Map((matches ? activity.rules : []).map(value => [value.ruleId, value]));
         const latest = new Set(matches ? activity.lastIssuedRuleIds : []);
+        const route = byId('ai-rule-route');
+        if (route) {
+            const focusedRule = route.querySelector('button:focus')?.dataset.ruleTarget;
+            route.replaceChildren();
+            const notice = byId('ai-rule-route-message');
+            notice.textContent = dirty() ? 'Save or reload settings to see the saved priority and activity.'
+                : !matches ? 'Activity unavailable. Refresh activity or reload saved settings.'
+                : !current.rules.length ? 'Add a rule to start selecting screenshots.'
+                : !current.enabled ? 'New assignments are paused. Previously assigned tasks may still return results.'
+                : !latest.size ? 'No assignments recorded yet.' : 'Select a rule to inspect its conditions and task counts.';
+            if (matches) current.rules.forEach((rule, index) => {
+                const value = assignmentCounts(values.get(rule.id));
+                const button = doc.createElement('button');
+                button.type = 'button'; button.className = 'ai-route-rule';
+                button.dataset.ruleTarget = rule.id;
+                button.dataset.latest = String(latest.has(rule.id));
+                button.dataset.enabled = String(rule.enabled);
+                const rank = doc.createElement('span'); rank.className = 'ai-priority'; rank.textContent = index + 1;
+                const name = doc.createElement('strong'); name.textContent = rule.name;
+                const status = doc.createElement('small');
+                status.textContent = [latest.has(rule.id) ? '↳ Latest batch' : '', !rule.enabled ? 'Disabled' : '',
+                    value ? `${value.active} awaiting · ${value.expired} overdue` : 'Counts unavailable'].filter(Boolean).join(' · ');
+                button.append(rank, name, status);
+                button.addEventListener('click', () => {
+                    const node = Array.from(rules.children).find(node => node.dataset.ruleId === rule.id);
+                    if (node) { node.open = true; node.querySelector('summary')?.focus(); }
+                });
+                route.append(button);
+                if (focusedRule === rule.id) button.focus({preventScroll: true});
+            });
+        }
         Array.from(rules.children).forEach(node => {
             const value = values.get(node.dataset.ruleId);
             const counts = assignmentCounts(value);
+            node.dataset.latest = String(latest.has(node.dataset.ruleId));
+            const overdue = node.querySelector('[data-rule-overdue]');
+            if (overdue) { overdue.hidden = !counts?.expired; overdue.textContent = counts ? `Overdue: ${counts.expired}` : ''; }
             const active = node.querySelector('[data-rule-active]');
             if (active) {
                 active.hidden = !counts?.active;
@@ -359,6 +393,18 @@ function initializeAiQueue(form, operations) {
                     else target.removeAttribute('href');
                 }
             });
+            // Remaining may include expired Processing tasks: never present their sum as a completion percentage.
+            const outcome = node.querySelector('[data-rule-outcomes]');
+            if (outcome) {
+                const valid = value && ['completed', 'failed'].every(key => Number.isSafeInteger(value[key]) && value[key] >= 0);
+                const total = valid ? value.completed + value.failed : 0;
+                outcome.hidden = !total;
+                if (total) {
+                    outcome.setAttribute('style', `--completed-share: ${value.completed / total * 100}%`);
+                    node.querySelector('[data-rule-outcome-label]').textContent =
+                        `Retained outcomes · ${value.completed.toLocaleString('en-US')} completed / ${value.failed.toLocaleString('en-US')} failed`;
+                }
+            }
         });
         statsMessage.dataset.error = String(Boolean(statsError));
         statsMessage.textContent = statsBusy ? 'Refreshing rule statistics…'

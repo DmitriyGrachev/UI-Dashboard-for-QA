@@ -53,6 +53,12 @@
                 <p>Awaiting results means the assignment deadline has not passed; it does not confirm the AI service is executing the task. Several rules may have outstanding assignments. Processing updates with activity; other statistics update separately.</p>
                 <p>Each rule must match all its conditions. Screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
             </details>
+            <section class="ai-route" aria-labelledby="ai-route-title">
+                <header><h3 id="ai-route-title">Assignment activity</h3><span class="ai-route-key">↳ Latest batch</span></header>
+                <p>Rules run in priority order. The pointer marks the last assignment batch; several rules can be awaiting results.</p>
+                <div id="ai-rule-route" class="ai-route-list" aria-label="Rule priority and activity"></div>
+                <p id="ai-rule-route-message">Loading activity…</p>
+            </section>
             <div id="ai-other-assignments" class="ai-rule-activity" aria-label="Assignments outside current rules" hidden></div>
             <form id="ai-queue-form">
                 <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI assignments</label>
@@ -70,9 +76,10 @@
             </form>
             <template id="ai-rule-template">
                 <details class="ai-rule">
-                    <summary><span class="ai-rule-heading"><span data-rule-summary>Selection rule</span>
+                    <summary><span class="ai-rule-heading"><span class="ai-priority" data-rule-position></span><span data-rule-summary>Selection rule</span>
                         <span class="ai-rule-cursor" data-rule-cursor hidden>Last assignment batch</span>
                         <span class="ai-rule-cursor" data-rule-active hidden></span>
+                        <span class="ai-rule-overdue" data-rule-overdue hidden></span>
                         </span>
                         <span class="ai-rule-stats">
                             <span>Remaining <strong data-rule-stat="remaining">—</strong></span>
@@ -80,10 +87,13 @@
                             <span>Completed <strong data-rule-stat="completed">—</strong></span>
                             <span>Failed <a data-rule-stat="failed" aria-label="Show failed AI tasks for this rule">—</a></span>
                         </span>
+                        <span class="ai-rule-outcomes" data-rule-outcomes hidden>
+                            <span class="ai-outcome-track" aria-hidden="true"><i></i></span>
+                            <span data-rule-outcome-label></span>
+                        </span>
                     </summary>
                     <div class="ai-rule-activity" data-rule-activity></div>
                     <div class="ai-rule-fields">
-                        <p>Priority <strong data-rule-position></strong></p>
                         <label>Name<input name="name" maxlength="100" required></label>
                         <label>Game<select name="gameCode" required></select></label>
                         <label class="ai-inline-check"><input name="enabled" type="checkbox"> Rule enabled</label>

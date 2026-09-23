@@ -503,6 +503,31 @@
 .admin-page .ai-failure-table :is(th, td):last-child { width: 100px; text-align: right; }
 .admin-page .ai-rule-activity p { margin: 6px 0; }
 .admin-page .ai-rule-activity a { display: inline-block; padding: 6px 4px; }
+.admin-page .admin-demo-label { display: block; color: var(--signal); font-size: .6875rem; font-weight: 400; margin-top: 3px; }
+
+/* Priority is a route, not a single running worker: a batch can span multiple rules. */
+.admin-page .ai-route { margin: 20px 0 24px; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--ink-950); }
+.ai-route header { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.ai-route h3 { margin: 0; font-size: .9375rem; }
+.ai-route p { color: var(--muted); font-size: .8125rem; margin: 8px 0 0; }
+.ai-route-key { color: var(--signal); font-size: .75rem; }
+.ai-route-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 10px; margin-top: 16px; }
+.admin-page .ai-route-rule { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 5px 10px; align-items: center; text-align: left; background: var(--ink-900); color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 12px; min-height: 76px; cursor: pointer; }
+.ai-route-rule strong { font-size: .8125rem; overflow-wrap: anywhere; }
+.ai-route-rule small { grid-column: 2; color: var(--muted); font-size: .75rem; }
+.admin-page .ai-priority { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding-inline: 4px; border: 1px solid var(--line-strong); border-radius: 7px; font-size: .8125rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.admin-page .ai-route-rule[data-latest="true"] { border-color: var(--signal); background: var(--admin-selected); }
+.admin-page .ai-route-rule[data-latest="true"] .ai-priority { background: var(--signal); border-color: var(--signal); color: var(--ink-950); }
+.admin-page .ai-route-rule[data-enabled="false"] { border-style: dashed; }
+.admin-page details.ai-rule[data-latest="true"] > summary { box-shadow: inset 3px 0 var(--signal); }
+.admin-page details.ai-rule > summary { scroll-margin-top: 80px; }
+.admin-page .ai-rule-heading [data-rule-summary] { flex: 1; min-width: 160px; overflow-wrap: anywhere; }
+.admin-page .ai-rule-overdue { padding: 3px 7px; border-radius: 5px; border: 1px solid currentColor; color: var(--reject); font-size: .75rem; font-weight: 400; }
+.ai-rule-outcomes { display: grid; grid-template-columns: minmax(60px, 180px) auto; align-items: center; gap: 10px; margin-top: 14px; font-size: .75rem; font-weight: 400; color: var(--muted); }
+.ai-outcome-track { display: block; height: 6px; border-radius: 3px; background: var(--reject); overflow: hidden; }
+.ai-outcome-track i { display: block; width: var(--completed-share); height: 100%; background: var(--accept); }
+@media (max-width: 600px) { .ai-rule-outcomes { grid-template-columns: 1fr; } .ai-outcome-track { max-width: 180px; } }
+@media (forced-colors: active) { .ai-route-rule[data-latest="true"] { outline: 2px solid Highlight; } .ai-outcome-track { border: 1px solid CanvasText; } .ai-outcome-track i { background: Highlight; } }
 
 /* Shared administration workspace: quiet surfaces, mint actions, persistent navigation. */
 .admin-page.admin-workspace {
