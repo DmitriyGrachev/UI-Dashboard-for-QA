@@ -40,6 +40,11 @@ if (typeof document !== "undefined") {
     const destination = legacyAdminDestination(window.location.pathname, window.location.hash);
     if (destination) window.location.replace(destination);
     initializeRejectedExportDateRange(document, window.UtcDateTimePicker);
+    document.getElementById('open-create-operator')?.addEventListener('click', () => {
+        const panel = document.getElementById('create-operator-panel');
+        panel.open = true;
+        panel.querySelector('[name="username"]').focus();
+    });
     document.querySelectorAll('[data-deactivate-operator]').forEach(form => {
         form.addEventListener('submit', event => {
             if (!window.confirm('Deactivate ' + form.dataset.deactivateOperator

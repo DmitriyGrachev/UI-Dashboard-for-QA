@@ -43,24 +43,12 @@
                 <div><dt>Response deadline exceeded</dt><dd id="ai-operations-expired">—</dd></div>
                 <div><dt>Last accepted result (UTC)</dt><dd id="ai-operations-last-result">—</dd></div>
             </dl>
-            <p id="ai-operations-message" role="status" aria-live="polite"></p>
-            <a class="button secondary" th:href="@{/admin/screenshots(aiResult='CHECKED')}">View AI-checked screenshots</a>
-            <a id="ai-operations-sign-in" th:href="@{/login}" hidden>Sign in again</a>
+            <div class="ai-operations-footer">
+                <p id="ai-operations-message" role="status" aria-live="polite"></p>
+                <a class="button secondary" th:href="@{/admin/screenshots(aiResult='CHECKED')}">View AI-checked screenshots</a>
+                <a id="ai-operations-sign-in" th:href="@{/login}" hidden>Sign in again</a>
+            </div>
         </section>
-
-        <details id="ai-failures" class="rejected-export-panel ai-queue-panel">
-            <summary>Failed diagnostics · reasons and issuing rules</summary>
-            <p>Tasks currently marked Failed. Mismatches are completed results; overdue Processing tasks appear in rule activity.</p>
-            <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
-            <p id="ai-failures-message" role="status" aria-live="polite">Open to load the current summary.</p>
-            <p><a id="ai-failures-total" hidden></a></p>
-            <table class="ai-failure-table">
-                <caption>Current failures by reason and issuing rule</caption>
-                <thead><tr><th scope="col">Reason</th><th scope="col">Issuing rule</th><th scope="col">Tasks</th></tr></thead>
-                <tbody id="ai-failures-groups"></tbody>
-            </table>
-            <a id="ai-failures-sign-in" th:href="@{/login}" hidden>Sign in again</a>
-        </details>
 
         <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
             <header>
@@ -71,20 +59,22 @@
                     <button type="button" class="button secondary" id="ai-activity-refresh">Refresh activity</button>
                 </div>
             </header>
-            <p>Pausing prevents new assignments. Already assigned screenshots can still return results.</p>
-            <p id="ai-rule-stats-message" role="status" aria-live="polite">Loading rule statistics…</p>
-            <details>
+            <div class="ai-freshness">
+                <p id="ai-rule-stats-message" role="status" aria-live="polite">Loading rule statistics…</p>
+                <p id="ai-activity-message" role="status" aria-live="polite">Loading rule activity…</p>
+            </div>
+            <details class="ai-rule-help">
                 <summary>About rule statistics</summary>
+                <p>Pausing prevents new assignments. Already assigned screenshots can still return results.</p>
                 <p>Remaining follows saved priority and file availability, including up to 100 expired assignments recoverable on the next claim. Paused queues show zero. Other counts follow the rule that issued each task and cover retained tasks only. Expired assignments stay in Processing until reclaimed, so the columns should not be added together.</p>
                 <p>Activity records assignments and accepted results since tracking was enabled. A batch may use several rules; the marker shows the latest recorded batch among saved rules. An assignment may still fail during image preparation. A recorded error describes the last failure, not necessarily the task's current state.</p>
+                <p>Awaiting results means the assignment deadline has not passed; it does not confirm the AI service is executing the task. Several rules may have outstanding assignments. Processing updates with activity; other statistics update separately.</p>
+                <p>Each rule must match all its conditions. Screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
             </details>
-            <p id="ai-activity-message" role="status" aria-live="polite">Loading rule activity…</p>
-            <p>Awaiting results means the assignment deadline has not passed; it does not confirm the AI service is executing the task. Several rules may have outstanding assignments. Processing updates with activity; other statistics update separately.</p>
             <div id="ai-other-assignments" class="ai-rule-activity" aria-label="Assignments outside current rules" hidden></div>
             <form id="ai-queue-form">
                 <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox"> Allow new AI assignments</label>
-                <p>Each rule must match all its conditions. Enabled rules run from top to bottom; screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
-                <p>Move up/down changes the draft. Select Save AI settings to apply the new order to future assignments.</p>
+                <p class="admin-form-help">Enabled rules run from top to bottom. Save AI settings to apply changes to future assignments.</p>
                 <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
                 <div id="ai-rules"></div>
                 <div class="ai-queue-actions">
@@ -98,9 +88,10 @@
             </form>
             <template id="ai-rule-template">
                 <details class="ai-rule">
-                    <summary><span data-rule-summary>Selection rule</span>
+                    <summary><span class="ai-rule-heading"><span data-rule-summary>Selection rule</span>
                         <span class="ai-rule-cursor" data-rule-cursor hidden>Last assignment batch</span>
                         <span class="ai-rule-cursor" data-rule-active hidden></span>
+                        </span>
                         <span class="ai-rule-stats">
                             <span>Remaining <strong data-rule-stat="remaining">—</strong></span>
                             <span>Processing <strong data-rule-stat="processing">—</strong></span>
@@ -119,6 +110,8 @@
                         <label>Token ID<input name="tokenId" type="number" min="0" step="1" max="9007199254740991" placeholder="Any token"></label>
                         <label>Session<input name="sessionId" maxlength="128" placeholder="Any session"></label>
                         <label>Has user hand<select name="hasUserHand"><option value="">All</option><option value="true">Yes</option><option value="false">No</option></select></label>
+                    </div>
+                    <div class="ai-queue-actions ai-rule-actions">
                         <button class="button secondary" type="button" data-move-rule="up" aria-label="Move rule up">Move up</button>
                         <button class="button secondary" type="button" data-move-rule="down" aria-label="Move rule down">Move down</button>
                         <button class="button secondary" type="button" data-remove-rule>Remove rule</button>
@@ -126,6 +119,19 @@
                 </details>
             </template>
         </section>
+        <details id="ai-failures" class="rejected-export-panel ai-queue-panel">
+            <summary>Failed diagnostics · reasons and issuing rules</summary>
+            <p>Tasks currently marked Failed. Mismatches are completed results; overdue Processing tasks appear in rule activity.</p>
+            <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
+            <p id="ai-failures-message" role="status" aria-live="polite">Open to load the current summary.</p>
+            <p><a id="ai-failures-total" hidden></a></p>
+            <table class="ai-failure-table">
+                <caption>Current failures by reason and issuing rule</caption>
+                <thead><tr><th scope="col">Reason</th><th scope="col">Issuing rule</th><th scope="col">Tasks</th></tr></thead>
+                <tbody id="ai-failures-groups"></tbody>
+            </table>
+            <a id="ai-failures-sign-in" th:href="@{/login}" hidden>Sign in again</a>
+        </details>
     </main>
 </div>
 </body>

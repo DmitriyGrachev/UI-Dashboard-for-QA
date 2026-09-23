@@ -29,7 +29,7 @@ async (page) => {
             countCalls++;
             body = {revision: settings.revision, generatedAt: '2026-09-17T12:00:00Z', rules: settings.rules.map(rule =>
                 ({ruleId: rule.id, remaining: 1234, processing: 10, completed: 5678, failed: 2}))};
-        } else body = {enabled: true, hasEligiblePending: true, processing: 10, failed: 2, expired: 2};
+        } else body = {enabled: settings.enabled, hasEligiblePending: true, processing: 10, failed: 2, expired: 2};
         return route.fulfill({json: body});
     });
     try {
@@ -45,14 +45,19 @@ async (page) => {
         check(await first.getByRole('link', {name: 'Inspect screenshot', exact: true}).getAttribute('href') === '/admin/screenshots?imageId=' + imageId, 'Incorrect diagnostic link');
         check(await first.locator('[data-rule-activity] img').count() === 0, 'Error message inserted HTML');
         const viewports = [];
-        for (const [width, height, theme] of [[1440, 900, 'dark'], [1280, 720, 'light'], [768, 900, 'dark']]) {
+        for (const [width, height, theme] of [[1440, 900, 'dark'], [1280, 720, 'light'], [768, 900, 'dark'], [390, 844, 'light']]) {
             await p.setViewportSize({width, height});
-            await p.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
+            if (await p.evaluate(() => document.documentElement.dataset.theme) !== theme) await p.locator('[data-theme-toggle]').click();
             check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Horizontal overflow at ' + width);
-            await p.screenshot({path: `C:/Users/dimag/AppData/Local/Temp/rv-ai-activity-${width}.png`, fullPage: true});
+            await p.mouse.move(0, 0);
+            await p.screenshot({path: `C:/Users/dimag/AppData/Local/Temp/rv-ai-activity-${width}.png`, fullPage: true, animations: 'disabled'});
             viewports.push({width, height, theme, passed: true});
         }
         const countsBefore = countCalls, activityBefore = activityCalls;
+        await p.setViewportSize({width: 768, height: 900});
+        await p.evaluate(() => document.documentElement.style.fontSize = '200%');
+        check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'AI Queue overflow with 200% text');
+        await p.evaluate(() => document.documentElement.style.fontSize = '');
         await first.getByRole('link', {name: 'Inspect screenshot', exact: true}).focus();
         await p.clock.fastForward(15000);
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
@@ -87,6 +92,15 @@ async (page) => {
         await p.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true})));
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
         check(activityCalls === beforeNavigation + 1, 'Back navigation did not resume activity');
+        await first.getByRole('button', {name: 'Move rule down', exact: true}).click();
+        check(await p.locator('.ai-rule').first().locator('[name="name"]').inputValue() === 'Default', 'Move down did not reorder the draft');
+        check(settings.rules[0].name === 'Priority sessions', 'Moving a rule saved without explicit submission');
+        await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'), p.locator('#ai-queue-save').click()]);
+        await p.locator('#ai-queue-message').filter({hasText: 'Saved.'}).waitFor();
+        check(settings.rules[0].name === 'Default', 'Save lost the new priority');
+        await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'), p.locator('#ai-queue-stop').click()]);
+        await p.locator('#ai-operations-state').filter({hasText: 'Paused'}).waitFor();
+        check(settings.enabled === false && settings.rules[0].name === 'Default', 'Pause changed saved rule order');
         check(errors.length === 0, errors.join('; '));
         return {viewports, polling: 'light endpoint only, paused while hidden', draft: 'preserved', errors: 'clear cursor and retry', keyboard: 'passed', consoleErrors: errors};
     } finally { await context.close(); }

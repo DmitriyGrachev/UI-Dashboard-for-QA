@@ -211,6 +211,8 @@
 .admin-page .operator-technical dd { margin: 4px 0 0; font-size: 0.75rem; }
 .admin-page .operator-manage form { display: grid; gap: 10px; margin-top: 12px; }
 .admin-page .operator-manage label { display: grid; gap: 6px; }
+.admin-page .operator-controls { display: flex; flex-wrap: wrap; gap: 0 18px; min-width: 140px; }
+.admin-page .operator-controls details[open] { flex-basis: 100%; }
 .admin-page .workload-track i { background: var(--signal); }
 .admin-page .workload-row > :is(span, strong) { font: inherit; }
 .admin-page .admin-pagination { font-size: 0.8125rem; }
@@ -218,7 +220,16 @@
 /* Single-purpose forms use the same label / field / help rhythm. */
 .admin-page .rejected-export-panel { margin: 0; padding: 24px; }
 .admin-page .rejected-export-panel > header { margin-bottom: 20px; }
-.admin-page .rejected-export-form { grid-template-columns: repeat(2, minmax(0, 1fr)); max-width: 920px; align-items: start; gap: 22px; }
+.admin-page .rejected-export-form { grid-template-columns: 1fr; max-width: 920px; align-items: start; gap: 24px; }
+.admin-page .export-section { min-width: 0; margin: 0; padding: 18px 0 0; border: 0; border-top: 1px solid var(--line); display: grid; gap: 14px; }
+.admin-page .export-section legend { padding: 0 12px 0 0; font-size: .875rem; font-weight: 600; }
+.admin-page .export-section label:not(.rejected-export-checkbox) { display: grid; gap: 8px; color: var(--muted); }
+.admin-page .export-section > .admin-form-help { margin: 0; color: var(--muted); font-size: .8125rem; }
+.admin-page .export-submit .admin-form-help { color: var(--muted); font-size: .8125rem; }
+.admin-page .export-period { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.admin-page .export-period > p { grid-column: 1 / -1; }
+.admin-page .export-submit { display: flex; gap: 24px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 20px; }
+.admin-page #rejected-export-status:empty { display: none; }
 .admin-page .rejected-export-form > label:not(.rejected-export-checkbox) { font-size: 0.8125rem; }
 .admin-page .rejected-export-checkbox { font-size: 0.8125rem; white-space: normal; }
 .admin-page .rejected-export-form .button { justify-self: end; min-width: 160px; }
@@ -230,13 +241,26 @@
 .admin-page .ai-queue-panel { max-width: 1100px; }
 .admin-page .ai-queue-panel + .ai-queue-panel { margin-top: 20px; }
 .admin-page .ai-queue-panel > p { max-width: 85ch; }
-.admin-page .ai-queue-panel form { gap: 20px; }
+.admin-page .ai-queue-panel > header { align-items: center; }
+.admin-page .ai-freshness { display: flex; flex-wrap: wrap; gap: 4px 20px; color: var(--muted); font-size: .75rem; }
+.admin-page .ai-freshness p { margin: 0; }
+.admin-page .ai-rule-help { margin: 12px 0 20px; font-size: .8125rem; color: var(--muted); }
+.admin-page .ai-rule-help summary { min-height: 32px; padding-block: 6px; cursor: pointer; color: var(--text); }
+.admin-page .ai-rule-help p { max-width: 100ch; }
+.admin-page #ai-failures > summary { padding-block: 4px; font-weight: 600; cursor: pointer; }
+.admin-page #ai-failures > p { color: var(--muted); font-size: .875rem; }
+.admin-page .ai-queue-panel form { gap: 16px; }
+.admin-page .ai-queue-panel form > p { margin: 0; }
 .admin-page .ai-queue-panel .ai-inline-check { font-size: 0.875rem; color: var(--text); }
 .admin-page #ai-queue-state { font-size: 0.875rem; }
 .admin-page #ai-rules { border-top: 1px solid var(--line); }
 .admin-page details.ai-rule { display: block; padding: 0; margin: 0; border: 0; border-bottom: 1px solid var(--line); }
-.admin-page details.ai-rule > summary { padding: 16px 8px; cursor: pointer; color: var(--text); }
+.admin-page details.ai-rule > summary { padding: 18px 12px; cursor: pointer; color: var(--text); }
 .admin-page details.ai-rule > summary:hover { background: var(--row-tint); }
+.admin-page details.ai-rule[open] { background: var(--ink-850); }
+.admin-page .ai-rule-heading { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; max-width: calc(100% - 24px); vertical-align: top; }
+.admin-page .ai-rule-actions { padding: 0 12px 20px; }
+.admin-page .ai-rule-actions [data-remove-rule] { margin-left: auto; color: var(--reject); }
 .admin-page .ai-rule-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; padding: 8px 8px 24px; min-width: 0; }
 .admin-page .ai-rule label { font-size: 0.8125rem; }
 .admin-page .ai-rule input:not([type="checkbox"]),
@@ -357,7 +381,8 @@
 @media (max-width: 600px) {
     .admin-page .topbar-actions a { display: inline-flex; }
     .admin-page .admin-navigation { gap: 2px; }
-    .admin-page .rejected-export-form, .admin-page .ai-rule-fields { grid-template-columns: 1fr; }
+    .admin-page .rejected-export-form, .admin-page .export-period, .admin-page .ai-rule-fields { grid-template-columns: 1fr; }
+    .admin-page .export-submit { flex-wrap: wrap; gap: 8px; }
     .admin-page .rejected-export-form .button { justify-self: stretch; }
     .admin-page #ai-queue-stop { margin-left: 0; }
     .admin-page .ai-queue-actions .button { flex: 1 1 auto; }
@@ -405,11 +430,13 @@
 @media (max-width: 600px) { .admin-page .saved-filter-bar label { width: 100%; } .admin-page .grid-view .explorer-sidebar { height: 440px; } }
 
 .admin-page .ai-operations-grid {
-    max-width: none; display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 18px 24px;
+    max-width: none; display: grid; grid-template-columns: repeat(6, minmax(0,1fr)); gap: 18px 20px;
 }
 .admin-page .ai-operations-grid > div { display: block; min-width: 0; }
-.admin-page .ai-operations-grid dt { font-size: .875rem; color: var(--muted); }
+.admin-page .ai-operations-grid dt { font-size: .8125rem; color: var(--muted); min-height: 2.8em; }
 .admin-page .ai-operations-grid dd { margin: 6px 0 0; font-size: 1.375rem; overflow-wrap: anywhere; }
+.admin-page .ai-operations-footer { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 20px; font-size: .8125rem; }
+.admin-page .ai-operations-footer > p { flex: 1 1 220px; margin: 0; }
 .admin-page #ai-operations-last-result { font-size: .875rem; }
 .admin-page [data-error="true"] { color: var(--reject); }
 .admin-page .screenshot-result[aria-pressed="true"] :is(.screenshot-result-top, .screenshot-result-bottom) { color: var(--text); }
@@ -430,8 +457,12 @@
 .admin-page .detail-content .card-presentation-control { margin: 8px 16px; }
 .admin-page .explorer-details .ai-review-card { margin: 16px; }
 .admin-page .detail-primary > div { border-bottom: 0; }
-@media (max-width: 820px) {
+@media (max-width: 1100px) {
+    .admin-page .ai-operations-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 600px) {
     .admin-page .ai-operations-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    .admin-page .ai-rule-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
 }
 
 .admin-page .explorer-viewer .viewer-bar { flex-direction: row; flex-wrap: wrap; align-items: center; }
@@ -446,24 +477,26 @@
 .admin-page .admin-navigation a { color: var(--muted); }
 .admin-page .admin-navigation a.is-current { color: var(--text); }
 .ai-rule-stats {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px 24px;
-    margin-top: 8px;
-    font-size: 13px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px 16px;
+    margin-top: 16px;
+    font-size: .75rem;
     font-weight: 400;
     color: var(--muted);
 }
 
 .ai-rule-stats strong, .ai-rule-stats a {
-    margin-left: 4px;
+    display: block;
+    margin-top: 4px;
+    font-size: 1.25rem;
     color: var(--text);
     font-variant-numeric: tabular-nums;
 }
 
 .ai-rule-stats a[href] { color: var(--signal); text-decoration: underline; }
 
-.admin-page .ai-rule-cursor { color: var(--signal); font-size: .8125rem; margin-left: 12px; }
+.admin-page .ai-rule-cursor { color: var(--signal); background: var(--admin-selected); border: 1px solid var(--line); border-radius: 5px; padding: 3px 7px; font-size: .75rem; font-weight: 400; }
 .admin-page .ai-rule-activity { margin: 12px 16px; font-size: .875rem; overflow-wrap: anywhere; }
 .admin-page .ai-failure-table { width: 100%; table-layout: fixed; border-collapse: collapse; }
 .admin-page .ai-failure-table :is(th, td) { padding: 10px; text-align: left; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }

@@ -152,7 +152,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
         mockMvc.perform(get("/admin/rejects")
                         .with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(containsString("Rejected screenshots export")))
+                .andExpect(content().string(containsString("Download a ZIP")))
                 .andExpect(content().string(containsString(
                         "action=\"/admin/rejected-screenshots.zip\""
                 )))

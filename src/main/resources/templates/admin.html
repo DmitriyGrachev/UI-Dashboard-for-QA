@@ -28,6 +28,7 @@
                 <h1>Operator management</h1>
                 <p>Manage operator access and review activity. Metrics use UTC.</p>
             </div>
+            <button class="button primary" type="button" id="open-create-operator" aria-controls="create-operator-panel">Create operator</button>
         </header>
 
         <p class="admin-notice success" role="status" th:if="${param.created}">
@@ -65,7 +66,7 @@
                     </span>
                 </header>
 
-                <div class="table-scroll" th:if="${not #lists.isEmpty(operators)}">
+                <div class="table-scroll" tabindex="0" role="region" aria-label="Operator activity and account actions" th:if="${not #lists.isEmpty(operators)}">
                     <table class="operator-table">
                         <thead>
                         <tr>
@@ -192,7 +193,7 @@
             </section>
         </div>
 
-        <details class="admin-create-disclosure">
+        <details class="admin-create-disclosure" id="create-operator-panel">
             <summary>
                 <span>
                     <span class="section-kicker">New account</span>

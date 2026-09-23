@@ -29,26 +29,25 @@
         <header class="admin-heading">
             <div>
                 <span class="section-kicker">Recognition output</span>
-                <h1>Export rejected screenshots</h1>
+                <h1>Rejected screenshots</h1>
                 <p>Each ZIP includes images and results.csv with AI and operator results.</p>
-                <a th:href="@{/admin/screenshots(reviewState=CHECKED,decision=REJECTED)}">View operator rejects</a>
             </div>
+            <a class="button secondary" th:href="@{/admin/screenshots(reviewState=CHECKED,decision=REJECTED)}">View operator rejects</a>
         </header>
 
         <section class="rejected-export-panel" aria-labelledby="rejected-export-title">
             <header>
                 <div>
                     <span class="section-kicker">Recognition output</span>
-                    <h2 id="rejected-export-title">Rejected screenshots export</h2>
+                    <h2 id="rejected-export-title">Download a ZIP</h2>
                 </div>
-                <p>Filter by recognition completion time parsed from PNG file names. Empty dates include all available data.</p>
             </header>
-            <p class="admin-form-help">From is inclusive and to is exclusive. Leave either date empty to keep that boundary open. All dates and times use UTC.</p>
-            <p id="rejected-export-status" role="status" aria-live="polite"></p>
             <form class="rejected-export-form" id="rejected-export-form"
                   data-utc-date-range
                   method="post"
                   th:action="@{/admin/rejected-screenshots.zip}">
+                <fieldset class="export-section">
+                    <legend>Source</legend>
                 <label>
                     Export source
                     <select name="aiMismatch" aria-describedby="export-source-help">
@@ -56,7 +55,11 @@
                         <option value="true">AI — Mismatch</option>
                     </select>
                 </label>
-                <p id="export-source-help" class="admin-form-help">AI export includes all available MISMATCH images, regardless of operator review or previous downloads.</p>
+                <p id="export-source-help" class="admin-form-help">Includes operator rejects. Previously exported images are excluded unless selected below.</p>
+                </fieldset>
+                <fieldset class="export-section export-period">
+                    <legend>Recognition period · UTC</legend>
+                    <p class="admin-form-help">Uses recognition completion time from PNG file names. From is inclusive; to is exclusive. Leave dates empty to include all available data.</p>
                 <label>
                     <span>Recognition completed from (UTC)</span>
                     <span class="utc-datetime-control" data-utc-boundary>
@@ -139,6 +142,9 @@
                 </label>
                 <p class="utc-date-error" id="rejected-export-date-error"
                    role="alert" hidden></p>
+                </fieldset>
+                <fieldset class="export-section">
+                    <legend>Options</legend>
                 <label>
                     Session ID
                     <input type="search" name="sessionId" maxlength="128"
@@ -150,7 +156,12 @@
                            value="true">
                     Include previously downloaded operator rejects
                 </label>
-                <button class="button primary" type="submit">Download ZIP</button>
+                </fieldset>
+                <div class="export-submit">
+                    <p class="admin-form-help">Large exports may take a few minutes. Follow progress in your browser’s Downloads.</p>
+                    <button class="button primary" type="submit">Download ZIP</button>
+                </div>
+                <p id="rejected-export-status" role="status" aria-live="polite"></p>
             </form>
         </section>
     </main>
