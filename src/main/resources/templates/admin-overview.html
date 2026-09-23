@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>Overview — Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <link rel="stylesheet" th:href="@{/css/overview.css}">
+    <script defer th:src="@{/js/ai-queue.js}"></script>
+</head>
+<body class="admin-page admin-workspace overview-page">
+<a class="admin-skip-link" href="#admin-content">Skip to content</a>
+<div class="app-shell admin-shell">
+    <header th:replace="~{fragments/admin-navigation :: topbar}"></header>
+    <aside class="admin-sidebar" aria-label="Administration">
+        <p class="admin-nav-label">Administration</p>
+        <nav th:replace="~{fragments/admin-navigation :: navigation('overview')}"></nav>
+    </aside>
+    <main class="admin-main" id="admin-content" tabindex="-1">
+        <header class="admin-heading">
+            <div><h1>Review overview</h1><p>Operator decisions and AI results, in one place.</p></div>
+            <form class="overview-period" method="get" th:action="@{/admin/overview}">
+                <label for="overview-period">Period · UTC</label>
+                <select id="overview-period" name="days">
+                    <option value="7" th:selected="${days == 7}">Last 7 days</option>
+                    <option value="30" th:selected="${days == 30}">Last 30 days</option>
+                </select>
+                <button class="button secondary" type="submit">Apply</button>
+            </form>
+        </header>
+        <section class="overview-metrics" aria-label="Totals for selected period">
+            <article class="overview-metric">
+                <div><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m7 12 3 3 7-7"/></svg></span><span>Operator reviews</span></div>
+                <strong id="overview-operator-total" th:text="${#numbers.formatInteger(overview.operatorTotal(), 1, 'COMMA')}">0</strong>
+                <small>Completed decisions</small>
+            </article>
+            <article class="overview-metric ai-metric">
+                <div><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg></span><span>AI reviews</span></div>
+                <strong id="overview-ai-total" th:text="${#numbers.formatInteger(overview.aiTotal(), 1, 'COMMA')}">0</strong>
+                <small>Accepted AI results</small>
+            </article>
+            <article class="overview-metric reject-metric">
+                <div><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="m8 8 8 8m0-8-8 8"/></svg></span><span>Operator rejects</span></div>
+                <strong th:text="${#numbers.formatInteger(overview.rejected(), 1, 'COMMA')}">0</strong>
+                <small>Rejected recognition results</small>
+            </article>
+            <article class="overview-metric mismatch-metric">
+                <div><span class="overview-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m12 3 10 18H2L12 3Z M12 9v5m0 3v1"/></svg></span><span>AI mismatches</span></div>
+                <strong th:text="${#numbers.formatInteger(overview.mismatched(), 1, 'COMMA')}">0</strong>
+                <small>Completed reviews, not failed tasks</small>
+            </article>
+        </section>
+
+        <div class="overview-analysis">
+            <section class="overview-panel overview-trend" aria-labelledby="overview-trend-title">
+                <header><div><h2 id="overview-trend-title">Review activity</h2><p>Completed reviews by day · UTC</p></div>
+                    <div class="overview-legend"><span><i class="operator-key"></i>Operators</span><span><i class="ai-key"></i>AI</span></div>
+                </header>
+                <div class="overview-empty" th:if="${overview.empty()}"><strong>No reviews in this period</strong><p>Try a longer period. Completed operator and AI reviews will appear here.</p></div>
+                <div class="overview-chart" th:unless="${overview.empty()}" th:with="maximum=${overview.maximum()}">
+                    <div class="overview-axis" aria-hidden="true"><span th:text="${#numbers.formatInteger(maximum, 1, 'COMMA')}"></span><span th:text="${#numbers.formatInteger(maximum / 2, 1, 'COMMA')}"></span><span>0</span></div>
+                    <div class="overview-bars" th:style="|--days: ${days}|">
+                        <div class="overview-day" th:each="day, row : ${overview.daily()}" tabindex="0"
+                             th:attr="aria-label=|${day.date()}: ${day.operatorTotal()} operator reviews, ${day.aiTotal()} AI reviews|">
+                            <div class="overview-bar-pair" aria-hidden="true"
+                                 th:style="|--operator-height: ${overview.percent(day.operatorTotal(), maximum)}%; --ai-height: ${overview.percent(day.aiTotal(), maximum)}%|">
+                                <i class="operator-bar"></i><i class="ai-bar"></i>
+                            </div>
+                            <span class="overview-day-label" aria-hidden="true" th:text="${days == 7 or row.index % 5 == 0 or row.last} ? ${day.label()} : ''"></span>
+                            <span class="overview-chart-tip" aria-hidden="true"><strong th:text="${day.label()}"></strong><span th:text="|Operators: ${day.operatorTotal()}|"></span><span th:text="|AI: ${day.aiTotal()}|"></span></span>
+                        </div>
+                    </div>
+                </div>
+                <p class="overview-note">Operator and AI reviews are independent; their totals can include the same screenshot.</p>
+                <details class="overview-data"><summary>View daily figures</summary>
+                    <div class="table-scroll" tabindex="0" role="region" aria-label="Daily review totals">
+                        <table><caption class="sr-only">Daily figures for the selected UTC period</caption>
+                            <thead><tr><th scope="col">Date (UTC)</th><th scope="col">Operators</th><th scope="col">Accepted</th><th scope="col">Rejected</th><th scope="col">AI</th><th scope="col">Matched</th><th scope="col">Mismatched</th></tr></thead>
+                            <tbody><tr th:each="day : ${overview.daily()}"><th scope="row" th:text="${day.date()}"></th><td th:text="${day.operatorTotal()}"></td><td th:text="${day.accepted()}"></td><td th:text="${day.rejected()}"></td><td th:text="${day.aiTotal()}"></td><td th:text="${day.matched()}"></td><td th:text="${day.mismatched()}"></td></tr></tbody>
+                        </table>
+                    </div>
+                </details>
+            </section>
+            <section class="overview-panel overview-outcomes" aria-labelledby="overview-outcomes-title">
+                <header><div><h2 id="overview-outcomes-title">Review outcomes</h2><p>Share of completed reviews</p></div></header>
+                <div class="overview-outcome" th:with="total=${overview.operatorTotal()},positive=${overview.accepted()},negative=${overview.rejected()}">
+                    <div class="overview-ring" role="img" th:attr="aria-label=${total == 0 ? 'No operator reviews in this period' : #numbers.formatDecimal(overview.percent(positive, total), 1, 1) + '% of operator reviews accepted'}" th:style="|--positive: ${overview.percent(positive, total)}%; --known: ${overview.percent(positive + negative, total)}%|">
+                        <span><strong th:text="${total == 0 ? '—' : #numbers.formatDecimal(overview.percent(positive, total), 1, 1) + '%'}"></strong><small>Accepted</small></span>
+                    </div>
+                    <div><h3>Operators</h3><dl><div><dt><i class="operator-key"></i>Accepted</dt><dd th:text="${#numbers.formatInteger(positive, 1, 'COMMA')}"></dd></div><div><dt><i class="reject-key"></i>Rejected</dt><dd th:text="${#numbers.formatInteger(negative, 1, 'COMMA')}"></dd></div></dl><p th:if="${total == 0}">No reviews yet</p></div>
+                </div>
+                <div class="overview-outcome" th:with="total=${overview.aiTotal()},positive=${overview.matched()},negative=${overview.mismatched()}">
+                    <div class="overview-ring" role="img" th:attr="aria-label=${total == 0 ? 'No AI reviews in this period' : #numbers.formatDecimal(overview.percent(positive, total), 1, 1) + '% of AI reviews matched'}" th:style="|--positive: ${overview.percent(positive, total)}%; --known: ${overview.percent(positive + negative, total)}%|">
+                        <span><strong th:text="${total == 0 ? '—' : #numbers.formatDecimal(overview.percent(positive, total), 1, 1) + '%'}"></strong><small>Matched</small></span>
+                    </div>
+                    <div><h3>AI service</h3><dl><div><dt><i class="operator-key"></i>Matched</dt><dd th:text="${#numbers.formatInteger(positive, 1, 'COMMA')}"></dd></div><div><dt><i class="reject-key"></i>Mismatched</dt><dd th:text="${#numbers.formatInteger(negative, 1, 'COMMA')}"></dd></div></dl><p th:if="${total == 0}">No reviews yet</p></div>
+                </div>
+            </section>
+        </div>
+        <section th:replace="~{fragments/admin-operations :: snapshot(false)}"></section>
+    </main>
+</div>
+</body>
+</html>

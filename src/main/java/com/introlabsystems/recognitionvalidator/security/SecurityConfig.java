@@ -43,7 +43,7 @@ public class SecurityConfig {
         return (request, response, authentication) -> {
             boolean admin = AuthorityUtils.authorityListToSet(authentication.getAuthorities())
                     .contains("ROLE_ADMIN");
-            response.sendRedirect(admin ? "/admin" : "/review");
+            response.sendRedirect(admin ? "/admin/overview" : "/review");
         };
     }
 

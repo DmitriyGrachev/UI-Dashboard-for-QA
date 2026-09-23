@@ -266,7 +266,7 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                         .param("username", "admin")
                         .param("password", "correct-password"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrl("/admin"));
+                .andExpect(redirectedUrl("/admin/overview"));
 
         mockMvc.perform(get("/review")
                         .with(user("admin").roles("ADMIN")))

@@ -1,4 +1,7 @@
 <nav class="admin-navigation" aria-label="Admin navigation" th:fragment="navigation(active)">
+    <a th:href="@{/admin/overview}"
+       th:classappend="${active == 'overview'} ? ' is-current' : ''"
+       th:attr="aria-current=${active == 'overview'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg><span>Overview</span></a>
     <a th:href="@{/admin}"
        th:classappend="${active == 'operators'} ? ' is-current' : ''"
        th:attr="aria-current=${active == 'operators'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m3 11v-3a6 6 0 0 0-2-4"/></svg><span>Operators</span></a>
@@ -14,7 +17,7 @@
 </nav>
 
     <header class="topbar" th:fragment="topbar">
-        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
+        <a class="brand" th:href="@{/admin/overview}" aria-label="Recognition Validator admin">
             <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3H4a1 1 0 0 0-1 1v5m12-6h5a1 1 0 0 1 1 1v5M3 15v5a1 1 0 0 0 1 1h5m6 0h5a1 1 0 0 0 1-1v-5M7 12l3 3 7-7"/></svg></span>
             <span>
                 <strong>Recognition Validator</strong>
@@ -26,7 +29,7 @@
                 <span aria-hidden="true" data-theme-icon>☀</span>
                 <span data-theme-label>Light</span>
             </button>
-            <span class="signed-in-user" th:text="${adminName}">admin</span>
+            <span class="signed-in-user"><span class="account-avatar" aria-hidden="true" th:text="${#strings.substring(adminName, 0, 1).toUpperCase()}">A</span><span class="account-name"><strong th:text="${adminName}">admin</strong><small>Administrator</small></span></span>
             <form method="post" th:action="@{/logout}">
                 <button class="link-button" type="submit">Sign out</button>
             </form>

@@ -30,25 +30,7 @@
             </div>
         </header>
 
-        <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-operations-title">
-            <header>
-                <div><span class="section-kicker">Runtime snapshot</span><h2 id="ai-operations-title">AI Operations</h2></div>
-                <div class="ai-queue-actions"><button type="button" form="ai-queue-form" class="button secondary" id="ai-queue-stop" disabled>Pause new assignments</button><button class="button secondary" type="button" id="ai-operations-refresh">Refresh</button></div>
-            </header>
-            <dl class="operator-technical ai-operations-grid">
-                <div><dt>New assignments</dt><dd id="ai-operations-state">Loading…</dd></div>
-                <div><dt>Work available</dt><dd id="ai-operations-eligible">—</dd></div>
-                <div><dt>In progress</dt><dd id="ai-operations-processing">—</dd></div>
-                <div><dt>Failed</dt><dd><a id="ai-operations-failed" href="/admin/screenshots?aiTaskStatus=FAILED" aria-label="Show all failed AI tasks">—</a></dd></div>
-                <div><dt>Response deadline exceeded</dt><dd id="ai-operations-expired">—</dd></div>
-                <div><dt>Last accepted result (UTC)</dt><dd id="ai-operations-last-result">—</dd></div>
-            </dl>
-            <div class="ai-operations-footer">
-                <p id="ai-operations-message" role="status" aria-live="polite"></p>
-                <a class="button secondary" th:href="@{/admin/screenshots(aiResult='CHECKED')}">View AI-checked screenshots</a>
-                <a id="ai-operations-sign-in" th:href="@{/login}" hidden>Sign in again</a>
-            </div>
-        </section>
+        <section th:replace="~{fragments/admin-operations :: snapshot(true)}"></section>
 
         <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
             <header>

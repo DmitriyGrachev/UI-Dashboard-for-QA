@@ -2,6 +2,7 @@ package com.introlabsystems.recognitionvalidator.controller;
 
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import com.introlabsystems.recognitionvalidator.model.value.AdminStatisticsPage;
+import com.introlabsystems.recognitionvalidator.model.value.AdminOverviewStatistics;
 import com.introlabsystems.recognitionvalidator.model.value.AdminOperatorStatistics;
 import com.introlabsystems.recognitionvalidator.model.value.DailyReviewCount;
 import com.introlabsystems.recognitionvalidator.security.SecurityConfig;
@@ -153,8 +154,17 @@ class AdminUiRenderingWebTest {
                         new DailyReviewCount(LocalDate.of(2026, 9, 22), 48, 40, 8)), 60)).toList();
         when(statistics.page(0)).thenReturn(new AdminStatisticsPage(operators, 0, 1, operators.size()));
         when(properties.games()).thenReturn(List.of("bj_igt", "bj_netent"));
+        for (int days : List.of(7, 30)) {
+            var daily = java.util.stream.IntStream.range(0, days).mapToObj(i -> {
+                long total = List.of(360, 480, 420, 615, 540, 720, 640).get(i % 7);
+                return new AdminOverviewStatistics.Day(LocalDate.of(2026, 9, 23).minusDays(days - 1 - i),
+                        total, total - 40, 40, total + 120, total + 60, 60);
+            }).toList();
+            when(statistics.overview(days)).thenReturn(new AdminOverviewStatistics(daily));
+        }
         var pages = java.util.Map.of("/admin", "admin.html", "/admin/ai-queue", "admin-ai-queue.html",
-                "/admin/rejects", "admin-rejects.html", "/admin/screenshots", "admin-screenshots.html");
+                "/admin/rejects", "admin-rejects.html", "/admin/screenshots", "admin-screenshots.html",
+                "/admin/overview", "admin-overview.html", "/admin/overview?days=30", "admin-overview-30.html");
         for (var page : pages.entrySet()) {
             String html = mockMvc.perform(get(page.getKey()).with(user("admin").roles("ADMIN")))
                     .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
@@ -168,7 +178,13 @@ class AdminUiRenderingWebTest {
                 java.nio.file.Files.writeString(directory.resolve(page.getValue()), html);
             }
         }
+        when(statistics.overview(7)).thenReturn(new AdminOverviewStatistics(java.util.stream.IntStream.range(0, 7)
+                .mapToObj(i -> new AdminOverviewStatistics.Day(LocalDate.of(2026, 9, 17).plusDays(i), 0, 0, 0, 0, 0, 0)).toList()));
+        String emptyOverview = mockMvc.perform(get("/admin/overview").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        org.assertj.core.api.Assertions.assertThat(emptyOverview).contains("No reviews in this period");
         if (Boolean.getBoolean("validator.write-browser-fixtures")) {
+            java.nio.file.Files.writeString(java.nio.file.Path.of("target", "browser-fixtures", "admin-overview-empty.html"), emptyOverview);
             for (String asset : List.of("flatpickr.min.js", "flatpickr.min.css")) {
                 var resource = new org.springframework.core.io.ClassPathResource(
                         "META-INF/resources/webjars/flatpickr/4.6.13/dist/" + asset);

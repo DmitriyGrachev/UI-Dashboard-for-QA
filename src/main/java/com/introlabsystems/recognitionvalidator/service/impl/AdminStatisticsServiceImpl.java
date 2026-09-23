@@ -3,11 +3,15 @@ package com.introlabsystems.recognitionvalidator.service.impl;
 import com.introlabsystems.recognitionvalidator.service.AdminStatisticsService;
 import com.introlabsystems.recognitionvalidator.model.value.AdminOperatorStatistics;
 import com.introlabsystems.recognitionvalidator.model.value.AdminStatisticsPage;
+import com.introlabsystems.recognitionvalidator.model.value.AdminOverviewStatistics;
 import com.introlabsystems.recognitionvalidator.model.value.DailyReviewCount;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+import org.springframework.http.HttpStatus;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -26,6 +30,37 @@ public class AdminStatisticsServiceImpl implements AdminStatisticsService {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final Clock clock;
+
+    @Override
+    @Transactional(readOnly = true, timeout = 5)
+    public AdminOverviewStatistics overview(int days) {
+        if (days != 7 && days != 30) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Period must be 7 or 30 days");
+        }
+        LocalDate today = clock.instant().atZone(ZoneOffset.UTC).toLocalDate();
+        var parameters = new MapSqlParameterSource().addValue("start", today.minusDays(days - 1)).addValue("end", today);
+        // Read the retained daily counters, never rescan image or task history for the overview.
+        var daily = jdbc.query("""
+                SELECT d::date AS day,
+                       COALESCE(o.total, 0) AS operator_total,
+                       COALESCE(o.accepted, 0) AS accepted, COALESCE(o.rejected, 0) AS rejected,
+                       COALESCE(a.total_checked, 0) AS ai_total,
+                       COALESCE(a.matched_count, 0) AS matched, COALESCE(a.not_matched_count, 0) AS mismatched
+                FROM generate_series(CAST(:start AS date), CAST(:end AS date), interval '1 day') d
+                LEFT JOIN (
+                    SELECT statistics_date, SUM(total_checked) AS total,
+                           SUM(matched_count) AS accepted, SUM(not_matched_count) AS rejected
+                    FROM operator_daily_statistics
+                    WHERE statistics_date BETWEEN :start AND :end
+                    GROUP BY statistics_date
+                ) o ON o.statistics_date = d::date
+                LEFT JOIN ai_daily_statistics a ON a.statistics_date = d::date
+                ORDER BY d
+                """, parameters, (rs, row) -> new AdminOverviewStatistics.Day(rs.getObject("day", LocalDate.class),
+                rs.getLong("operator_total"), rs.getLong("accepted"), rs.getLong("rejected"),
+                rs.getLong("ai_total"), rs.getLong("matched"), rs.getLong("mismatched")));
+        return new AdminOverviewStatistics(daily);
+    }
 
     @Override
     public AdminStatisticsPage page(int requestedPage) {

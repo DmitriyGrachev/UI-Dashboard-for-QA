@@ -35,6 +35,14 @@ public class AdminController {
     private final AdminStatisticsService statistics;
     private final RejectedScreenshotExportService rejectedExports;
 
+    @GetMapping("/admin/overview")
+    String overview(@RequestParam(defaultValue = "7") int days, Model model, Principal principal) {
+        model.addAttribute("overview", statistics.overview(days));
+        model.addAttribute("days", days);
+        model.addAttribute("adminName", principal.getName());
+        return "admin-overview";
+    }
+
     @GetMapping("/admin")
     String admin(
             @RequestParam(defaultValue = "0") int page,
