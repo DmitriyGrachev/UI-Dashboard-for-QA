@@ -55,10 +55,11 @@ async (page) => {
         await p.goto('http://127.0.0.1:18992/admin/ai-queue');
         const failed = p.locator('[data-rule-stat="failed"]');
         await failed.filter({hasText: '2'}).waitFor();
-        check(await p.locator('#ai-operations-failed').getAttribute('href') === '/admin/screenshots?aiTaskStatus=FAILED', 'Global failure link');
+        check(await p.locator('#ai-operations-failed').getAttribute('href') === '/admin/ai-queue#ai-failures', 'Global failure log link');
         check(await failed.getAttribute('href') === `/admin/screenshots?aiTaskStatus=FAILED&issuedRuleId=${ruleId}`, 'Rule filter link');
         check(failureCalls === 0, 'Failures loaded before opening');
         await p.locator('#ai-failures > summary').click();
+        await p.locator('.ai-failure-breakdown > summary').click();
         await p.locator('#ai-failures-total:not([hidden])').waitFor();
         check(await p.locator('#ai-failures-groups a').nth(1).getAttribute('href') === '/admin/screenshots?aiTaskStatus=FAILED&issuedRuleMissing=true&aiErrorMissing=true', 'Missing-value link widened the filter');
         for (const width of [1440,1280,768]) {

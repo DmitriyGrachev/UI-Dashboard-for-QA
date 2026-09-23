@@ -28,6 +28,7 @@
                 <h1>AI queue</h1>
                 <p>Manage which screenshots the AI service can check. Dates are UTC.</p>
             </div>
+            <a class="button secondary" href="#ai-failures">AI Failed log</a>
         </header>
 
         <section th:replace="~{fragments/admin-operations :: snapshot(true)}"></section>
@@ -112,9 +113,16 @@
             </template>
         </section>
         <details id="ai-failures" class="rejected-export-panel ai-queue-panel">
-            <summary>Failed diagnostics · reasons and issuing rules</summary>
-            <p>Tasks currently marked Failed. Mismatches are completed results; overdue Processing tasks appear in rule activity.</p>
-            <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
+            <summary>AI Failed · screenshot log</summary>
+            <p>Current failed AI tasks, newest errors first. Operator rejects and AI mismatches are not failures. This shows the latest error per task, not a full event history.</p>
+            <div class="ai-queue-actions">
+                <label class="ai-inline-check"><input type="checkbox" id="ai-failure-ai-only"> Only rejections from AI service</label>
+                <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
+            </div>
+            <p id="ai-failure-log-message" role="status" aria-live="polite">Open to load failed screenshots.</p>
+            <ol id="ai-failure-log" class="ai-failure-log" aria-label="Failed AI screenshots"></ol>
+            <button type="button" class="button secondary" id="ai-failure-log-more" hidden>Load more failures</button>
+            <details class="ai-failure-breakdown"><summary>Group by reason and rule</summary>
             <p id="ai-failures-message" role="status" aria-live="polite">Open to load the current summary.</p>
             <p><a id="ai-failures-total" hidden></a></p>
             <table class="ai-failure-table">
@@ -122,6 +130,7 @@
                 <thead><tr><th scope="col">Reason</th><th scope="col">Issuing rule</th><th scope="col">Tasks</th></tr></thead>
                 <tbody id="ai-failures-groups"></tbody>
             </table>
+            </details>
             <a id="ai-failures-sign-in" th:href="@{/login}" hidden>Sign in again</a>
         </details>
     </main>

@@ -125,6 +125,7 @@ class FakeDocument {
         return node;
     }
     getElementById(id) { return this.root.querySelector(`#${id}`); }
+    querySelectorAll(selector) { return this.root.querySelectorAll(selector); }
     querySelector(selector) {
         if (selector === 'meta[name="_csrf"]') return {content: 'token'};
         if (selector === 'meta[name="_csrf_header"]') return {content: 'X-CSRF'};

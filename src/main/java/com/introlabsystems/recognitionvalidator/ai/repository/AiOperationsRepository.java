@@ -2,6 +2,7 @@ package com.introlabsystems.recognitionvalidator.ai.repository;
 
 import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiFailureSummary;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiFailurePage;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleActivitySnapshot;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRuleStatisticsSnapshot;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiOperationsSnapshot;
@@ -14,6 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.Objects;
+import java.util.ArrayList;
+import java.util.List;
+
+import static com.introlabsystems.recognitionvalidator.ai.mapper.AiJdbcMapping.instant;
 
 @Repository
 @RequiredArgsConstructor
@@ -22,6 +27,38 @@ public class AiOperationsRepository {
     private final AiSettingsRepository settingsRepository;
     private final AiTaskRepository tasks;
     private final AiRuleActivityRepository activity;
+
+    @Transactional(readOnly = true, timeout = 5)
+    public AiFailurePage failureLog(boolean aiOnly, Instant beforeAt, String beforeId) {
+        jdbc.execute("SET LOCAL statement_timeout='5s'");
+        var parameters = new ArrayList<Object>();
+        String cursor = "";
+        if (beforeAt != null) {
+            cursor = "AND (COALESCE(last_error_at,file_created_at),image_id) < (?,?)";
+            parameters.add(Timestamp.from(beforeAt)); parameters.add(beforeId);
+        }
+        // Sort only the FAILED subset; fetch metadata for at most 21 tasks, without a history COUNT.
+        var rows = jdbc.query("""
+                SELECT t.*,ia.file_name,r.name AS rule_name
+                FROM (
+                  SELECT image_id,game_code,issued_rule_id,last_error_code,last_error_message,
+                         last_error_at,file_created_at,attempt_count
+                  FROM ai_review_task WHERE status='FAILED' %s %s
+                  ORDER BY COALESCE(last_error_at,file_created_at) DESC,image_id DESC LIMIT 21
+                ) t
+                JOIN image_asset ia ON ia.id=t.image_id
+                LEFT JOIN ai_selection_rule r ON r.id=t.issued_rule_id
+                ORDER BY COALESCE(t.last_error_at,t.file_created_at) DESC,t.image_id DESC
+                """.formatted(aiOnly ? "AND last_error_code='AI_REJECTED'" : "", cursor),
+                (rs, row) -> new AiFailurePage.Item(rs.getString("image_id"), rs.getString("file_name"),
+                        rs.getString("game_code"), rs.getObject("issued_rule_id", java.util.UUID.class),
+                        rs.getString("rule_name"), rs.getString("last_error_code"), rs.getString("last_error_message"),
+                        instant(rs, "last_error_at"), instant(rs, "file_created_at"), rs.getInt("attempt_count")), parameters.toArray());
+        var items = rows.size() > 20 ? List.copyOf(rows.subList(0, 20)) : rows;
+        var last = rows.size() > 20 ? items.getLast() : null;
+        return new AiFailurePage(items, last == null ? null : last.failedAt() == null ? last.createdAt() : last.failedAt(),
+                last == null ? null : last.imageId());
+    }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ, timeout = 5)
     public AiFailureSummary failures(Instant now) {

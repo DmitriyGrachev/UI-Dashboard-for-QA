@@ -14,7 +14,65 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class AiFailureSummaryTest extends AiTestSupport {
     @Autowired MockMvc mvc;
+    @Autowired com.introlabsystems.recognitionvalidator.ai.repository.AiOperationsRepository operations;
     private static final String PATH = "/admin/api/ai-queue/operations/failures";
+
+    @Test
+    void logPagesCurrentFailuresWithStableTiesAndKeepsMissingFilesRulesAndTimes() throws Exception {
+        var deletedRule = UUID.randomUUID();
+        for (int i = 1; i <= 48; i++) image(i, 53);
+        jdbc.update("""
+                UPDATE ai_review_task SET status='FAILED',issued_rule_id=?,attempt_count=3,
+                  last_error_at='2026-09-23T12:00:00Z',last_error_code='AI_REJECTED',
+                  last_error_message='<img onerror=alert(1)> unreadable cards'
+                """, deletedRule);
+        jdbc.update("UPDATE ai_review_task SET last_error_at=NULL,issued_rule_id=NULL,last_error_code=NULL WHERE image_id=?", "%064x".formatted(1));
+        jdbc.update("UPDATE image_asset SET file_available=false WHERE id=?", "%064x".formatted(2));
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED',verdict='MISMATCH' WHERE image_id=?", "%064x".formatted(46));
+        jdbc.update("UPDATE ai_review_task SET status='PROCESSING' WHERE image_id=?", "%064x".formatted(47));
+        jdbc.update("UPDATE ai_review_task SET status='PENDING' WHERE image_id=?", "%064x".formatted(48));
+        jdbc.update("UPDATE review_task SET status='COMPLETED',decision='REJECTED' WHERE image_id=?", "%064x".formatted(48));
+        var first = operations.failureLog(false, null, null);
+        var second = operations.failureLog(false, first.nextAt(), first.nextId());
+        var third = operations.failureLog(false, second.nextAt(), second.nextId());
+        var all = java.util.stream.Stream.of(first, second, third).flatMap(page -> page.items().stream()).toList();
+        org.assertj.core.api.Assertions.assertThat(first.items()).hasSize(20);
+        org.assertj.core.api.Assertions.assertThat(second.items()).hasSize(20);
+        org.assertj.core.api.Assertions.assertThat(third.items()).hasSize(5);
+        org.assertj.core.api.Assertions.assertThat(third.nextId()).isNull();
+        org.assertj.core.api.Assertions.assertThat(all).extracting(item -> item.imageId())
+                .containsExactlyElementsOf(java.util.stream.IntStream.iterate(45, i -> i > 0, i -> i - 1).mapToObj(i -> "%064x".formatted(i)).toList());
+        org.assertj.core.api.Assertions.assertThat(first.items().getFirst().ruleId()).isEqualTo(deletedRule);
+        org.assertj.core.api.Assertions.assertThat(first.items().getFirst().ruleName()).isNull();
+        org.assertj.core.api.Assertions.assertThat(all.getLast().failedAt()).isNull();
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("SELECT count(*) FROM ai_review_task WHERE status='FAILED' AND attempt_count=3", Long.class)).isEqualTo(45);
+        mvc.perform(get(PATH + "/tasks").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.items[0].errorMessage").value("<img onerror=alert(1)> unreadable cards"))
+                .andExpect(jsonPath("$.items[0].attemptCount").value(3));
+    }
+
+    @Test
+    void logCanShowOnlyAiServiceRejectionsWithoutDeliveryFailures() throws Exception {
+        image(1, 53); image(2, 53);
+        jdbc.update("UPDATE ai_review_task SET status='FAILED',last_error_code='DELIVERY_UNAVAILABLE'");
+        jdbc.update("UPDATE ai_review_task SET last_error_code='AI_REJECTED' WHERE image_id=?", "%064x".formatted(1));
+        mvc.perform(get(PATH + "/tasks").param("aiOnly", "true").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].errorCode").value("AI_REJECTED"));
+    }
+
+    @Test
+    void logValidatesCursorsAndRequiresAdmin() throws Exception {
+        mvc.perform(get(PATH + "/tasks").with(user("admin").roles("ADMIN"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty()).andExpect(jsonPath("$.nextId").isEmpty());
+        mvc.perform(get(PATH + "/tasks").accept("application/json")).andExpect(status().isUnauthorized());
+        mvc.perform(get(PATH + "/tasks").with(user("operator").roles("OPERATOR"))).andExpect(status().isForbidden());
+        mvc.perform(get(PATH + "/tasks").param("beforeId", "a".repeat(64)).with(user("admin").roles("ADMIN"))).andExpect(status().isBadRequest());
+        mvc.perform(get(PATH + "/tasks").param("beforeAt", "2026-09-23T00:00:00Z").with(user("admin").roles("ADMIN"))).andExpect(status().isBadRequest());
+        mvc.perform(get(PATH + "/tasks").param("beforeAt", "2026-09-23T00:00:00Z").param("beforeId", "invalid")
+                .with(user("admin").roles("ADMIN"))).andExpect(status().isBadRequest());
+    }
 
     @Test
     void groupsCurrentFailuresByExactReasonAndIssuingRuleIncludingMissingValues() throws Exception {
