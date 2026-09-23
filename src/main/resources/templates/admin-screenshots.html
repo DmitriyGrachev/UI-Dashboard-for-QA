@@ -19,31 +19,13 @@
     <script defer th:src="@{/js/recognized-cards.js}"></script>
     <script defer th:src="@{/js/admin-screenshots.js}"></script>
 </head>
-<body class="admin-page explorer-page">
-<a class="explorer-skip-link" href="#explorer-workspace">Skip to screenshots</a>
+<body class="admin-page admin-workspace explorer-page">
+<a class="admin-skip-link" href="#explorer-workspace">Skip to screenshots</a>
 <div class="app-shell admin-explorer-shell">
-    <header class="topbar explorer-topbar">
-        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
-            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3H4a1 1 0 0 0-1 1v5m12-6h5a1 1 0 0 1 1 1v5M3 15v5a1 1 0 0 0 1 1h5m6 0h5a1 1 0 0 0 1-1v-5M7 12l3 3 7-7"/></svg></span>
-            <span>
-                <strong>Recognition Validator</strong>
-            </span>
-        </a>
-        <nav class="topbar-actions" aria-label="Account actions">
-            <button class="theme-toggle" type="button" data-theme-toggle
-                    aria-label="Switch to light theme" title="Switch to light theme">
-                <span aria-hidden="true" data-theme-icon>☀</span>
-                <span data-theme-label>Light</span>
-            </button>
-            <span class="signed-in-user" th:text="${adminName}">admin</span>
-            <form method="post" th:action="@{/logout}">
-                <button class="link-button" type="submit">Sign out</button>
-            </form>
-        </nav>
-    </header>
+    <header th:replace="~{fragments/admin-navigation :: topbar}"></header>
 
-    <aside class="explorer-navigation" aria-label="Administration">
-        <p class="explorer-nav-label">Administration</p>
+    <aside class="admin-sidebar" aria-label="Administration">
+        <p class="admin-nav-label">Administration</p>
         <nav th:replace="~{fragments/admin-navigation :: navigation('screenshots')}"></nav>
 
     <details class="admin-storage-disclosure">

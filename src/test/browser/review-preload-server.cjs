@@ -22,22 +22,27 @@ const remote = http.createServer((req, res) => {
 });
 const app = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1:18992");
-    if (["/review", "/admin/ai-queue", "/admin/screenshots"].includes(url.pathname)) {
+    if (["/review", "/admin", "/admin/rejects", "/admin/ai-queue", "/admin/screenshots"].includes(url.pathname)) {
         held.forEach(release => release()); held = [];
         scenario = url.searchParams.get("case") || "match"; counts = {}; decisions = 0; claims = [];
-        const template = url.pathname === "/review" ? "review.html"
-            : url.pathname === "/admin/screenshots" ? "admin-screenshots.html" : "admin-ai-queue.html";
-        let html = fs.readFileSync(path.join(root, "templates", template), "utf8")
+        const template = ({'/review': 'review.html', '/admin': 'admin.html', '/admin/rejects': 'admin-rejects.html',
+            '/admin/screenshots': 'admin-screenshots.html', '/admin/ai-queue': 'admin-ai-queue.html'})[url.pathname];
+        const rendered = path.resolve(__dirname, '../../../target/browser-fixtures', template);
+        let html = fs.readFileSync(fs.existsSync(rendered) ? rendered : path.join(root, "templates", template), "utf8")
             .replace(/th:(src|href|action)="@\{([^}]+)\}"/g, '$1="$2"')
             .replace(/th:content="\$\{_csrf.token\}"/, 'content="test"')
             .replace(/th:content="\$\{_csrf.headerName\}"/, 'content="X-CSRF-TOKEN"');
-        if (url.pathname === "/admin/screenshots") {
-            const navigation = fs.readFileSync(path.join(root, 'templates/fragments/admin-navigation.html'), 'utf8')
+        if (url.pathname.startsWith('/admin')) {
+            const fragments = fs.readFileSync(path.join(root, 'templates/fragments/admin-navigation.html'), 'utf8');
+            const activePage = ({'/admin': 'operators', '/admin/rejects': 'rejects', '/admin/ai-queue': 'ai-queue', '/admin/screenshots': 'screenshots'})[url.pathname];
+            const navigation = fragments.match(/<nav[\s\S]*?<\/nav>/)[0]
                 .replace(/th:href="@\{([^}]+)\}"/g, 'href="$1"')
                 .replace(/th:classappend="[^"]*"/g, '')
                 .replace(/th:attr="aria-current=\$\{active == '([^']+)'\}[^"]*"/g,
-                    (_, active) => active === 'screenshots' ? 'aria-current="page"' : '');
+                    (_, active) => active === activePage ? 'aria-current="page"' : '');
             html = html.replace(/<nav th:replace="[^"]*"><\/nav>/, navigation)
+                .replace(/<header th:replace="[^"]*"><\/header>/,
+                    fragments.match(/<header[\s\S]*?<\/header>/)[0].replace(/th:(href|action)="@\{([^}]+)\}"/g, '$1="$2"'))
                 .replace(/<label th:replace="[^"]*"><\/label>/,
                     fs.readFileSync(path.join(root, 'templates/fragments/card-presentation.html'), 'utf8').match(/<label[\s\S]*<\/label>/)[0])
                 .replace(/<option th:each="game[\s\S]*?<\/option>/, '<option value="bj_igt">bj_igt</option>');

@@ -79,7 +79,7 @@ class AdminUiRenderingWebTest {
 
         mockMvc.perform(get("/admin").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(content().string(org.hamcrest.Matchers.containsString("class=\"admin-page\"")))
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("class=\"admin-page admin-workspace\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/screenshots\"")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString("href=\"/admin/ai-queue\"")))
@@ -141,6 +141,33 @@ class AdminUiRenderingWebTest {
                         "<details class=\"operator-manage\">")))
                 .andExpect(content().string(org.hamcrest.Matchers.containsString(
                         "/admin/operators/" + operatorId + "/password")));
+    }
+
+    @Test
+    void sharedWorkspaceRendersNavigationAndFormsAcrossAdminPages() throws Exception {
+        var operators = java.util.stream.IntStream.range(0, 5).mapToObj(index -> new AdminOperatorStatistics(
+                new UUID(0, index + 1), List.of("Olena", "Andrii", "Dmytro", "Kateryna", "Archived operator").get(index),
+                index < 4, Instant.parse("2026-09-01T10:00:00Z"), 24 + index, 180 + index * 30,
+                2400 + index * 100, 2200 + index * 80, 200 + index * 20,
+                List.of(new DailyReviewCount(LocalDate.of(2026, 9, 21), 32, 28, 4),
+                        new DailyReviewCount(LocalDate.of(2026, 9, 22), 48, 40, 8)), 60)).toList();
+        when(statistics.page(0)).thenReturn(new AdminStatisticsPage(operators, 0, 1, operators.size()));
+        when(properties.games()).thenReturn(List.of("bj_igt", "bj_netent"));
+        var pages = java.util.Map.of("/admin", "admin.html", "/admin/ai-queue", "admin-ai-queue.html",
+                "/admin/rejects", "admin-rejects.html", "/admin/screenshots", "admin-screenshots.html");
+        for (var page : pages.entrySet()) {
+            String html = mockMvc.perform(get(page.getKey()).with(user("admin").roles("ADMIN")))
+                    .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+            org.assertj.core.api.Assertions.assertThat(html).contains("class=\"admin-sidebar\"",
+                    "aria-current=\"page\"", "name=\"_csrf\"", "href=\"/admin/rejects\"")
+                    .doesNotContain("th:replace=");
+            // Optional real Thymeleaf output for the local browser harness; no database is needed.
+            if (Boolean.getBoolean("validator.write-browser-fixtures")) {
+                var directory = java.nio.file.Path.of("target", "browser-fixtures");
+                java.nio.file.Files.createDirectories(directory);
+                java.nio.file.Files.writeString(directory.resolve(page.getValue()), html);
+            }
+        }
     }
 
     @Test

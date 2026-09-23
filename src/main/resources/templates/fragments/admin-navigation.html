@@ -12,3 +12,23 @@
        th:classappend="${active == 'rejects'} ? ' is-current' : ''"
        th:attr="aria-current=${active == 'rejects'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 22V3c5-4 9 4 14 0v11c-5 4-9-4-14 0"/></svg><span>Rejects</span></a>
 </nav>
+
+    <header class="topbar" th:fragment="topbar">
+        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
+            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3H4a1 1 0 0 0-1 1v5m12-6h5a1 1 0 0 1 1 1v5M3 15v5a1 1 0 0 0 1 1h5m6 0h5a1 1 0 0 0 1-1v-5M7 12l3 3 7-7"/></svg></span>
+            <span>
+                <strong>Recognition Validator</strong>
+            </span>
+        </a>
+        <nav class="topbar-actions" aria-label="Account actions">
+            <button class="theme-toggle" type="button" data-theme-toggle
+                    aria-label="Switch to light theme" title="Switch to light theme">
+                <span aria-hidden="true" data-theme-icon>☀</span>
+                <span data-theme-label>Light</span>
+            </button>
+            <span class="signed-in-user" th:text="${adminName}">admin</span>
+            <form method="post" th:action="@{/logout}">
+                <button class="link-button" type="submit">Sign out</button>
+            </form>
+        </nav>
+    </header>

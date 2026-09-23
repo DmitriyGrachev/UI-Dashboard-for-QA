@@ -12,30 +12,16 @@
     <link rel="stylesheet" th:href="@{/css/admin.css}">
     <script defer th:src="@{/js/ai-queue.js}"></script>
 </head>
-<body class="admin-page">
+<body class="admin-page admin-workspace">
+<a class="admin-skip-link" href="#admin-content">Skip to content</a>
 <div class="app-shell admin-shell">
-    <header class="topbar">
-        <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
-            <span class="brand-mark" aria-hidden="true">RV</span>
-            <span>
-                <strong>Recognition Validator</strong>
-            </span>
-        </a>
-        <nav class="topbar-actions" aria-label="Account actions">
-            <button class="theme-toggle" type="button" data-theme-toggle
-                    aria-label="Switch to light theme" title="Switch to light theme">
-                <span aria-hidden="true" data-theme-icon>☀</span>
-                <span data-theme-label>Light</span>
-            </button>
-            <span class="signed-in-user" th:text="${adminName}">admin</span>
-            <form method="post" th:action="@{/logout}">
-                <button class="link-button" type="submit">Sign out</button>
-            </form>
-        </nav>
-    </header>
-    <nav th:replace="~{fragments/admin-navigation :: navigation('ai-queue')}"></nav>
+    <header th:replace="~{fragments/admin-navigation :: topbar}"></header>
+    <aside class="admin-sidebar" aria-label="Administration">
+        <p class="admin-nav-label">Administration</p>
+        <nav th:replace="~{fragments/admin-navigation :: navigation('ai-queue')}"></nav>
+    </aside>
 
-    <main class="admin-main">
+    <main class="admin-main" id="admin-content" tabindex="-1">
         <header class="admin-heading">
             <div>
                 <span class="section-kicker">Independent AI review</span>
