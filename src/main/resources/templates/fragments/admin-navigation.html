@@ -21,6 +21,7 @@
             <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3H4a1 1 0 0 0-1 1v5m12-6h5a1 1 0 0 1 1 1v5M3 15v5a1 1 0 0 0 1 1h5m6 0h5a1 1 0 0 0 1-1v-5M7 12l3 3 7-7"/></svg></span>
             <span>
                 <strong>Recognition Validator</strong>
+                <small class="admin-demo-label" th:if="${@environment.getProperty('validator.ui-demo', 'false') == 'true'}">Local demo · synthetic data</small>
             </span>
         </a>
         <nav class="topbar-actions" aria-label="Account actions">
