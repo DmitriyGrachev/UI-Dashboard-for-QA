@@ -394,6 +394,13 @@ if (typeof document !== "undefined") {
             button.disabled = busy;
         });
         elements.filterStatus.textContent = filterStatus(currentFilters(), state.appliedFilters, busy);
+        const visibleFilters = new Set(['limit', 'gameCode', 'aiResult', 'createdFrom', 'createdTo', 'reviewedFrom', 'reviewedTo']);
+        const extraCount = [...buildSearchParams(currentFilters())]
+            .filter(([key, value]) => !visibleFilters.has(key) && !(key === 'reviewState' && value === 'ALL')).length;
+        byId('explorer-more-count').textContent = String(extraCount);
+        byId('explorer-more-count').hidden = extraCount === 0;
+        byId('explorer-period-label').textContent = ({today: 'Today', yesterday: 'Yesterday', last24h: 'Last 24 hours'})[elements.datePreset.value]
+            || (elements.createdFrom.value || elements.createdTo.value ? 'Custom dates' : 'All dates');
         if (elements.filterStatus.textContent === 'Filters applied.') {
             const labels = {gameCode: 'Game', imageId: 'Image ID', sessionId: 'Session', tokenId: 'Token',
                 createdFrom: 'Created from', createdTo: 'Created to', reviewedFrom: 'Reviewed from',
@@ -960,9 +967,32 @@ if (typeof document !== "undefined") {
         }
     });
 
+    const filterPopups = [...elements.form.querySelectorAll('.explorer-filter-popup')];
+    function closeFilterPopups() {
+        filterPopups.forEach(popup => { popup.open = false; });
+    }
+    document.addEventListener('click', event => {
+        if (event.target.closest('.flatpickr-calendar')) return;
+        filterPopups.forEach(popup => { if (!popup.contains(event.target)) popup.open = false; });
+    });
+    elements.form.addEventListener('keydown', event => {
+        if (event.key !== 'Escape' || event.defaultPrevented) return;
+        const popup = event.target.closest('.explorer-filter-popup[open]');
+        if (popup) {
+            event.preventDefault();
+            popup.open = false;
+            popup.querySelector('summary').focus();
+        }
+    });
+    elements.form.addEventListener('invalid', event => {
+        const popup = event.target.closest('.explorer-filter-popup');
+        if (popup) popup.open = true;
+    }, true);
     elements.form.addEventListener("submit", event => {
         event.preventDefault();
         updateCheckedOnlyControls();
+        if (!dateRange.validate()) { document.querySelector('.explorer-period').open = true; return; }
+        closeFilterPopups();
         search();
     });
     byId('download-screenshot-csv').addEventListener('click', () => {
@@ -1016,6 +1046,7 @@ if (typeof document !== "undefined") {
             });
             writeBoundary(elements.createdFrom, range.from);
             writeBoundary(elements.createdTo, range.to);
+            closeFilterPopups();
             search();
         });
     });
@@ -1146,6 +1177,7 @@ if (typeof document !== "undefined") {
             elements.datePreset.value = saved.relativeDate?.preset || "";
         } catch (error) { savedMessage.textContent = error.message; return; }
         savedMessage.textContent = `Applied: ${saved.name}`;
+        closeFilterPopups();
         search();
     });
     byId("delete-filter").addEventListener("click", () => {

@@ -88,7 +88,7 @@ async (page) => {
             await p.setViewportSize({width, height});
             await p.evaluate(theme => document.documentElement.dataset.theme = theme, theme);
             // Open the native filter disclosure to inspect all added controls.
-            await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
+            await p.evaluate(() => document.querySelector('.explorer-more-filters').open = true);
             check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'Horizontal overflow at ' + width);
             const path = `C:/Users/dimag/AppData/Local/Temp/rv-ai-failed-${width}.png`;
             await p.screenshot({path, fullPage: true});
@@ -104,13 +104,12 @@ async (page) => {
         await p.locator('#explorer-ai-details').getByText('Assignment attempts: 3', {exact: true}).waitFor();
         check(await p.locator('#explorer-issued-rule').inputValue() === ruleId, 'Deleted rule reset the filter');
         empty = true;
-        await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
         await p.locator('#search-screenshots').click();
         await p.locator('#screenshot-results').getByText('No screenshots match these filters.', {exact: true}).waitFor();
         check(errors.length === 1 && errors[0].includes('503'), errors.join('; '));
         namesFailed = true;
         await p.reload();
-        await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
+        await p.locator('.explorer-more-filters > summary').click();
         await p.locator('#explorer-rule-load-message:not([hidden])').waitFor();
         check(await p.locator('#explorer-issued-rule').inputValue() === ruleId, 'Unavailable settings widened the search');
         check(errors.length === 2 && errors.every(error => error.includes('503')), 'Unexpected errors: ' + errors.join('; '));
@@ -120,7 +119,7 @@ async (page) => {
         check(await p.locator('#explorer-issued-rule').inputValue() === 'missing', 'Missing rule became All');
         check(await p.locator('#explorer-ai-error-missing').inputValue() === 'true', 'Missing reason became Any');
         check(await p.locator('#explorer-ai-error-code').isDisabled(), 'Exact reason still editable in missing mode');
-        await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
+        await p.locator('.explorer-saved-filters > summary').click();
         await p.locator('#saved-filter-name').fill('Missing diagnostics'); await p.locator('#save-filter').click();
         const savedQuery = await p.evaluate(() => JSON.parse(localStorage.getItem('recognition-validator.admin-saved-filters'))[0].query);
         check(savedQuery.includes('issuedRuleMissing=true') && savedQuery.includes('aiErrorMissing=true') && !savedQuery.includes('issuedRuleId='), 'Saved NULL filters changed');

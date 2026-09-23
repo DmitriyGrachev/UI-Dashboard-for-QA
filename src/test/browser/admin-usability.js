@@ -60,11 +60,12 @@ async (page) => {
         check(await p.locator('.screenshot-result').nth(1).getAttribute('aria-pressed') === 'true', 'Session link changed source selection');
         await popup.close();
         await p.setViewportSize({width:1440,height:900});
-        await p.evaluate(() => document.querySelector('#screenshot-filter-form').closest('details').open = true);
+        await p.locator('.explorer-period > summary').click();
         await p.clock.install({time: new Date('2026-09-30T23:59:00Z')});
         await p.locator('#explorer-date-preset').selectOption('today');
         await p.locator('#search-screenshots').click();
         await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        await p.locator('.explorer-saved-filters > summary').click();
         await p.locator('#saved-filter-name').fill('Today');
         await p.locator('#save-filter').click();
         const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('recognition-validator.admin-saved-filters'))[0]);
@@ -76,10 +77,12 @@ async (page) => {
         await p.locator('#download-screenshot-csv').click();
         await p.waitForTimeout(100);
         check(requests.some(url => url.includes('export.csv?') && url.includes('createdFrom=2026-09-30')), 'CSV recalculated the period');
+        await p.locator('.explorer-saved-filters > summary').click();
         await p.locator('#saved-filter-select').selectOption('');
         await p.locator('#saved-filter-select').selectOption('0');
         await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
         check(await p.locator('#explorer-created-from').inputValue() === '2026-10-01T00:00', 'Saved today did not advance');
+        await p.locator('.explorer-period > summary').click();
         await p.locator('#explorer-created-from-date').fill('29.09.2026');
         check(await p.locator('#explorer-date-preset').inputValue() === '', 'Manual date edit kept relative mode');
         check(errors.length === 0, errors.join('; '));

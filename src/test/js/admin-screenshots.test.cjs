@@ -405,7 +405,7 @@ test('saved filters persist, restore exact filter values, replace and delete wit
         elements:{form:{reportValidity:()=>true}, datePreset:{value:''}, dateField:{value:'reviewed'}}, dateRange:{validate:()=>true}, state:{}, buildSearchParams,
         resolveSavedFilter: require('../../main/resources/static/js/admin-screenshots.js').resolveSavedFilter,
         currentFilters:()=>({sessionId:'session-a', aiVerdict:'MISMATCH', reviewedFrom:'2026-09-10T00:00'}),
-        restoreFromUrl:params=>{restored=params;},search:()=>{searches++;}};
+        closeFilterPopups() {}, restoreFromUrl:params=>{restored=params;},search:()=>{searches++;}};
     const run = () => require('node:vm').runInNewContext(setup, {...context});
     run();
     byId('saved-filter-name').value='My filter';

@@ -1,14 +1,14 @@
 <nav class="admin-navigation" aria-label="Admin navigation" th:fragment="navigation(active)">
     <a th:href="@{/admin}"
        th:classappend="${active == 'operators'} ? ' is-current' : ''"
-       th:attr="aria-current=${active == 'operators'} ? 'page' : null">Operators</a>
+       th:attr="aria-current=${active == 'operators'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m3 11v-3a6 6 0 0 0-2-4"/></svg><span>Operators</span></a>
     <a th:href="@{/admin/screenshots}"
        th:classappend="${active == 'screenshots'} ? ' is-current' : ''"
-       th:attr="aria-current=${active == 'screenshots'} ? 'page' : null">Screenshots</a>
+       th:attr="aria-current=${active == 'screenshots'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.5"/><path d="m3 17 5-5 4 3 4-6 5 7"/></svg><span>Screenshots</span></a>
     <a th:href="@{/admin/ai-queue}"
        th:classappend="${active == 'ai-queue'} ? ' is-current' : ''"
-       th:attr="aria-current=${active == 'ai-queue'} ? 'page' : null">AI queue</a>
+       th:attr="aria-current=${active == 'ai-queue'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M2 12h5l3-9 4 18 3-9h5"/></svg><span>AI queue</span></a>
     <a th:href="@{/admin/rejects}"
        th:classappend="${active == 'rejects'} ? ' is-current' : ''"
-       th:attr="aria-current=${active == 'rejects'} ? 'page' : null">Rejects</a>
+       th:attr="aria-current=${active == 'rejects'} ? 'page' : null"><svg class="admin-nav-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 22V3c5-4 9 4 14 0v11c-5 4-9-4-14 0"/></svg><span>Rejects</span></a>
 </nav>

@@ -10,6 +10,7 @@
           th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
     <link rel="stylesheet" th:href="@{/css/admin.css}">
+    <link rel="stylesheet" th:href="@{/css/explorer.css}">
     <script defer
             th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
@@ -18,11 +19,12 @@
     <script defer th:src="@{/js/recognized-cards.js}"></script>
     <script defer th:src="@{/js/admin-screenshots.js}"></script>
 </head>
-<body class="admin-page">
+<body class="admin-page explorer-page">
+<a class="explorer-skip-link" href="#explorer-workspace">Skip to screenshots</a>
 <div class="app-shell admin-explorer-shell">
     <header class="topbar explorer-topbar">
         <a class="brand" th:href="@{/admin}" aria-label="Recognition Validator admin">
-            <span class="brand-mark" aria-hidden="true">RV</span>
+            <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3H4a1 1 0 0 0-1 1v5m12-6h5a1 1 0 0 1 1 1v5M3 15v5a1 1 0 0 0 1 1h5m6 0h5a1 1 0 0 0 1-1v-5M7 12l3 3 7-7"/></svg></span>
             <span>
                 <strong>Recognition Validator</strong>
             </span>
@@ -40,7 +42,9 @@
         </nav>
     </header>
 
-    <nav th:replace="~{fragments/admin-navigation :: navigation('screenshots')}"></nav>
+    <aside class="explorer-navigation" aria-label="Administration">
+        <p class="explorer-nav-label">Administration</p>
+        <nav th:replace="~{fragments/admin-navigation :: navigation('screenshots')}"></nav>
 
     <details class="admin-storage-disclosure">
         <summary>Storage health</summary>
@@ -64,12 +68,18 @@
         <p class="storage-status-message" id="storage-status-message" role="status"></p>
     </section>
     </details>
+    </aside>
 
-    <header class="explorer-heading"><h1>Screenshot explorer</h1></header>
-    <details class="explorer-search">
-        <summary>Filters <span id="explorer-filter-status" role="status" aria-live="polite">Select Search to load screenshots.</span></summary>
+    <div class="explorer-content">
+    <header class="explorer-heading">
+        <div><h1>Screenshot explorer</h1><p>Search, inspect and export recognition captures.</p></div>
+        <button class="button secondary" id="download-screenshot-csv" type="button" aria-describedby="csv-export-help"><span aria-hidden="true">↓</span> Download CSV</button>
+    </header>
+    <section class="explorer-search" aria-label="Screenshot filters">
         <form id="screenshot-filter-form" class="explorer-filters" data-utc-date-range>
-            <div class="explorer-primary-filters">
+            <details class="explorer-filter-popup explorer-period" name="explorer-filters">
+                <summary><span id="explorer-period-label">All dates</span><span class="filter-utc">UTC</span></summary>
+                <div class="explorer-filter-popover">
                 <fieldset class="explorer-filter-group">
                     <legend>Period · UTC</legend>
                     <div class="explorer-filter-fields">
@@ -164,10 +174,16 @@
                 </label>
                     </div>
                 </fieldset>
-                <fieldset class="explorer-filter-group">
-                    <legend>Game / Token / Session</legend>
-                    <div class="explorer-filter-fields">
-                <label>
+                <div class="quick-date-presets" aria-label="Quick date ranges">
+                    <button type="button" data-range-day="today">Today</button>
+                    <button type="button" data-range-day="yesterday">Yesterday</button>
+                    <button type="button" data-range-hours="24">Last 24h</button>
+                    <button type="button" data-range-days="4">Last 4 days</button>
+                    <button type="button" data-range-days="21">Last 21 days</button>
+                </div>
+                </div>
+            </details>
+                <label class="explorer-inline-filter">
                         Game
                         <select id="explorer-game-code">
                             <option value="">All games</option>
@@ -175,6 +191,21 @@
                                     th:value="${game}" th:text="${game}"></option>
                         </select>
                     </label>
+                <label class="explorer-inline-filter">AI result
+                    <select id="explorer-ai-result">
+                        <option value="">All results</option>
+                        <option value="CHECKED">Checked by AI</option>
+                        <option value="UNCHECKED">Unchecked by AI</option>
+                        <option value="MATCHED">Matched</option>
+                        <option value="UNMATCHED">Unmatched</option>
+                    </select>
+                </label>
+            <details class="explorer-filter-popup explorer-more-filters" name="explorer-filters">
+                <summary>More filters <span id="explorer-more-count" class="filter-count" hidden></span></summary>
+                <div class="explorer-filter-popover">
+                <fieldset class="explorer-filter-group">
+                    <legend>Game context</legend>
+                    <div class="explorer-filter-fields">
                 <label>
                         Token ID
                         <input id="explorer-token-id" type="number" min="0" step="1"
@@ -198,15 +229,6 @@
                         <label><input type="radio" name="reviewState" value="UNCHECKED"><span>Unchecked</span></label>
                     </div>
                 </fieldset>
-                <label>AI result
-                    <select id="explorer-ai-result">
-                        <option value="">All</option>
-                        <option value="CHECKED">Checked by AI</option>
-                        <option value="UNCHECKED">Unchecked by AI</option>
-                        <option value="MATCHED">Matched</option>
-                        <option value="UNMATCHED">Unmatched</option>
-                    </select>
-                </label>
                 <label>AI verdict
                     <select id="explorer-ai-verdict">
                         <option value="">All verdicts</option>
@@ -249,10 +271,8 @@
                     </label>
                     </div>
                 </fieldset>
-            </div>
-            <p class="utc-date-error" id="explorer-date-range-error" role="alert" hidden></p>
-            <details class="explorer-more-filters">
-                <summary>More filters and exact lookup</summary>
+                <fieldset class="explorer-filter-group">
+                    <legend>Exact lookup and diagnostics</legend>
                 <div class="filter-field-grid">
                     <label>AI error code
                         <input id="explorer-ai-error-code" type="text" maxlength="64" placeholder="Exact code, e.g. AI_REJECTED">
@@ -314,23 +334,12 @@
                                placeholder="e.g. bj_netent_37_" autocomplete="off">
                     </label>
                 </div>
+                </fieldset>
+                </div>
             </details>
-            <div class="explorer-search-actions">
-                <div class="quick-date-presets" aria-label="Quick date ranges">
-                    <button type="button" data-range-day="today">Today (UTC)</button>
-                    <button type="button" data-range-day="yesterday">Yesterday (UTC)</button>
-                    <button type="button" data-range-hours="24">Last 24h</button>
-                    <button type="button" data-range-days="4">Last 4 days</button>
-                    <button type="button" data-range-days="21">Last 21 days</button>
-                </div>
-                <div class="filter-actions">
-                    <button type="button" class="button secondary" id="reset-screenshot-filters">Reset</button>
-                    <button class="button primary" id="search-screenshots" type="submit">Search</button>
-                    <button class="button secondary" id="download-screenshot-csv" type="button" aria-describedby="csv-export-help">Download CSV</button>
-                </div>
-            </div>
-            <p id="csv-export-help">CSV includes all rows matching the currently selected filters, even before Search. The browser handles the download; export errors open in a new tab.</p>
-        </form>
+            <details class="explorer-filter-popup explorer-saved-filters" name="explorer-filters">
+                <summary>Saved filters</summary>
+                <div class="explorer-filter-popover">
         <section class="saved-filter-bar" aria-label="Saved filters">
             <label>Saved filters <select id="saved-filter-select"><option value="">Choose saved filters…</option></select></label>
             <label>Filter name <input id="saved-filter-name" type="text" maxlength="60" placeholder="e.g. IGT mismatches"></label>
@@ -338,9 +347,17 @@
             <button type="button" class="button secondary" id="delete-filter">Delete selected</button>
             <p id="saved-filter-message" role="status">Stored in this browser. Relative periods update on each new search; fixed dates stay unchanged.</p>
         </section>
-    </details>
+                </div>
+            </details>
+            <button class="button primary" id="search-screenshots" type="submit">Search</button>
+            <button type="button" class="button secondary" id="reset-screenshot-filters">Reset</button>
+        </form>
+        <p class="utc-date-error" id="explorer-date-range-error" role="alert" hidden></p>
+        <p id="explorer-filter-status" role="status" aria-live="polite">Select Search to load screenshots.</p>
+        <p id="csv-export-help" class="visually-hidden">CSV includes all rows matching the currently selected filters, even before Search. The browser handles the download; export errors open in a new tab.</p>
+    </section>
 
-    <main class="screenshot-explorer">
+    <main class="screenshot-explorer" id="explorer-workspace" tabindex="-1">
         <aside class="explorer-sidebar" aria-labelledby="results-title">
             <section class="explorer-results-panel" aria-labelledby="results-title">
                 <header>
@@ -372,20 +389,6 @@
                     <button type="button" id="explorer-fullscreen">Fullscreen</button>
                 </div>
             </header>
-            <footer class="explorer-actions">
-                <button type="button" id="previous-screenshot" disabled>← Previous</button>
-                <button type="button" id="next-screenshot" disabled>Next →</button>
-                <a class="button primary" id="download-screenshot" href="#"
-                   aria-disabled="true">Download PNG <kbd>D</kbd></a>
-                <details class="explorer-more-actions">
-                    <summary>More actions</summary>
-                    <div>
-                        <button type="button" id="open-temporary-link" disabled>Open B2 link</button>
-                        <button type="button" id="copy-screenshot-link" disabled>Copy link</button>
-                        <button type="button" id="copy-technical-report" disabled>Copy report</button>
-                    </div>
-                </details>
-            </footer>
             <div class="image-stage" id="explorer-image-stage" tabindex="0" aria-label="Screenshot. Shift and arrow keys pan the image.">
                 <img id="explorer-image" alt="Selected screenshot" draggable="false" hidden>
                 <div class="viewer-message" id="explorer-viewer-message"
@@ -393,6 +396,20 @@
                     Set filters or choose a result to inspect it.
                 </div>
             </div>
+            <footer class="explorer-actions">
+                <button type="button" id="previous-screenshot" disabled>← Previous</button>
+                <button type="button" id="next-screenshot" disabled>Next →</button>
+                <button type="button" id="copy-technical-report" disabled>Copy report</button>
+                <a class="button secondary" id="download-screenshot" href="#"
+                   aria-disabled="true">Download PNG <kbd>D</kbd></a>
+                <details class="explorer-more-actions">
+                    <summary>More actions</summary>
+                    <div>
+                        <button type="button" id="open-temporary-link" disabled>Open B2 link</button>
+                        <button type="button" id="copy-screenshot-link" disabled>Copy link</button>
+                    </div>
+                </details>
+            </footer>
             <p class="viewer-hint">
                 ←/→ — navigate · D — download · wheel — zoom · drag or Shift + arrows in image — pan · 0 — reset
             </p>
@@ -445,6 +462,7 @@
             </div>
         </aside>
     </main>
+    </div>
 </div>
 </body>
 </html>

@@ -32,6 +32,15 @@ const app = http.createServer(async (req, res) => {
             .replace(/th:content="\$\{_csrf.token\}"/, 'content="test"')
             .replace(/th:content="\$\{_csrf.headerName\}"/, 'content="X-CSRF-TOKEN"');
         if (url.pathname === "/admin/screenshots") {
+            const navigation = fs.readFileSync(path.join(root, 'templates/fragments/admin-navigation.html'), 'utf8')
+                .replace(/th:href="@\{([^}]+)\}"/g, 'href="$1"')
+                .replace(/th:classappend="[^"]*"/g, '')
+                .replace(/th:attr="aria-current=\$\{active == '([^']+)'\}[^"]*"/g,
+                    (_, active) => active === 'screenshots' ? 'aria-current="page"' : '');
+            html = html.replace(/<nav th:replace="[^"]*"><\/nav>/, navigation)
+                .replace(/<label th:replace="[^"]*"><\/label>/,
+                    fs.readFileSync(path.join(root, 'templates/fragments/card-presentation.html'), 'utf8').match(/<label[\s\S]*<\/label>/)[0])
+                .replace(/<option th:each="game[\s\S]*?<\/option>/, '<option value="bj_igt">bj_igt</option>');
             html = html.replace(/<script[^>]*src="[^"]*flatpickr[^"]*"[^>]*><\/script>/g, "")
                 .replace(/<link[^>]*flatpickr[^>]*>/g, "");
         } else html = html.replace(/<script[^>]*src="[^"]*(flatpickr|time-segment-combobox|utc-datetime-picker)[^"]*"[^>]*><\/script>/g, "")
