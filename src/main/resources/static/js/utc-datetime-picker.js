@@ -249,7 +249,14 @@
                     disableMobile: true,
                     wrap: true,
                     locale: {firstDayOfWeek: 1},
-                    onKeyDown: (_dates, _text, _instance, event) => {
+                    onOpen: () => dateInput.focus(),
+                    onKeyDown: (_dates, _text, instance, event) => {
+                        // Flatpickr leaves Escape to the caller when allowInput is enabled.
+                        if (event?.key === "Escape" && instance.isOpen) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            instance.close();
+                        }
                         if (event?.key === "Tab" || event?.key === "Enter") {
                             commitIfChanged();
                         }

@@ -168,6 +168,16 @@ class AdminUiRenderingWebTest {
                 java.nio.file.Files.writeString(directory.resolve(page.getValue()), html);
             }
         }
+        if (Boolean.getBoolean("validator.write-browser-fixtures")) {
+            for (String asset : List.of("flatpickr.min.js", "flatpickr.min.css")) {
+                var resource = new org.springframework.core.io.ClassPathResource(
+                        "META-INF/resources/webjars/flatpickr/4.6.13/dist/" + asset);
+                try (var input = resource.getInputStream()) {
+                    java.nio.file.Files.copy(input, java.nio.file.Path.of("target", "browser-fixtures", asset),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+            }
+        }
     }
 
     @Test

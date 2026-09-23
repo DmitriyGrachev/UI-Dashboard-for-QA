@@ -46,8 +46,10 @@ const app = http.createServer(async (req, res) => {
                 .replace(/<label th:replace="[^"]*"><\/label>/,
                     fs.readFileSync(path.join(root, 'templates/fragments/card-presentation.html'), 'utf8').match(/<label[\s\S]*<\/label>/)[0])
                 .replace(/<option th:each="game[\s\S]*?<\/option>/, '<option value="bj_igt">bj_igt</option>');
-            html = html.replace(/<script[^>]*src="[^"]*flatpickr[^"]*"[^>]*><\/script>/g, "")
-                .replace(/<link[^>]*flatpickr[^>]*>/g, "");
+            if (!fs.existsSync(path.resolve(__dirname, '../../../target/browser-fixtures/flatpickr.min.js'))) {
+                html = html.replace(/<script[^>]*src="[^"]*flatpickr[^"]*"[^>]*><\/script>/g, "")
+                    .replace(/<link[^>]*flatpickr[^>]*>/g, "");
+            }
         } else html = html.replace(/<script[^>]*src="[^"]*(flatpickr|time-segment-combobox|utc-datetime-picker)[^"]*"[^>]*><\/script>/g, "")
             .replace(/<link[^>]*flatpickr[^>]*>/g, "")
             .replace("</head>", '<script>window.UtcDateTimePicker={createRange:()=>({clear(){}})};</script></head>');
@@ -88,6 +90,14 @@ const app = http.createServer(async (req, res) => {
         deliver(res); return;
     }
     if (url.pathname === "/login" || url.pathname === "/logout") { res.end("Signed out"); return; }
+    const calendarAsset = url.pathname.match(/^\/webjars\/flatpickr\/4\.6\.13\/dist\/(flatpickr\.min\.(js|css))$/);
+    if (calendarAsset) {
+        const file = path.resolve(__dirname, '../../../target/browser-fixtures', calendarAsset[1]);
+        if (fs.existsSync(file)) {
+            res.writeHead(200, {"Content-Type": calendarAsset[2] === 'js' ? 'text/javascript' : 'text/css'});
+            res.end(fs.readFileSync(file)); return;
+        }
+    }
     // Serve only known static directories; no arbitrary filesystem paths.
     if (/^\/(js|css)\/[a-z0-9.-]+$/.test(url.pathname)) {
         const file = path.join(root, "static", url.pathname);

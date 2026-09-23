@@ -114,6 +114,9 @@ async (page) => {
         await p.locator('#explorer-created-from-date').fill('29.09.2026');
         check(await p.locator('#explorer-date-preset').inputValue() === '', 'Manual date edit kept relative mode');
         await p.keyboard.press('Escape');
+        check(await p.locator('.flatpickr-calendar.open').count() === 0, 'Escape left the calendar open');
+        check(await p.locator('.explorer-period').getAttribute('open') !== null, 'Calendar Escape closed the parent filter');
+        await p.keyboard.press('Escape');
         check(await p.locator('.explorer-period > summary').evaluate(el => el === document.activeElement), 'Escape lost focus');
         await p.locator('.explorer-more-filters > summary').click();
         await p.locator('#explorer-confidence-from').fill('0');

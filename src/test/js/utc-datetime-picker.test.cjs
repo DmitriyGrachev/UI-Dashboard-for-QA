@@ -228,6 +228,15 @@ test("split UTC range uses date-only calendars and commits canonical values once
         assert.equal(to.dateInput.value, "09.08.2026");
         assert.equal(to.hourInput.value, "04");
         assert.equal(to.minuteInput.value, "00");
+        let focused = false, prevented = false, stopped = false;
+        from.dateInput.focus = () => { focused = true; };
+        calls[0].options.onOpen();
+        assert.equal(focused, true);
+        const openCalendar = {isOpen: true, close() { this.isOpen = false; }};
+        calls[0].options.onKeyDown([], "", openCalendar, {key: "Escape",
+            preventDefault() { prevented = true; }, stopPropagation() { stopped = true; }});
+        assert.equal(openCalendar.isOpen, false);
+        assert.equal(prevented && stopped, true);
 
         from.dateInput.value = "09.08.2026";
         timeApi.controllers[0].commit("02");
