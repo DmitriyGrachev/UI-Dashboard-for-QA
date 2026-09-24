@@ -220,7 +220,7 @@ function initializeAiFailureLog(doc) {
         const rule = doc.createElement('p'); rule.className = 'ai-failure-meta';
         rule.textContent = 'Rule: ' + (item.ruleName || (item.ruleId ? `${item.ruleId} (no longer in settings)` : 'Not recorded'));
         detail.append(heading, reason, meta, rule, file);
-        inspector.replaceChildren(title, imageStatus, image, detail);
+        inspector.replaceChildren(title, detail, imageStatus, image);
     }
     function entry(item) {
         const row = doc.createElement('li'); row.className = 'ai-failure-entry';

@@ -98,6 +98,8 @@ async (page) => {
         await p.locator('#save-filter').click();
         await p.locator('#pin-filter').click();
         check(await p.getByRole('button', {name:'Apply saved filter Today', exact:true}).count() === 1, 'Pinned filter is missing');
+        await p.locator('#save-filter').click();
+        check(await p.locator('#pin-filter').textContent() === 'Unpin selected', 'Replacing a pinned filter lost its pin state');
         const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('recognition-validator.admin-saved-filters'))[0]);
         check(saved.relativeDate.preset === 'today' && !saved.query.includes('createdFrom'), 'Relative preset stored as fixed dates');
         await p.clock.setSystemTime(new Date('2026-10-01T00:01:00Z'));

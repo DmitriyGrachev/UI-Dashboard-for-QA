@@ -1285,14 +1285,16 @@ if (typeof document !== "undefined") {
         if (relativeDate) for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo", "aiReviewedFrom", "aiReviewedTo"]) params.delete(key);
         next.push({name, query: params.toString(), pinned: savedFilters.find(item => item.name === name)?.pinned === true,
             ...(relativeDate ? {relativeDate} : {})});
-        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); pinFilter.disabled = false; savedMessage.textContent = relativeDate
+        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); pinFilter.disabled = false;
+            pinFilter.textContent = next.at(-1).pinned ? 'Unpin selected' : 'Pin selected';
+            savedMessage.textContent = relativeDate
             ? "Saved in this browser. The period updates when applied or searched again."
             : "Saved in this browser. Dates are saved exactly as selected."; }
     });
     savedSelect.addEventListener("change", () => {
         pinFilter.disabled = savedSelect.value === '';
         if (savedSelect.value === "") return;
-        if (state.searching || state.loadingMore) { savedMessage.textContent = "Wait for the current search to finish, then select the filters."; savedSelect.value = ""; return; }
+        if (state.searching || state.loadingMore) { savedMessage.textContent = "Wait for the current search to finish, then select the filters."; savedSelect.value = ""; pinFilter.disabled = true; return; }
         const saved = savedFilters[Number(savedSelect.value)];
         pinFilter.textContent = saved.pinned ? 'Unpin selected' : 'Pin selected';
         savedName.value = saved.name;

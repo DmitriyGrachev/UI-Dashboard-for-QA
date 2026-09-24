@@ -31,7 +31,7 @@
 .overview-day { min-width: 0; position: relative; border-radius: 3px; }
 .overview-bar-pair { height: 200px; display: flex; justify-content: center; align-items: end; gap: 3px; padding-inline: 3px; position: relative; }
 .overview-bar-pair a { display: flex; align-items: end; justify-content: center; width: 50%; height: 100%; border-radius: 3px; }
-.overview-bar-pair a:is(:hover, :focus-visible) { background: var(--signal-soft); }
+.overview-bar-pair a:is(:hover, :focus-visible) { background: var(--admin-selected); }
 .overview-bar-pair a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; z-index: 2; }
 .overview-bar-pair i { display: block; width: 100%; max-width: 22px; border-radius: 4px 4px 0 0; }
 .operator-bar { height: var(--operator-height); }

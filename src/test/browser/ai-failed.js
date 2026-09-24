@@ -26,6 +26,8 @@ async (page) => {
                 rules: [{ruleId, remaining: 100, processing: 5, completed: 200, failed: 2}]};
         } else if (url.endsWith('/operations/activity')) {
             body = {revision: 1, generatedAt: item.fileCreatedAt, lastIssuedRuleIds: [], rules: []};
+        } else if (url.includes('/operations/failures/tasks')) {
+            body = {items:[], nextFailedAt:null, nextImageId:null};
         } else if (url.endsWith('/operations/failures')) {
             failureCalls++;
             if (failuresUnavailable) return route.fulfill({status:503,json:{detail:'Failed summary unavailable'}});
@@ -53,12 +55,13 @@ async (page) => {
     });
     try {
         await p.goto('http://127.0.0.1:18992/admin/ai-queue');
+        await p.locator('#ai-rules-link').click();
         const failed = p.locator('[data-rule-stat="failed"]');
         await failed.filter({hasText: '2'}).waitFor();
         check(await p.locator('#ai-operations-failed').getAttribute('href') === '/admin/ai-queue#ai-failures', 'Global failure log link');
         check(await failed.getAttribute('href') === `/admin/screenshots?aiTaskStatus=FAILED&issuedRuleId=${ruleId}`, 'Rule filter link');
         check(failureCalls === 0, 'Failures loaded before opening');
-        await p.locator('#ai-failures > summary').click();
+        await p.locator('[data-ai-section="ai-failures"]').click();
         await p.locator('.ai-failure-breakdown > summary').click();
         await p.locator('#ai-failures-total:not([hidden])').waitFor();
         check(await p.locator('#ai-failures-groups a').nth(1).getAttribute('href') === '/admin/screenshots?aiTaskStatus=FAILED&issuedRuleMissing=true&aiErrorMissing=true', 'Missing-value link widened the filter');

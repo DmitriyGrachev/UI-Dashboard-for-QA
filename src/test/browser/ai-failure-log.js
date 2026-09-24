@@ -49,6 +49,11 @@ async page => {
         check(await p.locator('.ai-failure-select').last().evaluate(node => node === document.activeElement), 'Load more lost focus instead of moving to the new screenshot');
         check(await p.locator('#ai-failure-log-more').isHidden(), 'Terminal page kept Load more');
         check(calls[1] === calls[2], 'Retry skipped a cursor');
+        await p.locator('.ai-failure-select').first().click();
+        await p.waitForFunction(() => {
+            const image = document.querySelector('#ai-failure-inspector > img');
+            return image && image.complete && image.naturalWidth > 0;
+        });
         for (const [width,theme] of [[1440,'dark'],[1280,'light'],[768,'dark'],[390,'light']]) {
             await p.setViewportSize({width,height:900});
             await p.evaluate(theme => document.documentElement.dataset.theme=theme, theme);
