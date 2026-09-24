@@ -8,6 +8,7 @@
 .overview-metric > div { display: flex; align-items: center; gap: 10px; font-size: .8125rem; color: var(--muted); }
 .overview-metric > strong { display: block; margin: 17px 0 4px; font-size: clamp(1.75rem, 2.4vw, 2.25rem); font-weight: 650; line-height: 1.15; letter-spacing: -.035em; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .overview-metric small { color: var(--muted); font-size: .75rem; }
+.overview-drilldown { display: block; width: fit-content; margin-top: 10px; padding-block: 6px; font-size: .8125rem; color: var(--signal); }
 .overview-icon { display: grid; place-items: center; width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; color: var(--accept); background: color-mix(in srgb, var(--accept) 12%, transparent); }
 .overview-icon svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 .ai-metric .overview-icon { color: var(--chart-ai); background: color-mix(in srgb, var(--chart-ai) 12%, transparent); }
@@ -28,9 +29,11 @@
 .overview-bars { display: grid; grid-template-columns: repeat(var(--days), minmax(0, 1fr)); flex: 1; min-width: 0; height: 228px; position: relative; }
 .overview-bars::before { content: ''; position: absolute; inset: 0 0 28px; border-bottom: 1px solid var(--line); background: linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 50%; pointer-events: none; }
 .overview-day { min-width: 0; position: relative; border-radius: 3px; }
-.overview-day:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; z-index: 2; }
 .overview-bar-pair { height: 200px; display: flex; justify-content: center; align-items: end; gap: 3px; padding-inline: 3px; position: relative; }
-.overview-bar-pair i { width: 30%; max-width: 22px; border-radius: 4px 4px 0 0; }
+.overview-bar-pair a { display: flex; align-items: end; justify-content: center; width: 50%; height: 100%; border-radius: 3px; }
+.overview-bar-pair a:is(:hover, :focus-visible) { background: var(--signal-soft); }
+.overview-bar-pair a:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; z-index: 2; }
+.overview-bar-pair i { display: block; width: 100%; max-width: 22px; border-radius: 4px 4px 0 0; }
 .operator-bar { height: var(--operator-height); }
 .ai-bar { height: var(--ai-height); background-image: repeating-linear-gradient(135deg, transparent 0 4px, rgba(255,255,255,.18) 4px 6px); }
 .overview-day-label { display: block; padding-top: 9px; text-align: center; color: var(--muted); font-size: .6875rem; white-space: nowrap; }
@@ -38,12 +41,13 @@
 .overview-chart-tip span { display: block; margin-top: 4px; color: var(--muted); }
 .overview-day:first-child .overview-chart-tip { left: 0; transform: none; }
 .overview-day:last-child .overview-chart-tip { left: auto; right: 0; transform: none; }
-.overview-day:is(:hover, :focus-visible) .overview-chart-tip { display: block; }
+.overview-day:is(:hover, :focus-within) .overview-chart-tip { display: block; }
 .overview-data { margin-top: 16px; font-size: .8125rem; }
 .overview-data summary { cursor: pointer; padding: 8px 0; color: var(--signal); }
 .overview-data table { width: 100%; border-collapse: collapse; font-size: .75rem; font-variant-numeric: tabular-nums; }
 .overview-data :is(th, td) { text-align: right; padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
 .overview-data tr > :first-child { text-align: left; }
+.overview-data td a { display: inline-block; min-width: 24px; padding: 6px; color: var(--signal); }
 .overview-outcome { display: flex; align-items: center; gap: 22px; padding: 22px 0; }
 .overview-outcome + .overview-outcome { border-top: 1px solid var(--line); }
 .overview-outcome > div:last-child { flex: 1; min-width: 0; }

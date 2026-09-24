@@ -1,11 +1,15 @@
 package com.introlabsystems.recognitionvalidator.model.value;
 
+import java.time.Instant;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
 public record AdminOverviewStatistics(List<Day> daily) {
+    public Instant from() { return daily.isEmpty() ? null : daily.getFirst().from(); }
+    public Instant to() { return daily.isEmpty() ? null : daily.getLast().to(); }
     public long operatorTotal() { return daily.stream().mapToLong(Day::operatorTotal).sum(); }
     public long accepted() { return daily.stream().mapToLong(Day::accepted).sum(); }
     public long rejected() { return daily.stream().mapToLong(Day::rejected).sum(); }
@@ -18,6 +22,8 @@ public record AdminOverviewStatistics(List<Day> daily) {
 
     public record Day(LocalDate date, long operatorTotal, long accepted, long rejected,
                       long aiTotal, long matched, long mismatched) {
+        public Instant from() { return date.atStartOfDay(ZoneOffset.UTC).toInstant(); }
+        public Instant to() { return date.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(); }
         public String label() { return date.format(DateTimeFormatter.ofPattern("dd MMM", Locale.ENGLISH)); }
     }
 }

@@ -47,6 +47,10 @@ class AdminOverviewWebTest extends AbstractWebIntegrationTest {
         assertThat(result.daily()).hasSize(7);
         assertThat(result.daily().getFirst().date()).isEqualTo(LocalDate.of(2025, 12, 26));
         assertThat(result.daily().getLast().date()).isEqualTo(LocalDate.of(2026, 1, 1));
+        assertThat(result.from()).isEqualTo(Instant.parse("2025-12-26T00:00:00Z"));
+        assertThat(result.to()).isEqualTo(Instant.parse("2026-01-02T00:00:00Z"));
+        assertThat(result.daily().getLast().from()).isEqualTo(Instant.parse("2026-01-01T00:00:00Z"));
+        assertThat(result.daily().getLast().to()).isEqualTo(result.to());
         assertThat(result.daily().getFirst().aiTotal()).isZero();
     }
 

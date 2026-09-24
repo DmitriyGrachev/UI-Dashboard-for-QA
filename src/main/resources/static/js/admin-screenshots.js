@@ -13,6 +13,8 @@ function buildSearchParams(filters, cursor = null) {
     const params = new URLSearchParams();
     appendIfPresent(params, "createdFrom", utcIso(filters.createdFrom));
     appendIfPresent(params, "createdTo", utcIso(filters.createdTo));
+    appendIfPresent(params, "aiReviewedFrom", utcIso(filters.aiReviewedFrom));
+    appendIfPresent(params, "aiReviewedTo", utcIso(filters.aiReviewedTo));
     appendIfPresent(params, "reviewState", filters.reviewState || "ALL");
     appendIfPresent(params, "gameCode", filters.gameCode);
     appendIfPresent(params, "tokenId", filters.tokenId);
@@ -139,11 +141,11 @@ function resolveSavedFilter(saved, now = new Date()) {
     const params = new URLSearchParams(saved.query);
     if (saved.relativeDate == null) return params;
     const {preset, field} = saved.relativeDate;
-    if (!["today", "yesterday", "last24h"].includes(preset) || !["created", "reviewed"].includes(field)
+    if (!["today", "yesterday", "last24h"].includes(preset) || !["created", "reviewed", "aiReviewed"].includes(field)
             || (field === "reviewed" && params.get("reviewState") === "UNCHECKED")) {
         throw new Error("Saved date period is invalid. Select a valid period and save the filters again.");
     }
-    for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo"]) params.delete(key);
+    for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo", "aiReviewedFrom", "aiReviewedTo"]) params.delete(key);
     const range = presetRange(now, preset === "last24h" ? {hours: 24} : {day: preset});
     params.set(field + "From", utcIso(range.from));
     params.set(field + "To", utcIso(range.to));
@@ -403,11 +405,14 @@ if (typeof document !== "undefined") {
 
     function currentFilters() {
         const reviewed = elements.dateField.value === "reviewed";
+        const aiReviewed = elements.dateField.value === 'aiReviewed';
         return {
-            createdFrom: reviewed ? "" : elements.createdFrom.value,
-            createdTo: reviewed ? "" : elements.createdTo.value,
+            createdFrom: reviewed || aiReviewed ? "" : elements.createdFrom.value,
+            createdTo: reviewed || aiReviewed ? "" : elements.createdTo.value,
             reviewedFrom: reviewed ? elements.createdFrom.value : "",
             reviewedTo: reviewed ? elements.createdTo.value : "",
+            aiReviewedFrom: aiReviewed ? elements.createdFrom.value : '',
+            aiReviewedTo: aiReviewed ? elements.createdTo.value : '',
             reviewState: elements.reviewState.value,
             gameCode: elements.gameCode.value,
             tokenId: elements.tokenId.value,
@@ -439,7 +444,7 @@ if (typeof document !== "undefined") {
         if (disabled) {
             elements.decision.value = "";
             elements.reviewedBy.value = "";
-            elements.dateField.value = "created";
+            if (elements.dateField.value === 'reviewed') elements.dateField.value = "created";
         }
     }
 
@@ -452,7 +457,7 @@ if (typeof document !== "undefined") {
             button.disabled = busy;
         });
         elements.filterStatus.textContent = filterStatus(currentFilters(), state.appliedFilters, busy);
-        const visibleFilters = new Set(['limit', 'gameCode', 'aiResult', 'createdFrom', 'createdTo', 'reviewedFrom', 'reviewedTo']);
+        const visibleFilters = new Set(['limit', 'gameCode', 'aiResult', 'createdFrom', 'createdTo', 'reviewedFrom', 'reviewedTo', 'aiReviewedFrom', 'aiReviewedTo']);
         const extraCount = [...buildSearchParams(currentFilters())]
             .filter(([key, value]) => !visibleFilters.has(key) && !(key === 'reviewState' && value === 'ALL')).length;
         byId('explorer-more-count').textContent = String(extraCount);
@@ -464,6 +469,7 @@ if (typeof document !== "undefined") {
         }
         const labels = {gameCode:'Game',imageId:'Image ID',sessionId:'Session',tokenId:'Token',fileName:'File',
             createdFrom:'Created from',createdTo:'Created to',reviewedFrom:'Reviewed from',reviewedTo:'Reviewed to',
+            aiReviewedFrom:'AI reviewed from',aiReviewedTo:'AI reviewed to',
             decision:'Decision',reviewedBy:'Operator',reviewState:'Review',aiResult:'AI result',aiVerdict:'AI verdict',
             aiTaskStatus:'AI status',issuedRuleId:'Rule',issuedRuleMissing:'No recorded rule',aiErrorMissing:'Reason unavailable',
             aiErrorCode:'AI error',confidenceFrom:'Confidence from',confidenceTo:'Confidence to',storageState:'Storage',
@@ -479,7 +485,7 @@ if (typeof document !== "undefined") {
                 const params = buildSearchParams(currentFilters()), period = elements.datePreset.value;
                 params.delete(key);
                 restoreFromUrl(params);
-                if (!/^(created|reviewed)(From|To)$/.test(key)) elements.datePreset.value = period;
+                if (!/^(created|reviewed|aiReviewed)(From|To)$/.test(key)) elements.datePreset.value = period;
                 updateSearchControls();
                 (chips.querySelector('button') || elements.searchButton).focus();
             });
@@ -489,7 +495,7 @@ if (typeof document !== "undefined") {
         for (const input of [elements.createdFrom, elements.createdTo]) {
             input.closest('[data-utc-boundary]').querySelectorAll('[aria-label]').forEach(control => {
                 control.setAttribute('aria-label', control.getAttribute('aria-label')
-                    .replace(/Created|Operator reviewed/g, elements.dateField.value === 'reviewed' ? 'Operator reviewed' : 'Created'));
+                    .replace(/Created|Operator reviewed|AI reviewed/g, elements.dateField.value === 'reviewed' ? 'Operator reviewed' : elements.dateField.value === 'aiReviewed' ? 'AI reviewed' : 'Created'));
             });
         }
     }
@@ -558,9 +564,10 @@ if (typeof document !== "undefined") {
         elements.datePreset.value = "";
         const canonical = value => value ? value.slice(0, 16) : value;
         const reviewed = params.has("reviewedFrom") || params.has("reviewedTo");
-        elements.dateField.value = reviewed ? "reviewed" : "created";
-        writeBoundary(elements.createdFrom, canonical(params.get(reviewed ? "reviewedFrom" : "createdFrom")) || "");
-        writeBoundary(elements.createdTo, canonical(params.get(reviewed ? "reviewedTo" : "createdTo")) || "");
+        const aiReviewed = params.has('aiReviewedFrom') || params.has('aiReviewedTo');
+        elements.dateField.value = aiReviewed ? 'aiReviewed' : reviewed ? "reviewed" : "created";
+        writeBoundary(elements.createdFrom, canonical(params.get(elements.dateField.value + 'From')) || "");
+        writeBoundary(elements.createdTo, canonical(params.get(elements.dateField.value + 'To')) || "");
         setInputFromQuery(elements.reviewState, params, "reviewState", "ALL");
         setInputFromQuery(elements.gameCode, params, "gameCode");
         setInputFromQuery(elements.tokenId, params, "tokenId");
@@ -1275,7 +1282,7 @@ if (typeof document !== "undefined") {
         params.delete("limit");
         const relativeDate = elements.datePreset.value
             ? {preset: elements.datePreset.value, field: elements.dateField.value} : null;
-        if (relativeDate) for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo"]) params.delete(key);
+        if (relativeDate) for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo", "aiReviewedFrom", "aiReviewedTo"]) params.delete(key);
         next.push({name, query: params.toString(), pinned: savedFilters.find(item => item.name === name)?.pinned === true,
             ...(relativeDate ? {relativeDate} : {})});
         if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); pinFilter.disabled = false; savedMessage.textContent = relativeDate

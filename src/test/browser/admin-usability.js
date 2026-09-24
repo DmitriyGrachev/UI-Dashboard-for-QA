@@ -180,6 +180,16 @@ async (page) => {
         await p.locator('#reset-explorer-layout').click();
         await p.keyboard.press('Escape');
         check(await p.locator('.explorer-sidebar').isVisible() && await p.locator('.explorer-details').isVisible(), 'Reset did not restore panes');
+        await p.goto('http://127.0.0.1:18992/admin/screenshots?aiReviewedFrom=2026-09-24T00:00:00Z&aiReviewedTo=2026-09-25T00:00:00Z&aiResult=UNMATCHED&reviewState=UNCHECKED');
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        check(await p.locator('#explorer-date-field').inputValue() === 'aiReviewed', 'AI drill-down lost its date field');
+        check(requests.filter(url => /screenshots\?/.test(url)).at(-1).includes('aiReviewedFrom=2026-09-24'), 'AI drill-down lost its date boundary');
+        await p.locator('#download-screenshot-csv').click();
+        await p.waitForTimeout(100);
+        check(requests.filter(url => url.includes('export.csv?')).at(-1).includes('aiReviewedTo=2026-09-25'), 'CSV lost AI review period');
+        await p.locator('#reset-screenshot-filters').click();
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        check(await p.locator('#explorer-date-field').inputValue() === 'created', 'Reset did not restore the default date field');
         searchState = 'empty';
         await p.locator('#search-screenshots').click();
         await p.getByText('No screenshots match these filters.', {exact: true}).waitFor();

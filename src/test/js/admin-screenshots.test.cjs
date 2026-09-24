@@ -56,7 +56,7 @@ test('saved relative ranges resolve in UTC on application, retaining legacy exac
     const {resolveSavedFilter} = require('../../main/resources/static/js/admin-screenshots.js');
     const legacy = {query: 'createdFrom=2026-09-01T00%3A00%3A00Z&sessionId=a'};
     assert.equal(resolveSavedFilter(legacy).toString(), legacy.query);
-    for (const field of ['created', 'reviewed']) {
+    for (const field of ['created', 'reviewed', 'aiReviewed']) {
         const saved = {query: 'confidenceFrom=0&createdFrom=old&reviewedTo=old', relativeDate: {preset: 'today', field}};
         const resolved = resolveSavedFilter(saved, new Date('2026-10-01T00:00:10Z'));
         assert.equal(resolved.get(field + 'From'), '2026-10-01T00:00:00Z');
@@ -70,6 +70,18 @@ test('saved relative ranges resolve in UTC on application, retaining legacy exac
     }
     assert.throws(() => resolveSavedFilter({query: '', relativeDate: {preset: 'invalid', field: 'created'}}));
     assert.throws(() => resolveSavedFilter({query: 'reviewState=UNCHECKED', relativeDate: {preset: 'today', field: 'reviewed'}}));
+});
+
+test('AI result dates survive unchecked-operator filters, pagination and CSV', () => {
+    const {csvExportUrl} = require('../../main/resources/static/js/admin-screenshots.js');
+    const filters = {reviewState:'UNCHECKED', aiReviewedFrom:'2026-09-24T00:00:00', aiReviewedTo:'2026-09-25T00:00:00'};
+    const query = buildSearchParams(filters, {createdAt:'2026-08-01T00:00:00Z',id:'a'});
+    const csv = new URL(csvExportUrl(filters), 'http://localhost');
+    for (const key of ['aiReviewedFrom', 'aiReviewedTo']) {
+        assert.equal(query.get(key), filters[key] + 'Z');
+        assert.equal(csv.searchParams.get(key), filters[key] + 'Z');
+    }
+    assert.equal(query.has('reviewedFrom'), false);
 });
 
 test('CSV uses all current search filters without page size or cursor', () => {
