@@ -479,6 +479,34 @@ test('pause and resume use saved settings, preserve drafts, and report failures 
     } finally { global.fetch = previousFetch; }
 });
 
+test('unsaved bar cancels rule edits locally and respects discard cancellation', async () => {
+    const {form, rules, document} = fakeQueueDom();
+    const bar = new FakeElement('div', {id: 'ai-save-bar'});
+    const cancel = new FakeElement('button', {id: 'ai-queue-discard'});
+    bar.append(cancel); form.append(bar); document.register(form);
+    const saved = {revision: 1, enabled: true, games: ['bj_igt'], rules: [
+        {id: 'one', name: 'Saved rule', enabled: true, priority: 1, gameCode: 'bj_igt'}]};
+    const previousFetch = global.fetch; let requests = 0;
+    global.fetch = async () => { requests++; return {ok: true, json: async () => saved}; };
+    try {
+        const queue = initializeAiQueue(form);
+        await new Promise(resolve => setTimeout(resolve, 0));
+        assert.equal(bar.hidden, true);
+        const name = rules.firstElementChild.querySelector('[name="name"]');
+        name.value = 'Draft'; form.dispatchEvent({type: 'input', target: name});
+        assert.equal(bar.hidden, false);
+        document.defaultView.confirm = () => false;
+        cancel.dispatchEvent({type: 'click'});
+        assert.equal(queue.dirty(), true);
+        document.defaultView.confirm = () => true;
+        cancel.dispatchEvent({type: 'click'});
+        assert.equal(bar.hidden, true);
+        assert.equal(rules.firstElementChild.querySelector('[name="name"]').value, 'Saved rule');
+        assert.equal(queue.dirty(), false);
+        assert.equal(requests, 1);
+    } finally { global.fetch = previousFetch; }
+});
+
 test('move and remove keep priorities unique and sequential without saving', async () => {
     const {form, rules, document} = fakeQueueDom();
     const initial = {revision: 1, enabled: true, rules: [

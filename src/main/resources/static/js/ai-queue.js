@@ -315,6 +315,7 @@ function initializeAiQueue(form, operations) {
     const save = byId('ai-queue-save') || form.querySelector('#ai-queue-save');
     const template = byId('ai-rule-template') || form.querySelector('#ai-rule-template');
     const dirtyIndicator = form.querySelector('[data-ai-queue-dirty]') || byId('ai-queue-dirty');
+    const saveBar = byId('ai-save-bar');
     if (!rules || !enabled || !message || !summary || !add || !reload || !stop || !save || !template) return;
 
     form.dataset.aiQueueInitialized = 'true';
@@ -587,6 +588,10 @@ function initializeAiQueue(form, operations) {
             dirtyIndicator.textContent = value ? 'Unsaved changes' : '';
             dirtyIndicator.setAttribute('aria-hidden', String(!value));
         }
+        if (saveBar) {
+            if (!value && saveBar.contains?.(doc.activeElement)) byId('ai-queue-title')?.focus({preventScroll: true});
+            saveBar.hidden = !value;
+        }
         return value;
     }
 
@@ -846,6 +851,11 @@ function initializeAiQueue(form, operations) {
     reload.addEventListener('click', () => {
         if (busy || !discardConfirmed()) return;
         perform(() => request(), 'Loaded saved settings.');
+    });
+    byId('ai-queue-discard')?.addEventListener('click', () => {
+        if (busy || !current || !discardConfirmed()) return;
+        render(current);
+        setMessage('Changes discarded. Saved rules restored.');
     });
     stop.addEventListener('click', () => {
         if (busy || !current) return;

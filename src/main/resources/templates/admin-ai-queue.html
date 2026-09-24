@@ -69,13 +69,17 @@
             <form id="ai-queue-form">
                 <input id="ai-queue-enabled" type="checkbox" hidden aria-label="Saved assignment setting">
                 <p class="admin-form-help">Rules run from top to bottom. Save changes to apply them to future assignments.</p>
-                <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
                 <div id="ai-rules"></div>
                 <div class="ai-queue-actions">
                     <button type="button" class="button secondary" id="ai-rule-add" disabled>Add rule</button>
-                    <button type="submit" class="button primary" id="ai-queue-save" disabled>Save AI settings</button>
-
                     <button type="button" class="button secondary" id="ai-queue-reload">Reload saved settings</button>
+                </div>
+                <div id="ai-save-bar" class="ai-save-bar" hidden>
+                    <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
+                    <div class="ai-queue-actions">
+                        <button type="button" class="button secondary" id="ai-queue-discard">Cancel changes</button>
+                        <button type="submit" class="button primary" id="ai-queue-save" disabled>Save AI settings</button>
+                    </div>
                 </div>
                 <p id="ai-queue-message" role="status" aria-live="polite"></p>
                 <a id="ai-queue-sign-in" th:href="@{/login}" hidden>Sign in again</a>

@@ -65,6 +65,14 @@ async (page) => {
             viewports.push({width, height, theme, passed: true});
         }
         const countsBefore = countCalls, activityBefore = activityCalls;
+        await first.locator('[name="name"]').fill('Discard this draft');
+        check(await p.locator('#ai-save-bar').isVisible(), 'Unsaved changes have no save bar');
+        p.once('dialog', dialog => dialog.accept());
+        await p.getByRole('button', {name: 'Cancel changes', exact: true}).click();
+        check(await first.locator('[name="name"]').inputValue() === 'Priority sessions', 'Cancel failed to restore saved rule');
+        check(await p.locator('#ai-save-bar').isHidden(), 'Cancel left a dirty save bar');
+        check(await p.locator('#ai-queue-title').evaluate(node => node === document.activeElement), 'Cancel lost keyboard focus');
+        await first.locator('summary').click();
         await p.setViewportSize({width: 768, height: 900});
         await p.evaluate(() => document.documentElement.style.fontSize = '200%');
         check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'AI Queue overflow with 200% text');
@@ -123,6 +131,7 @@ async (page) => {
         check(settings.rules[0].name === 'Priority sessions', 'Moving a rule saved without explicit submission');
         await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'), p.locator('#ai-queue-save').click()]);
         await p.locator('#ai-queue-message').filter({hasText: 'Saved.'}).waitFor();
+        check(await p.locator('#ai-save-bar').isHidden(), 'Save left a dirty save bar');
         check(settings.rules[0].name === 'Default', 'Save lost the new priority');
         await p.locator('[data-ai-section="ai-activity-view"]').click();
         await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'), p.locator('#ai-queue-stop').click()]);
