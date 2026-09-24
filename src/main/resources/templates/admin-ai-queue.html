@@ -125,12 +125,18 @@
             <summary>AI Failed · screenshot log</summary>
             <p>Current failed AI tasks, newest errors first. Operator rejects and AI mismatches are not failures. This shows the latest error per task, not a full event history.</p>
             <div class="ai-queue-actions">
-                <label class="ai-inline-check"><input type="checkbox" id="ai-failure-ai-only"> Only rejections from AI service</label>
+                <label>Reason<select id="ai-failure-reason-filter"><option value="">All reasons</option><option value="error:AI_REJECTED">AI_REJECTED</option></select></label>
+                <label>Issuing rule<select id="ai-failure-rule-filter"><option value="">All rules</option></select></label>
                 <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
             </div>
             <p id="ai-failure-log-message" role="status" aria-live="polite">Open to load failed screenshots.</p>
-            <ol id="ai-failure-log" class="ai-failure-log" aria-label="Failed AI screenshots"></ol>
-            <button type="button" class="button secondary" id="ai-failure-log-more" hidden>Load more failures</button>
+            <div class="ai-failure-workspace">
+                <div class="ai-failure-list-pane">
+                    <ol id="ai-failure-log" class="ai-failure-log" aria-label="Failed AI screenshots"></ol>
+                    <button type="button" class="button secondary" id="ai-failure-log-more" hidden>Load more failures</button>
+                </div>
+                <section id="ai-failure-inspector" class="ai-failure-inspector" aria-label="Selected failure">Select a failed screenshot to inspect its image and error.</section>
+            </div>
             <details class="ai-failure-breakdown"><summary>Group by reason and rule</summary>
             <p id="ai-failures-message" role="status" aria-live="polite">Open to load the current summary.</p>
             <p><a id="ai-failures-total" hidden></a></p>

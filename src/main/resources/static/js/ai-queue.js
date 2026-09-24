@@ -164,6 +164,7 @@ function initializeAiFailures(doc) {
                 link.setAttribute('aria-label', `${group.count} failed tasks: ${reason.textContent}, ${rule.textContent}`);
                 count.append(link); row.append(reason, rule, count); list.append(row);
             });
+            failureLog?.setGroups(data.groups);
             message.textContent = (data.total ? '' : 'No failed AI tasks. ') + `Updated ${formatAiTime(data.generatedAt)}. Refresh to update.`;
             loaded = true;
         } catch (error) {
@@ -173,7 +174,7 @@ function initializeAiFailures(doc) {
     }
     panel.addEventListener('toggle', () => { if (panel.open && !loaded) void load(); });
     refresh.addEventListener('click', load);
-    initializeAiFailureLog(doc);
+    const failureLog = initializeAiFailureLog(doc);
     const openFromHash = () => { if (doc.defaultView?.location?.hash === '#ai-failures') panel.open = true; };
     doc.defaultView?.addEventListener?.('hashchange', openFromHash);
     doc.querySelectorAll('a[href="#ai-failures"], a[href="/admin/ai-queue#ai-failures"]').forEach(link =>
@@ -186,18 +187,22 @@ function initializeAiFailureLog(doc) {
     const list = doc.getElementById('ai-failure-log');
     if (!list) return;
     const panel = doc.getElementById('ai-failures'), refresh = doc.getElementById('ai-failures-refresh');
-    const more = doc.getElementById('ai-failure-log-more'), onlyAi = doc.getElementById('ai-failure-ai-only');
+    const more = doc.getElementById('ai-failure-log-more');
+    const reasonFilter = doc.getElementById('ai-failure-reason-filter'), ruleFilter = doc.getElementById('ai-failure-rule-filter');
+    const inspector = doc.getElementById('ai-failure-inspector');
     const message = doc.getElementById('ai-failure-log-message');
-    let cursor = null, busy = false, loaded = false;
-    function entry(item) {
-        const row = doc.createElement('li'); row.className = 'ai-failure-entry';
+    let cursor = null, busy = false, loaded = false, selectedId = null;
+    function inspect(item) {
+        selectedId = item.imageId;
+        list.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.imageId === selectedId)));
         const href = '/admin/screenshots?imageId=' + encodeURIComponent(item.imageId);
-        const preview = doc.createElement('a'); preview.className = 'ai-failure-preview'; preview.href = href;
-        const image = doc.createElement('img'); image.loading = 'lazy'; image.decoding = 'async';
-        image.alt = 'Inspect ' + item.fileName; image.width = 160; image.height = 90;
-        image.src = `/admin/api/screenshots/${encodeURIComponent(item.imageId)}/thumbnail`;
-        image.addEventListener('error', () => { preview.textContent = 'Preview unavailable · open details'; }, {once: true});
-        preview.append(image);
+        const title = doc.createElement('h3'); title.textContent = item.fileName || item.imageId;
+        const image = doc.createElement('img'); image.alt = item.fileName; image.decoding = 'async';
+        const imageStatus = doc.createElement('p'); imageStatus.id = 'ai-failure-image-status'; imageStatus.setAttribute('role', 'status');
+        imageStatus.textContent = 'Loading screenshot…';
+        image.addEventListener('load', () => { imageStatus.textContent = ''; });
+        image.addEventListener('error', () => { image.hidden = true; imageStatus.textContent = 'Image unavailable. Open in Explorer to inspect its storage details.'; });
+        image.src = `/admin/api/screenshots/${encodeURIComponent(item.imageId)}/content`;
         const detail = doc.createElement('div'); detail.className = 'ai-failure-detail';
         const heading = doc.createElement('div'); heading.className = 'ai-failure-heading';
         const source = doc.createElement('strong'); source.className = 'ai-failure-source';
@@ -209,21 +214,44 @@ function initializeAiFailureLog(doc) {
         heading.append(source, time);
         const reason = doc.createElement('p'); reason.className = 'ai-failure-reason';
         reason.textContent = item.errorMessage || 'No error message was recorded.';
-        const file = doc.createElement('a'); file.href = href; file.textContent = item.fileName || item.imageId;
+        const file = doc.createElement('a'); file.href = href; file.textContent = 'Open in Explorer';
         const meta = doc.createElement('p'); meta.className = 'ai-failure-meta';
         meta.textContent = `${item.errorCode || 'Unknown error code'} · Attempts: ${item.attemptCount} · ${item.gameCode}`;
         const rule = doc.createElement('p'); rule.className = 'ai-failure-meta';
         rule.textContent = 'Rule: ' + (item.ruleName || (item.ruleId ? `${item.ruleId} (no longer in settings)` : 'Not recorded'));
-        detail.append(heading, reason, file, meta, rule); row.append(preview, detail); return row;
+        detail.append(heading, reason, meta, rule, file);
+        inspector.replaceChildren(title, imageStatus, image, detail);
+    }
+    function entry(item) {
+        const row = doc.createElement('li'); row.className = 'ai-failure-entry';
+        const button = doc.createElement('button'); button.type = 'button'; button.className = 'ai-failure-select';
+        button.dataset.imageId = item.imageId; button.setAttribute('aria-pressed', 'false');
+        const preview = doc.createElement('span'); preview.className = 'ai-failure-preview';
+        const image = doc.createElement('img'); image.loading = 'lazy'; image.alt = ''; image.width = 64; image.height = 44;
+        image.src = `/admin/api/screenshots/${encodeURIComponent(item.imageId)}/thumbnail`;
+        image.addEventListener('error', () => { preview.textContent = 'No preview'; }, {once: true});
+        preview.append(image);
+        const text = doc.createElement('span'), name = doc.createElement('strong'), reason = doc.createElement('small');
+        name.textContent = item.fileName || item.imageId;
+        reason.textContent = `${item.errorCode || 'Unknown reason'} · ${item.failedAt ? formatAiTime(item.failedAt) : 'Error time unavailable'}`;
+        text.append(name, reason); button.append(preview, text); row.append(button);
+        button.addEventListener('click', () => inspect(item));
+        return row;
     }
     async function load(reset = false) {
         if (busy) return;
         const focusNext = doc.activeElement === more;
         const previousCount = reset ? 0 : list.children.length;
-        busy = true; more.disabled = true; onlyAi.disabled = true;
-        if (reset) { cursor = null; list.replaceChildren(); more.hidden = true; loaded = false; }
+        busy = true; more.disabled = true; reasonFilter.disabled = true; ruleFilter.disabled = true;
+        if (reset) {
+            cursor = null; list.replaceChildren(); more.hidden = true; loaded = false; selectedId = null;
+            inspector.textContent = 'Select a failed screenshot to inspect its image and error.';
+        }
         message.dataset.error = 'false'; message.textContent = 'Loading failed screenshots…';
-        const query = new URLSearchParams({aiOnly: String(onlyAi.checked)});
+        const query = new URLSearchParams();
+        if (reasonFilter.value === 'missing') query.set('aiErrorMissing', 'true');
+        else if (reasonFilter.value) query.set('aiErrorCode', reasonFilter.value.slice(6));
+        if (ruleFilter.value) query.set(ruleFilter.value === 'missing' ? 'issuedRuleMissing' : 'issuedRuleId', ruleFilter.value === 'missing' ? 'true' : ruleFilter.value);
         if (cursor) { query.set('beforeAt', cursor.at); query.set('beforeId', cursor.id); }
         try {
             const response = await fetch('/admin/api/ai-queue/operations/failures/tasks?' + query, {cache: 'no-store'});
@@ -235,21 +263,36 @@ function initializeAiFailureLog(doc) {
             if (!response.ok) throw new Error(data.detail || data.message || `Request failed (${response.status})`);
             if (!Array.isArray(data.items)) throw new Error('Could not read failed screenshots.');
             data.items.forEach(item => list.append(entry(item)));
-            if (focusNext) (list.children[previousCount] || list.lastElementChild)?.querySelector('a')?.focus();
+            if (!selectedId && data.items.length) inspect(data.items[0]);
+            if (focusNext) (list.children[previousCount] || list.lastElementChild)?.querySelector('button')?.focus();
             cursor = data.nextId ? {id: data.nextId, at: data.nextAt} : null;
             more.hidden = !cursor;
             message.textContent = list.children.length ? `${list.children.length} failed ${list.children.length === 1 ? 'task' : 'tasks'} shown. Refresh to update.`
-                : onlyAi.checked ? 'No current rejections from the AI service.' : 'No failed AI tasks.';
+                : reasonFilter.value || ruleFilter.value ? 'No failed tasks match these filters.' : 'No failed AI tasks.';
             loaded = true;
         } catch (error) {
             message.dataset.error = 'true';
             message.textContent = `${error.message || 'Could not load failed screenshots.'} ${cursor ? 'Select Load more failures to retry.' : 'Select Refresh failures to retry.'}`;
-        } finally { busy = false; more.disabled = false; onlyAi.disabled = false; }
+        } finally { busy = false; more.disabled = false; reasonFilter.disabled = false; ruleFilter.disabled = false; }
     }
     panel.addEventListener('toggle', () => { if (panel.open && !loaded) void load(true); });
     refresh.addEventListener('click', () => load(true));
-    onlyAi.addEventListener('change', () => load(true));
+    reasonFilter.addEventListener('change', () => load(true));
+    ruleFilter.addEventListener('change', () => load(true));
     more.addEventListener('click', () => load());
+    return {setGroups(groups) {
+        for (const [select, values, label] of [
+            [reasonFilter, new Map(groups.map(g => [g.errorCode == null ? 'missing' : 'error:' + g.errorCode, g.errorCode || 'Reason unavailable'])), 'All reasons'],
+            [ruleFilter, new Map(groups.map(g => [g.ruleId || 'missing', g.ruleName || g.ruleId || 'No recorded rule'])), 'All rules']]) {
+            const selected = select.value;
+            const options = [[ '', label ], ...values];
+            if (selected && !values.has(selected)) options.push([selected, select.selectedOptions[0]?.textContent || selected]);
+            select.replaceChildren(...options.map(([value, text]) => {
+                const option = doc.createElement('option'); option.value = value; option.textContent = text; return option;
+            }));
+            select.value = selected;
+        }
+    }};
 }
 
 function initializeAiOperations(doc) {
