@@ -293,16 +293,8 @@ public class AdminScreenshotRepository {
             sql.append(" AND ai.status = :aiTaskStatus");
             parameters.addValue("aiTaskStatus", filters.aiTaskStatus().name());
         }
-        if (filters.issuedRuleId() != null) {
-            sql.append(" AND ai.issued_rule_id = :issuedRuleId");
-            parameters.addValue("issuedRuleId", filters.issuedRuleId());
-        }
-        if (filters.aiErrorCode() != null) {
-            sql.append(" AND ai.last_error_code = :aiErrorCode");
-            parameters.addValue("aiErrorCode", filters.aiErrorCode());
-        }
-        if (Boolean.TRUE.equals(filters.aiErrorMissing())) sql.append(" AND ai.last_error_code IS NULL");
-        if (Boolean.TRUE.equals(filters.issuedRuleMissing())) sql.append(" AND ai.issued_rule_id IS NULL");
+        AiResultFilterSql.appendDiagnostics(sql, parameters, filters.issuedRuleId(), filters.aiErrorCode(),
+                filters.aiErrorMissing(), filters.issuedRuleMissing());
         return sql.toString();
     }
 

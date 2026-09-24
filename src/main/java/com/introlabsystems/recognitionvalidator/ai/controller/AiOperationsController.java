@@ -29,11 +29,19 @@ public class AiOperationsController {
     @GetMapping("/failures/tasks")
     public ResponseEntity<AiFailurePage> failureLog(@RequestParam(defaultValue = "false") boolean aiOnly,
                                                    @RequestParam(required = false) Instant beforeAt,
-                                                   @RequestParam(required = false) String beforeId) {
+                                                   @RequestParam(required = false) String beforeId,
+                                                   @RequestParam(required = false) java.util.UUID issuedRuleId,
+                                                   @RequestParam(required = false) String aiErrorCode,
+                                                   @RequestParam(defaultValue = "false") boolean aiErrorMissing,
+                                                   @RequestParam(defaultValue = "false") boolean issuedRuleMissing) {
         if ((beforeAt == null) != (beforeId == null) || (beforeId != null && !beforeId.matches("[0-9a-f]{64}"))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide both cursor time and image ID");
         }
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(operations.failureLog(aiOnly, beforeAt, beforeId));
+        if (aiErrorCode != null && aiErrorCode.length() > 100) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Error code is too long");
+        }
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
+                operations.failureLog(aiOnly, beforeAt, beforeId, issuedRuleId, aiErrorCode, aiErrorMissing, issuedRuleMissing));
     }
 
     @GetMapping("/failures")

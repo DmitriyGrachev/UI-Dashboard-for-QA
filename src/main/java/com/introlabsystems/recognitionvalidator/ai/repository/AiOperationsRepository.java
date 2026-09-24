@@ -29,31 +29,35 @@ public class AiOperationsRepository {
     private final AiRuleActivityRepository activity;
 
     @Transactional(readOnly = true, timeout = 5)
-    public AiFailurePage failureLog(boolean aiOnly, Instant beforeAt, String beforeId) {
+    public AiFailurePage failureLog(boolean aiOnly, Instant beforeAt, String beforeId,
+                                   java.util.UUID ruleId, String errorCode, boolean errorMissing, boolean ruleMissing) {
         jdbc.execute("SET LOCAL statement_timeout='5s'");
-        var parameters = new ArrayList<Object>();
+        var parameters = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource();
+        var filters = new StringBuilder();
+        AiResultFilterSql.appendDiagnostics(filters, parameters, ruleId, errorCode, errorMissing, ruleMissing);
+        if (aiOnly) filters.append(" AND last_error_code='AI_REJECTED'");
         String cursor = "";
         if (beforeAt != null) {
-            cursor = "AND (COALESCE(last_error_at,file_created_at),image_id) < (?,?)";
-            parameters.add(Timestamp.from(beforeAt)); parameters.add(beforeId);
+            cursor = "AND (COALESCE(last_error_at,file_created_at),image_id) < (:beforeAt,:beforeId)";
+            parameters.addValue("beforeAt", Timestamp.from(beforeAt)).addValue("beforeId", beforeId);
         }
         // Sort only the FAILED subset; fetch metadata for at most 21 tasks, without a history COUNT.
-        var rows = jdbc.query("""
+        var rows = new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc).query("""
                 SELECT t.*,ia.file_name,r.name AS rule_name
                 FROM (
                   SELECT image_id,game_code,issued_rule_id,last_error_code,last_error_message,
                          last_error_at,file_created_at,attempt_count
-                  FROM ai_review_task WHERE status='FAILED' %s %s
+                  FROM ai_review_task ai WHERE status='FAILED' %s %s
                   ORDER BY COALESCE(last_error_at,file_created_at) DESC,image_id DESC LIMIT 21
                 ) t
                 JOIN image_asset ia ON ia.id=t.image_id
                 LEFT JOIN ai_selection_rule r ON r.id=t.issued_rule_id
                 ORDER BY COALESCE(t.last_error_at,t.file_created_at) DESC,t.image_id DESC
-                """.formatted(aiOnly ? "AND last_error_code='AI_REJECTED'" : "", cursor),
+                """.formatted(filters, cursor), parameters,
                 (rs, row) -> new AiFailurePage.Item(rs.getString("image_id"), rs.getString("file_name"),
                         rs.getString("game_code"), rs.getObject("issued_rule_id", java.util.UUID.class),
                         rs.getString("rule_name"), rs.getString("last_error_code"), rs.getString("last_error_message"),
-                        instant(rs, "last_error_at"), instant(rs, "file_created_at"), rs.getInt("attempt_count")), parameters.toArray());
+                        instant(rs, "last_error_at"), instant(rs, "file_created_at"), rs.getInt("attempt_count")));
         var items = rows.size() > 20 ? List.copyOf(rows.subList(0, 20)) : rows;
         var last = rows.size() > 20 ? items.getLast() : null;
         return new AiFailurePage(items, last == null ? null : last.failedAt() == null ? last.createdAt() : last.failedAt(),

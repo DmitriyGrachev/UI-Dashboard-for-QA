@@ -58,4 +58,19 @@ public final class AiResultFilterSql {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid AI confidence range (0–100)");
         }
     }
+
+    public static void appendDiagnostics(StringBuilder sql, MapSqlParameterSource parameters,
+                                         java.util.UUID ruleId, String errorCode,
+                                         Boolean errorMissing, Boolean ruleMissing) {
+        if (ruleId != null) {
+            sql.append(" AND ai.issued_rule_id = :issuedRuleId");
+            parameters.addValue("issuedRuleId", ruleId);
+        }
+        if (errorCode != null) {
+            sql.append(" AND ai.last_error_code = :aiErrorCode");
+            parameters.addValue("aiErrorCode", errorCode);
+        }
+        if (Boolean.TRUE.equals(errorMissing)) sql.append(" AND ai.last_error_code IS NULL");
+        if (Boolean.TRUE.equals(ruleMissing)) sql.append(" AND ai.issued_rule_id IS NULL");
+    }
 }

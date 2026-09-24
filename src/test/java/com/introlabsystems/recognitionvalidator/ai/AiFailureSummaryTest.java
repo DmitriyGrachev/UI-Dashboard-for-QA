@@ -32,9 +32,9 @@ class AiFailureSummaryTest extends AiTestSupport {
         jdbc.update("UPDATE ai_review_task SET status='PROCESSING' WHERE image_id=?", "%064x".formatted(47));
         jdbc.update("UPDATE ai_review_task SET status='PENDING' WHERE image_id=?", "%064x".formatted(48));
         jdbc.update("UPDATE review_task SET status='COMPLETED',decision='REJECTED' WHERE image_id=?", "%064x".formatted(48));
-        var first = operations.failureLog(false, null, null);
-        var second = operations.failureLog(false, first.nextAt(), first.nextId());
-        var third = operations.failureLog(false, second.nextAt(), second.nextId());
+        var first = operations.failureLog(false, null, null, null, null, false, false);
+        var second = operations.failureLog(false, first.nextAt(), first.nextId(), null, null, false, false);
+        var third = operations.failureLog(false, second.nextAt(), second.nextId(), null, null, false, false);
         var all = java.util.stream.Stream.of(first, second, third).flatMap(page -> page.items().stream()).toList();
         org.assertj.core.api.Assertions.assertThat(first.items()).hasSize(20);
         org.assertj.core.api.Assertions.assertThat(second.items()).hasSize(20);
@@ -104,5 +104,26 @@ class AiFailureSummaryTest extends AiTestSupport {
                 .andExpect(jsonPath("$.total").value(0)).andExpect(jsonPath("$.groups").isEmpty());
         mvc.perform(get(PATH).accept("application/json")).andExpect(status().isUnauthorized());
         mvc.perform(get(PATH).with(user("operator").roles("OPERATOR"))).andExpect(status().isForbidden());
+    }
+
+    @Test
+    void failureLogFiltersBeforePagingAndHandlesMissingReasonAndRule() throws Exception {
+        var rule = UUID.randomUUID();
+        for (int i = 1; i <= 30; i++) image(i, 53);
+        jdbc.update("UPDATE ai_review_task SET status='FAILED',issued_rule_id=?,last_error_code='AI_REJECTED'", rule);
+        jdbc.update("UPDATE ai_review_task SET last_error_code='DELIVERY_UNAVAILABLE' WHERE image_id=?", "%064x".formatted(1));
+        jdbc.update("UPDATE ai_review_task SET last_error_code=NULL,issued_rule_id=NULL WHERE image_id=?", "%064x".formatted(2));
+        mvc.perform(get(PATH + "/tasks").param("aiErrorCode", "DELIVERY_UNAVAILABLE").param("issuedRuleId", rule.toString())
+                .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].imageId").value("%064x".formatted(1)));
+        mvc.perform(get(PATH + "/tasks").param("aiErrorMissing", "true").param("issuedRuleMissing", "true")
+                .with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].imageId").value("%064x".formatted(2)));
+        mvc.perform(get(PATH + "/tasks").param("aiErrorCode", "' OR TRUE --").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+        mvc.perform(get(PATH + "/tasks").param("issuedRuleId", "invalid").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isBadRequest());
     }
 }
