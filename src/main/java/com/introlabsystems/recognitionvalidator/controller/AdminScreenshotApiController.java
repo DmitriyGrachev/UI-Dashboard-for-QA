@@ -86,6 +86,10 @@ public class AdminScreenshotApiController {
                     "Created from must be earlier than created to"
             );
         }
+        if (request.getAiReviewedFrom() != null && request.getAiReviewedTo() != null
+                && !request.getAiReviewedFrom().isBefore(request.getAiReviewedTo())) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "AI reviewed from must be earlier than AI reviewed to");
+        }
         if (request.getReviewedFrom() != null && request.getReviewedTo() != null
                 && !request.getReviewedFrom().isBefore(request.getReviewedTo())) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,

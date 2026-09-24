@@ -40,7 +40,9 @@ public record AdminScreenshotFilters(
         UUID issuedRuleId,
         String aiErrorCode,
         Boolean aiErrorMissing,
-        Boolean issuedRuleMissing
+        Boolean issuedRuleMissing,
+        Instant aiReviewedFrom,
+        Instant aiReviewedTo
 ) {
     public AdminScreenshotFilters(Instant createdFrom, Instant createdTo, AdminReviewState reviewState,
                                   String gameCode, Long tokenId, String sessionId, String imageId,
@@ -49,6 +51,6 @@ public record AdminScreenshotFilters(
                                   Boolean hasUserHand, Instant cursorCreatedAt, String cursorId, int limit) {
         this(createdFrom, createdTo, reviewState, gameCode, tokenId, sessionId, imageId, fileName,
                 decision, reviewedBy, storageState, parseStatus, notification, hasUserHand,
-                cursorCreatedAt, cursorId, limit, null, null, null, null, null, null, null, null, null, null, null);
+                cursorCreatedAt, cursorId, limit, null, null, null, null, null, null, null, null, null, null, null, null, null);
     }
 }

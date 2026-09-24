@@ -47,6 +47,8 @@ public class AdminScreenshotSearchRequest {
     private String aiErrorCode;
     private Boolean aiErrorMissing;
     private Boolean issuedRuleMissing;
+    private Instant aiReviewedFrom;
+    private Instant aiReviewedTo;
 
     public AdminScreenshotFilters toFilters() {
         return new AdminScreenshotFilters(
@@ -77,7 +79,9 @@ public class AdminScreenshotSearchRequest {
                 issuedRuleId,
                 aiErrorCode,
                 aiErrorMissing,
-                issuedRuleMissing
+                issuedRuleMissing,
+                aiReviewedFrom,
+                aiReviewedTo
         );
     }
 }

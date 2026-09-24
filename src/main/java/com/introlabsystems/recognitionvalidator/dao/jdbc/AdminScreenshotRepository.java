@@ -146,6 +146,7 @@ public class AdminScreenshotRepository {
 
     private static boolean hasAiTaskFilters(AdminScreenshotFilters filters) {
         return filters.aiTaskStatus() != null || filters.issuedRuleId() != null || filters.aiErrorCode() != null
+                || filters.aiReviewedFrom() != null || filters.aiReviewedTo() != null
                 || Boolean.TRUE.equals(filters.aiErrorMissing()) || Boolean.TRUE.equals(filters.issuedRuleMissing());
     }
 
@@ -286,6 +287,15 @@ public class AdminScreenshotRepository {
         if (filters.hasUserHand() != null) {
             sql.append(" AND rt.has_user_hand = :hasUserHand");
             parameters.addValue("hasUserHand", filters.hasUserHand());
+        }
+        if (filters.aiReviewedFrom() != null || filters.aiReviewedTo() != null) sql.append(" AND ai.status='COMPLETED'");
+        if (filters.aiReviewedFrom() != null) {
+            sql.append(" AND ai.checked_at >= :aiReviewedFrom");
+            parameters.addValue("aiReviewedFrom", Timestamp.from(filters.aiReviewedFrom()));
+        }
+        if (filters.aiReviewedTo() != null) {
+            sql.append(" AND ai.checked_at < :aiReviewedTo");
+            parameters.addValue("aiReviewedTo", Timestamp.from(filters.aiReviewedTo()));
         }
         AiResultFilterSql.append(sql, parameters, filters.aiResult(), filters.aiVerdict(),
                 filters.confidenceFrom(), filters.confidenceTo(), aiOrdered);

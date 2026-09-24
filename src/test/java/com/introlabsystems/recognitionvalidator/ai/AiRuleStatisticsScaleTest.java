@@ -85,6 +85,20 @@ class AiRuleStatisticsScaleTest extends AiTestSupport {
         verify(template, times(1)).execute(anyString(), any(SqlParameterSource.class), any(PreparedStatementCallback.class));
         System.out.printf("SCALE_FIXTURE rows=100000 rules=20 ruleQueries=1 ruleMs=%d exportQueries=1 exportMs=%d%n",
                 ruleMillis, (System.nanoTime() - started) / 1_000_000);
+        jdbc.update("UPDATE ai_review_task SET status='COMPLETED', checked_at='2026-01-01'::timestamptz + token_id * interval '1 day'");
+        jdbc.execute("CREATE INDEX IF NOT EXISTS ix_ai_completed_checked_at ON ai_review_task(checked_at,image_id) WHERE status='COMPLETED'");
+        jdbc.execute("ANALYZE ai_review_task");
+        var dateRequest = new AdminScreenshotSearchRequest();
+        dateRequest.setAiReviewedFrom(Instant.parse("2026-01-04T00:00:00Z"));
+        dateRequest.setAiReviewedTo(Instant.parse("2026-01-05T00:00:00Z"));
+        started = System.nanoTime();
+        assertTimeout(Duration.ofSeconds(5), () -> {
+            assertThat(export.summary(dateRequest.toFilters(), Instant.now()).totalCount()).isEqualTo(5000);
+            assertThat(export.search(dateRequest.toFilters(), Instant.now()).items()).hasSize(50);
+            long dateExported = transaction.execute(tx -> export.writeCsv(dateRequest.toFilters(), Instant.now(), Writer.nullWriter()));
+            assertThat(dateExported).isEqualTo(5000);
+        });
+        System.out.printf("AI_REVIEW_DATE rows=100000 matches=5000 searchSummaryCsvMs=%d%n", (System.nanoTime() - started) / 1_000_000);
         // A high failed ratio with recent writes exercises heap visibility as well as many groups.
         jdbc.update("""
                 UPDATE ai_review_task SET status='FAILED',
