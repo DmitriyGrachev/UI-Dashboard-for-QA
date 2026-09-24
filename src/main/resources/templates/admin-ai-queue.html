@@ -24,27 +24,39 @@
     <main class="admin-main" id="admin-content" tabindex="-1">
         <header class="admin-heading">
             <div>
-                <span class="section-kicker">Independent AI review</span>
                 <h1>AI queue</h1>
                 <p>Manage which screenshots the AI service can check. Dates are UTC.</p>
             </div>
-            <a class="button secondary" href="#ai-failures">AI Failed log</a>
+            <div class="ai-queue-actions"><p id="ai-queue-state">Loading settings…</p><button type="button" form="ai-queue-form" class="button secondary" id="ai-queue-stop" disabled>Pause new assignments</button></div>
         </header>
+        <p id="ai-queue-toggle-message" role="status" aria-live="polite" hidden></p>
+        <nav class="ai-section-nav" aria-label="AI queue sections">
+            <a href="#ai-activity-view" data-ai-section="ai-activity-view">Activity</a>
+            <a href="#ai-rules-view" data-ai-section="ai-rules-view" id="ai-rules-link">Rules</a>
+            <a href="#ai-failures" data-ai-section="ai-failures">Failures</a>
+        </nav>
 
+        <section id="ai-activity-view" data-ai-view aria-label="AI activity">
         <section th:replace="~{fragments/admin-operations :: snapshot(true)}"></section>
+        <section class="ai-route" aria-labelledby="ai-route-title">
+            <header><h2 id="ai-route-title">Assignment activity</h2><button type="button" class="button secondary" id="ai-activity-refresh">Refresh activity</button></header>
+            <p>Rules run in priority order. ↳ marks the latest assignment batch; several rules can be awaiting results.</p>
+            <div id="ai-rule-route" class="ai-route-list" aria-label="Rule priority and activity"></div>
+            <p id="ai-rule-route-message">Loading activity…</p>
+            <p id="ai-activity-message" role="status" aria-live="polite">Loading rule activity…</p>
+        </section>
+        <div id="ai-other-assignments" class="ai-rule-activity" aria-label="Assignments outside current rules" hidden></div>
+        </section>
 
-        <section class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
+        <section id="ai-rules-view" data-ai-view class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-queue-title">
             <header>
-                <div><span class="section-kicker">Independent AI review</span><h2 id="ai-queue-title">Issuance settings</h2></div>
+                <h2 id="ai-queue-title" tabindex="-1">Selection rules</h2>
                 <div class="ai-queue-actions">
-                    <p id="ai-queue-state">Loading settings…</p>
                     <button type="button" class="button secondary" id="ai-rule-stats-refresh">Refresh rule statistics</button>
-                    <button type="button" class="button secondary" id="ai-activity-refresh">Refresh activity</button>
                 </div>
             </header>
             <div class="ai-freshness">
                 <p id="ai-rule-stats-message" role="status" aria-live="polite">Loading rule statistics…</p>
-                <p id="ai-activity-message" role="status" aria-live="polite">Loading rule activity…</p>
             </div>
             <details class="ai-rule-help">
                 <summary>About rule statistics</summary>
@@ -54,16 +66,9 @@
                 <p>Awaiting results means the assignment deadline has not passed; it does not confirm the AI service is executing the task. Several rules may have outstanding assignments. Processing updates with activity; other statistics update separately.</p>
                 <p>Each rule must match all its conditions. Screenshots are issued oldest first within each rule. An earlier rule can fill the entire batch.</p>
             </details>
-            <section class="ai-route" aria-labelledby="ai-route-title">
-                <header><h3 id="ai-route-title">Assignment activity</h3><span class="ai-route-key">↳ Latest batch</span></header>
-                <p>Rules run in priority order. The pointer marks the last assignment batch; several rules can be awaiting results.</p>
-                <div id="ai-rule-route" class="ai-route-list" aria-label="Rule priority and activity"></div>
-                <p id="ai-rule-route-message">Loading activity…</p>
-            </section>
-            <div id="ai-other-assignments" class="ai-rule-activity" aria-label="Assignments outside current rules" hidden></div>
             <form id="ai-queue-form">
-                <label class="ai-inline-check"><input id="ai-queue-enabled" type="checkbox" aria-describedby="ai-queue-enabled-help"> Allow new AI assignments</label>
-                <p id="ai-queue-enabled-help" class="admin-form-help">Select Save AI settings to apply this checkbox and rule changes. Refresh only updates statistics. To pause or resume immediately, use the button in AI Operations.</p>
+                <input id="ai-queue-enabled" type="checkbox" hidden aria-label="Saved assignment setting">
+                <p class="admin-form-help">Rules run from top to bottom. Save changes to apply them to future assignments.</p>
                 <p id="ai-queue-dirty" data-ai-queue-dirty role="status" aria-live="polite" hidden></p>
                 <div id="ai-rules"></div>
                 <div class="ai-queue-actions">
@@ -112,7 +117,7 @@
                 </details>
             </template>
         </section>
-        <details id="ai-failures" class="rejected-export-panel ai-queue-panel">
+        <details id="ai-failures" data-ai-view class="rejected-export-panel ai-queue-panel">
             <summary>AI Failed · screenshot log</summary>
             <p>Current failed AI tasks, newest errors first. Operator rejects and AI mismatches are not failures. This shows the latest error per task, not a full event history.</p>
             <div class="ai-queue-actions">

@@ -180,6 +180,12 @@
 .admin-page .operator-table thead th { font-size: 0.75rem; text-transform: none; letter-spacing: 0; background: var(--ink-850); color: var(--text); }
 .admin-page .operator-identity strong { font-size: 0.875rem; overflow-wrap: anywhere; }
 .admin-page .number-cell { font-family: inherit; font-variant-numeric: tabular-nums; font-size: 0.875rem; }
+.ai-section-nav { display: flex; gap: 6px; border-bottom: 1px solid var(--line); margin-bottom: 20px; }
+.ai-section-nav a { padding: 12px 18px; min-height: 44px; color: var(--muted); text-decoration: none; border-bottom: 3px solid transparent; }
+.ai-section-nav a[aria-current="page"] { color: var(--text); border-bottom-color: var(--signal); font-weight: 650; }
+[data-ai-view][hidden] { display: none !important; }
+#ai-activity-view { display: grid; gap: 20px; }
+#ai-activity-view > .ai-route { margin: 0; }
 .admin-page .total-cell { font-size: 0.875rem; font-weight: 650; color: var(--text); }
 .admin-page .status-pill {
     padding: 3px 8px;

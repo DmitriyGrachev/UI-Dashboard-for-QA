@@ -88,6 +88,32 @@ if (typeof document !== 'undefined') {
     initializeAiFailures(document);
     const form = document.getElementById('ai-queue-form');
     if (form) initializeAiQueue(form, operations);
+    initializeAiSections(document);
+}
+
+function initializeAiSections(doc) {
+    const panels = Array.from(doc.querySelectorAll('[data-ai-view]'));
+    const links = Array.from(doc.querySelectorAll('[data-ai-section]'));
+    if (!panels.length) return;
+    const view = doc.defaultView;
+    function show() {
+        const requested = view.location.hash.slice(1);
+        const selected = panels.find(panel => panel.id === requested) || panels[0];
+        panels.forEach(panel => { panel.hidden = panel !== selected; });
+        if (selected.tagName === 'DETAILS') selected.open = true;
+        links.forEach(link => {
+            if (link.dataset.aiSection === selected.id) link.setAttribute('aria-current', 'page');
+            else link.removeAttribute('aria-current');
+        });
+    }
+    links.forEach(link => link.addEventListener('click', event => {
+        event.preventDefault();
+        const hash = '#' + link.dataset.aiSection;
+        if (view.location.hash !== hash) view.history.pushState(null, '', hash);
+        show();
+    }));
+    view.addEventListener('hashchange', show);
+    show();
 }
 
 function failureExplorerUrl(group = null) {
@@ -344,7 +370,10 @@ function initializeAiQueue(form, operations) {
                 button.append(rank, name, status);
                 button.addEventListener('click', () => {
                     const node = Array.from(rules.children).find(node => node.dataset.ruleId === rule.id);
-                    if (node) { node.open = true; node.querySelector('summary')?.focus(); }
+                    if (node) {
+                        byId('ai-rules-link')?.click();
+                        node.open = true; node.querySelector('summary')?.focus();
+                    }
                 });
                 route.append(button);
                 if (focusedRule === rule.id) button.focus({preventScroll: true});
@@ -871,5 +900,5 @@ function initializeAiQueue(form, operations) {
 
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {rulePayload, sortRules, ruleSummary, settingsSnapshot, initializeAiQueue, initializeAiOperations,
-        failureExplorerUrl, initializeAiFailures};
+        failureExplorerUrl, initializeAiFailures, initializeAiSections};
 }

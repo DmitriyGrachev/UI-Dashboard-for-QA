@@ -38,8 +38,7 @@ async (page) => {
         await p.goto('http://127.0.0.1:18992/admin/ai-queue');
         await p.locator('#ai-activity-message').filter({hasText: 'Activity updated'}).waitFor();
         check((await p.title()).startsWith('AI queue'), 'Wrong page');
-        check(await p.locator('[data-rule-cursor]:visible').count() === 1, 'Missing latest batch cursor');
-        check(await p.locator('[data-rule-active]:visible').count() === 2, 'Active assignments collapsed into one cursor');
+        check(await p.locator('#ai-rules-view').isHidden(), 'Rules should not crowd Activity');
         const first = p.locator('.ai-rule').first();
         const route = p.locator('#ai-rule-route');
         check(await route.locator('button').count() === 3, 'Priority route omitted a rule');
@@ -47,6 +46,8 @@ async (page) => {
         check((await route.locator('button').last().textContent()).includes('Disabled'), 'Disabled rule not explained');
         await route.locator('button').nth(1).focus(); await p.keyboard.press('Enter');
         check(await p.locator('.ai-rule').nth(1).evaluate(node => node.open && node.querySelector('summary') === document.activeElement), 'Keyboard route did not open and focus rule');
+        check(await p.locator('[data-rule-cursor]:visible').count() === 1, 'Missing latest batch cursor');
+        check(await p.locator('[data-rule-active]:visible').count() === 2, 'Active assignments collapsed into one cursor');
         check((await first.locator('[data-rule-outcome-label]').textContent()).includes('5,678 completed / 2 failed'), 'Outcomes differ from retained counts');
         check(await p.locator('.ai-rule').last().locator('[data-rule-outcomes]').isHidden(), 'Empty history displays a success bar');
         check((await first.locator('[data-rule-overdue]').textContent()) === 'Overdue: 2', 'Missing overdue badge');
@@ -79,6 +80,7 @@ async (page) => {
         check(activityCalls === activityBefore + 1, 'Hidden page kept polling');
         await p.evaluate(() => { Object.defineProperty(document, 'hidden', {value: false, configurable: true}); document.dispatchEvent(new Event('visibilitychange')); });
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
+        await p.locator('[data-ai-section="ai-activity-view"]').click();
         await route.locator('button').nth(1).focus();
         multipleLatest = true;
         await p.clock.fastForward(15000);
@@ -86,13 +88,17 @@ async (page) => {
         check(await route.locator('button').nth(1).evaluate(node => node === document.activeElement), 'Polling lost route keyboard focus');
         check(await route.locator('[data-latest="true"]').count() === 2, 'Batch spanning two rules lost a pointer');
         multipleLatest = false;
+        await p.locator('#ai-rules-link').click();
         await first.locator('[name="name"]').fill('Unsaved draft');
         check(await p.locator('[data-rule-cursor]:visible').count() === 0, 'Draft retained runtime cursor');
         check(await route.locator('button').count() === 0, 'Draft retained saved activity route');
+        await p.locator('[data-ai-section="ai-activity-view"]').click();
         await p.getByRole('button', {name: 'Refresh activity', exact: true}).click();
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
         check(await first.locator('[name="name"]').inputValue() === 'Unsaved draft', 'Polling discarded draft');
+        await p.locator('#ai-rules-link').click();
         await first.locator('[name="name"]').fill('Priority sessions');
+        await p.locator('[data-ai-section="ai-activity-view"]').click();
         await p.getByRole('button', {name: 'Refresh activity', exact: true}).focus();
         await p.keyboard.press('Enter');
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
@@ -103,7 +109,7 @@ async (page) => {
         check(await route.locator('button').count() === 0, 'Failure left stale activity route');
         unavailable = false;
         await p.getByRole('button', {name: 'Refresh activity', exact: true}).click();
-        await p.locator('[data-rule-cursor]:visible').waitFor();
+        await route.locator('[data-latest="true"]').waitFor();
         const beforeNavigation = activityCalls;
         await p.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide', {persisted: true})));
         await p.clock.fastForward(15000);
@@ -111,23 +117,23 @@ async (page) => {
         await p.evaluate(() => dispatchEvent(new PageTransitionEvent('pageshow', {persisted: true})));
         await p.waitForFunction(() => !document.querySelector('#ai-activity-refresh').disabled);
         check(activityCalls === beforeNavigation + 1, 'Back navigation did not resume activity');
+        await p.locator('#ai-rules-link').click();
         await first.getByRole('button', {name: 'Move rule down', exact: true}).click();
         check(await p.locator('.ai-rule').first().locator('[name="name"]').inputValue() === 'Default', 'Move down did not reorder the draft');
         check(settings.rules[0].name === 'Priority sessions', 'Moving a rule saved without explicit submission');
         await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'), p.locator('#ai-queue-save').click()]);
         await p.locator('#ai-queue-message').filter({hasText: 'Saved.'}).waitFor();
         check(settings.rules[0].name === 'Default', 'Save lost the new priority');
+        await p.locator('[data-ai-section="ai-activity-view"]').click();
         await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'), p.locator('#ai-queue-stop').click()]);
         await p.locator('#ai-operations-state').filter({hasText: 'Paused'}).waitFor();
         check(settings.enabled === false && settings.rules[0].name === 'Default', 'Pause changed saved rule order');
         check((await p.locator('#ai-rule-route-message').textContent()).includes('paused'), 'Paused queue presented as issuing new tasks');
         await p.getByRole('button', {name: 'Resume new assignments', exact: true}).waitFor();
         check(await p.locator('#ai-queue-toggle-message').isVisible(), 'Pause feedback is hidden from the action');
-        await p.locator('#ai-queue-enabled').check();
         await Promise.all([p.waitForResponse(r => r.url().endsWith('/operations')),
             p.locator('#ai-operations-refresh').click()]);
-        check(settings.enabled === false, 'Refresh saved the checkbox without explicit submission');
-        check(await p.locator('#ai-queue-enabled').isChecked(), 'Refresh discarded the draft checkbox');
+        check(settings.enabled === false, 'Refresh changed the assignment setting');
         await Promise.all([p.waitForResponse(r => r.request().method() === 'PUT'),
             p.getByRole('button', {name: 'Resume new assignments', exact: true}).click()]);
         await p.locator('#ai-operations-state').filter({hasText: 'Allowed'}).waitFor();

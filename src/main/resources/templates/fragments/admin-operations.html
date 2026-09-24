@@ -1,9 +1,8 @@
 <section th:fragment="snapshot(editable)" class="rejected-export-panel ai-queue-panel" aria-labelledby="ai-operations-title">
             <header>
                 <div><span class="section-kicker">Runtime snapshot</span><h2 id="ai-operations-title">AI Operations</h2></div>
-                <div class="ai-queue-actions"><a th:unless="${editable}" class="button secondary" th:href="@{/admin/ai-queue}">Manage AI rules</a><button th:if="${editable}" type="button" form="ai-queue-form" class="button secondary" id="ai-queue-stop" disabled>Pause new assignments</button><button class="button secondary" type="button" id="ai-operations-refresh">Refresh</button></div>
+                <div class="ai-queue-actions"><a th:unless="${editable}" class="button secondary" th:href="@{/admin/ai-queue}">Manage AI rules</a><button class="button secondary" type="button" id="ai-operations-refresh">Refresh</button></div>
             </header>
-            <p th:if="${editable}" id="ai-queue-toggle-message" role="status" aria-live="polite" hidden></p>
             <dl class="operator-technical ai-operations-grid">
                 <div><dt>New assignments</dt><dd id="ai-operations-state">Loading…</dd></div>
                 <div><dt>Work available</dt><dd id="ai-operations-eligible">—</dd></div>

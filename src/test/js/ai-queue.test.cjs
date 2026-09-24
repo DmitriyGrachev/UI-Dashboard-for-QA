@@ -191,6 +191,34 @@ function fakeQueueDom() {
     return {form, enabled, rules, save, stop, reload, document};
 }
 
+test('AI sections preserve drafts, follow deep links and open failures on demand', () => {
+    const {initializeAiSections} = require('../../main/resources/static/js/ai-queue.js');
+    const root = new FakeElement('main');
+    const view = {location: {hash: ''}, listeners: new Map(),
+        addEventListener(type, callback) { this.listeners.set(type, callback); }};
+    view.history = {pushState(_state, _title, hash) { view.location.hash = hash; }};
+    const doc = new FakeDocument(root, view);
+    const panels = ['ai-activity-view', 'ai-rules-view', 'ai-failures'].map(id => {
+        const panel = new FakeElement(id === 'ai-failures' ? 'details' : 'section', {id});
+        panel.dataset.aiView = ''; root.append(panel); return panel;
+    });
+    const links = panels.map(panel => {
+        const link = new FakeElement('a'); link.dataset.aiSection = panel.id; root.append(link); return link;
+    });
+    doc.register(root);
+    initializeAiSections(doc);
+    assert.deepEqual(panels.map(p => p.hidden), [false, true, true]);
+    links[1].dispatchEvent({type: 'click'});
+    assert.equal(view.location.hash, '#ai-rules-view');
+    assert.equal(links[1].attributes['aria-current'], 'page');
+    assert.deepEqual(panels.map(p => p.hidden), [true, false, true]);
+    view.location.hash = '#ai-failures'; view.listeners.get('hashchange')();
+    assert.equal(panels[2].open, true);
+    assert.deepEqual(panels.map(p => p.hidden), [true, true, false]);
+    view.location.hash = '#unknown'; view.listeners.get('hashchange')();
+    assert.equal(panels[0].hidden, false);
+});
+
 test('rules use server priority order', () => {
     const rules = [
         {id: 'b', priority: 2},
