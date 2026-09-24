@@ -96,6 +96,8 @@ async (page) => {
         await p.locator('.explorer-saved-filters > summary').click();
         await p.locator('#saved-filter-name').fill('Today');
         await p.locator('#save-filter').click();
+        await p.locator('#pin-filter').click();
+        check(await p.getByRole('button', {name:'Apply saved filter Today', exact:true}).count() === 1, 'Pinned filter is missing');
         const saved = await p.evaluate(() => JSON.parse(localStorage.getItem('recognition-validator.admin-saved-filters'))[0]);
         check(saved.relativeDate.preset === 'today' && !saved.query.includes('createdFrom'), 'Relative preset stored as fixed dates');
         await p.clock.setSystemTime(new Date('2026-10-01T00:01:00Z'));
@@ -110,6 +112,9 @@ async (page) => {
         await p.locator('#saved-filter-select').selectOption('0');
         await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
         check(await p.locator('#explorer-created-from').inputValue() === '2026-10-01T00:00', 'Saved today did not advance');
+        await p.getByRole('button', {name:'Apply saved filter Today', exact:true}).click();
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        check(await p.locator('#explorer-date-preset').inputValue() === 'today', 'Pinned filter lost its relative period');
         await p.locator('.explorer-period > summary').click();
         await p.locator('#explorer-created-from-date').fill('29.09.2026');
         check(await p.locator('#explorer-date-preset').inputValue() === '', 'Manual date edit kept relative mode');
@@ -137,6 +142,14 @@ async (page) => {
         await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
         check(await p.locator('.explorer-filter-popup[open]').count() === 0, 'Search did not close panels');
         check(requests.some(url => url.includes('confidenceFrom=0')), 'Search lost zero confidence');
+        const searchesBeforeChip = requests.filter(url => /screenshots\?/.test(url)).length;
+        await p.getByRole('button', {name:'Remove Confidence from: 0',exact:true}).click();
+        check(await p.locator('#explorer-confidence-from').inputValue() === '', 'Chip did not clear the form field');
+        check(requests.filter(url => /screenshots\?/.test(url)).length === searchesBeforeChip, 'Chip applied a search automatically');
+        check((await p.locator('#explorer-filter-status').textContent()).includes('not applied'), 'Draft chip removal looked applied');
+        await p.locator('#search-screenshots').click();
+        await p.waitForFunction(() => !document.querySelector('#search-screenshots').disabled);
+        check(!requests.filter(url => /screenshots\?/.test(url)).at(-1).includes('confidenceFrom='), 'Search kept removed condition');
         await p.locator('#explorer-zoom-in').click();
         const zoom = await p.locator('#explorer-zoom-value').innerText();
         await p.locator('#next-screenshot').click();

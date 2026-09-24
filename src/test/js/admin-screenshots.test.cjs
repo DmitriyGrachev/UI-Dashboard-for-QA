@@ -16,6 +16,15 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
+test('filter chips describe effective query conditions without losing false or zero', () => {
+    const {filterEntries} = require('../../main/resources/static/js/admin-screenshots.js');
+    assert.deepEqual(filterEntries({reviewState:'ALL', aiResult:'ALL', aiVerdict:'ALL'}), []);
+    assert.deepEqual(filterEntries({reviewState:'UNCHECKED', reviewedBy:'ignored', tokenId:0, notification:false}),
+        [['reviewState','UNCHECKED'],['tokenId','0'],['notification','false']]);
+    assert.deepEqual(filterEntries({issuedRuleMissing:true,aiErrorCode:'A&B'}),
+        [['aiErrorCode','A&B'],['issuedRuleMissing','true']]);
+});
+
 test('session links use only exact game and session, with safe encoding', () => {
     const {sessionExplorerUrl} = require('../../main/resources/static/js/admin-screenshots.js');
     assert.equal(sessionExplorerUrl({gameCode:'bj_igt', sessionId:'table A&B', imageId:'x', createdFrom:'old'}),

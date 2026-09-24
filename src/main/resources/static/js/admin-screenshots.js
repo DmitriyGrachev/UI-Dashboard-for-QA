@@ -59,6 +59,11 @@ function formatUtcDate(value) {
     }).format(new Date(value)) + " UTC";
 }
 
+function filterEntries(filters) {
+    return Array.from(buildSearchParams(filters)).filter(([key, value]) => key !== 'limit'
+        && !(['reviewState', 'aiResult', 'aiVerdict'].includes(key) && value === 'ALL'));
+}
+
 function csvExportUrl(filters) {
     const params = buildSearchParams(filters);
     params.delete('limit');
@@ -196,6 +201,7 @@ function filterStatus(liveFilters, appliedFilters, busy) {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
+        filterEntries,
         csvExportUrl,
         sessionExplorerUrl,
         copyShareLink,
@@ -411,17 +417,32 @@ if (typeof document !== "undefined") {
         byId('explorer-period-label').textContent = ({today: 'Today', yesterday: 'Yesterday', last24h: 'Last 24 hours'})[elements.datePreset.value]
             || (elements.createdFrom.value || elements.createdTo.value ? 'Custom dates' : 'All dates');
         if (elements.filterStatus.textContent === 'Filters applied.') {
-            const labels = {gameCode: 'Game', imageId: 'Image ID', sessionId: 'Session', tokenId: 'Token',
-                createdFrom: 'Created from', createdTo: 'Created to', reviewedFrom: 'Reviewed from',
-                reviewedTo: 'Reviewed to', decision: 'Decision', reviewState: 'Review', aiResult: 'AI result',
-                aiVerdict: 'AI verdict', aiTaskStatus: 'AI task status', issuedRuleId: 'Issuing rule',
-                issuedRuleMissing: 'No recorded rule', aiErrorMissing: 'Reason unavailable', aiErrorCode: 'AI error code',
-                confidenceFrom: 'Confidence from', confidenceTo: 'Confidence to'};
-            const conditions = Array.from(buildSearchParams(state.appliedFilters))
-                .filter(([key, value]) => key !== 'limit' && !(key === 'reviewState' && value === 'ALL'))
-                .map(([key, value]) => (labels[key] || key) + ': ' + value);
-            elements.filterStatus.textContent = conditions.join(' · ') || 'All screenshots';
+            elements.filterStatus.textContent = filterEntries(state.appliedFilters).length ? 'Filters applied.' : 'All screenshots';
         }
+        const labels = {gameCode:'Game',imageId:'Image ID',sessionId:'Session',tokenId:'Token',fileName:'File',
+            createdFrom:'Created from',createdTo:'Created to',reviewedFrom:'Reviewed from',reviewedTo:'Reviewed to',
+            decision:'Decision',reviewedBy:'Operator',reviewState:'Review',aiResult:'AI result',aiVerdict:'AI verdict',
+            aiTaskStatus:'AI status',issuedRuleId:'Rule',issuedRuleMissing:'No recorded rule',aiErrorMissing:'Reason unavailable',
+            aiErrorCode:'AI error',confidenceFrom:'Confidence from',confidenceTo:'Confidence to',storageState:'Storage',
+            parseStatus:'Parsing',notification:'Notification',hasUserHand:'User hand'};
+        const chips = byId('explorer-filter-chips');
+        chips.replaceChildren(...filterEntries(currentFilters()).map(([key, value]) => {
+            const chip = document.createElement('button'); chip.type = 'button'; chip.dataset.filterKey = key;
+            chip.disabled = busy;
+            const display = elements[key]?.selectedOptions?.[0]?.textContent || value;
+            const label = labels[key] + (['issuedRuleMissing','aiErrorMissing'].includes(key) ? '' : ': ' + display);
+            chip.textContent = label + ' ×'; chip.setAttribute('aria-label', 'Remove ' + label);
+            chip.addEventListener('click', () => {
+                const params = buildSearchParams(currentFilters()), period = elements.datePreset.value;
+                params.delete(key);
+                restoreFromUrl(params);
+                if (!/^(created|reviewed)(From|To)$/.test(key)) elements.datePreset.value = period;
+                updateSearchControls();
+                (chips.querySelector('button') || elements.searchButton).focus();
+            });
+            return chip;
+        }));
+        chips.hidden = chips.childElementCount === 0;
         for (const input of [elements.createdFrom, elements.createdTo]) {
             input.closest('[data-utc-boundary]').querySelectorAll('[aria-label]').forEach(control => {
                 control.setAttribute('aria-label', control.getAttribute('aria-label')
@@ -1170,6 +1191,7 @@ if (typeof document !== "undefined") {
     const savedSelect = byId("saved-filter-select");
     const savedName = byId("saved-filter-name");
     const savedMessage = byId("saved-filter-message");
+    const pinFilter = byId('pin-filter');
     const savedKey = "recognition-validator.admin-saved-filters";
     let savedFilters = [];
     try {
@@ -1179,6 +1201,15 @@ if (typeof document !== "undefined") {
     function renderSavedFilters() {
         savedSelect.replaceChildren(new Option("Choose saved filters…", ""));
         savedFilters.forEach((item, index) => savedSelect.add(new Option(item.name, String(index))));
+        pinFilter.disabled = true;
+        byId('pinned-filters').replaceChildren(...savedFilters.flatMap((item, index) => {
+            if (!item.pinned) return [];
+            const button = document.createElement('button'); button.type = 'button'; button.textContent = item.name;
+            button.setAttribute('aria-label', 'Apply saved filter ' + item.name);
+            button.addEventListener('click', () => { savedSelect.value = String(index); savedSelect.dispatchEvent(new Event('change')); });
+            return [button];
+        }));
+        byId('pinned-filters').hidden = !savedFilters.some(item => item.pinned);
     }
     function persistSavedFilters(next) {
         try {
@@ -1202,15 +1233,18 @@ if (typeof document !== "undefined") {
         const relativeDate = elements.datePreset.value
             ? {preset: elements.datePreset.value, field: elements.dateField.value} : null;
         if (relativeDate) for (const key of ["createdFrom", "createdTo", "reviewedFrom", "reviewedTo"]) params.delete(key);
-        next.push({name, query: params.toString(), ...(relativeDate ? {relativeDate} : {})});
-        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); savedMessage.textContent = relativeDate
+        next.push({name, query: params.toString(), pinned: savedFilters.find(item => item.name === name)?.pinned === true,
+            ...(relativeDate ? {relativeDate} : {})});
+        if (persistSavedFilters(next)) { savedSelect.value = String(next.length - 1); pinFilter.disabled = false; savedMessage.textContent = relativeDate
             ? "Saved in this browser. The period updates when applied or searched again."
             : "Saved in this browser. Dates are saved exactly as selected."; }
     });
     savedSelect.addEventListener("change", () => {
+        pinFilter.disabled = savedSelect.value === '';
         if (savedSelect.value === "") return;
         if (state.searching || state.loadingMore) { savedMessage.textContent = "Wait for the current search to finish, then select the filters."; savedSelect.value = ""; return; }
         const saved = savedFilters[Number(savedSelect.value)];
+        pinFilter.textContent = saved.pinned ? 'Unpin selected' : 'Pin selected';
         savedName.value = saved.name;
         try {
             restoreFromUrl(resolveSavedFilter(saved));
@@ -1219,6 +1253,15 @@ if (typeof document !== "undefined") {
         savedMessage.textContent = `Applied: ${saved.name}`;
         closeFilterPopups();
         search();
+    });
+    pinFilter.addEventListener('click', () => {
+        if (savedSelect.value === '') return;
+        const index = Number(savedSelect.value), pinned = !savedFilters[index].pinned;
+        if (persistSavedFilters(savedFilters.map((item, i) => i === index ? {...item, pinned} : item))) {
+            savedSelect.value = String(index); pinFilter.disabled = false;
+            pinFilter.textContent = pinned ? 'Unpin selected' : 'Pin selected';
+            savedMessage.textContent = pinned ? 'Pinned above the screenshot list.' : 'Removed from pinned filters.';
+        }
     });
     byId("delete-filter").addEventListener("click", () => {
         if (savedSelect.value === "") return;

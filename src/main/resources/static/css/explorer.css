@@ -148,3 +148,7 @@
 @media (forced-colors: active) {
     .admin-page.explorer-page .screenshot-result[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
 }
+.explorer-filter-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.explorer-filter-chips[hidden] { display: none; }
+.admin-page .explorer-filter-chips button { min-height: 32px; padding: 5px 9px; border: 1px solid var(--line); border-radius: 6px; font-size: .75rem; background: var(--ink-900); color: var(--text); overflow-wrap: anywhere; max-width: 100%; text-align: left; }
+#pinned-filters button { color: var(--signal); }
