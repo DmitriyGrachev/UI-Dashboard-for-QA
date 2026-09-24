@@ -25,6 +25,14 @@ test('filter chips describe effective query conditions without losing false or z
         [['aiErrorCode','A&B'],['issuedRuleMissing','true']]);
 });
 
+test('Explorer layout preferences bound widths and tolerate invalid stored data', () => {
+    const {normalizeExplorerLayout} = require('../../main/resources/static/js/admin-screenshots.js');
+    assert.deepEqual(normalizeExplorerLayout(null), {resultsVisible:true,detailsVisible:true,resultsWidth:234,detailsWidth:280});
+    assert.deepEqual(normalizeExplorerLayout({resultsVisible:false,resultsWidth:99999,detailsWidth:-1}),
+        {resultsVisible:false,detailsVisible:true,resultsWidth:340,detailsWidth:240});
+    assert.equal(normalizeExplorerLayout({resultsWidth:'invalid'}).resultsWidth, 234);
+});
+
 test('session links use only exact game and session, with safe encoding', () => {
     const {sessionExplorerUrl} = require('../../main/resources/static/js/admin-screenshots.js');
     assert.equal(sessionExplorerUrl({gameCode:'bj_igt', sessionId:'table A&B', imageId:'x', createdFrom:'old'}),

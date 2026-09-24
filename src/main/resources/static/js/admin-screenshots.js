@@ -64,6 +64,47 @@ function filterEntries(filters) {
         && !(['reviewState', 'aiResult', 'aiVerdict'].includes(key) && value === 'ALL'));
 }
 
+function normalizeExplorerLayout(value) {
+    const stored = value && typeof value === 'object' ? value : {};
+    const width = (key, fallback, min, max) => Number.isFinite(stored[key]) ? Math.max(min, Math.min(max, stored[key])) : fallback;
+    return {resultsVisible: stored.resultsVisible !== false, detailsVisible: stored.detailsVisible !== false,
+        resultsWidth: width('resultsWidth', 234, 200, 340), detailsWidth: width('detailsWidth', 280, 240, 400)};
+}
+
+function initializeExplorerLayout(doc) {
+    const workspace = doc.getElementById('explorer-workspace');
+    const controls = Array.from(doc.querySelectorAll('[data-pane-setting]'));
+    if (!workspace || !controls.length) return;
+    const key = 'recognition-validator.explorer-layout';
+    let preferences = normalizeExplorerLayout();
+    try { preferences = normalizeExplorerLayout(JSON.parse(doc.defaultView.localStorage.getItem(key))); } catch { /* Use defaults without storage. */ }
+    function apply(persist = false) {
+        preferences = normalizeExplorerLayout(preferences);
+        workspace.querySelector('.explorer-sidebar').hidden = !preferences.resultsVisible;
+        workspace.querySelector('.explorer-details').hidden = !preferences.detailsVisible;
+        workspace.dataset.resultsHidden = String(!preferences.resultsVisible);
+        workspace.dataset.detailsHidden = String(!preferences.detailsVisible);
+        workspace.style.setProperty('--results-width', preferences.resultsWidth + 'px');
+        workspace.style.setProperty('--details-width', preferences.detailsWidth + 'px');
+        controls.forEach(control => {
+            const value = preferences[control.dataset.paneSetting];
+            if (control.type === 'checkbox') control.checked = value;
+            else {
+                control.value = value;
+                doc.getElementById(control.id + '-value').textContent = value + ' px';
+            }
+        });
+        if (persist) try { doc.defaultView.localStorage.setItem(key, JSON.stringify(preferences)); }
+        catch { doc.getElementById('explorer-layout-message').textContent = 'Layout changed for this visit. Browser storage is unavailable.'; }
+    }
+    controls.forEach(control => control.addEventListener('input', () => {
+        preferences[control.dataset.paneSetting] = control.type === 'checkbox' ? control.checked : Number(control.value);
+        apply(true);
+    }));
+    doc.getElementById('reset-explorer-layout').addEventListener('click', () => { preferences = normalizeExplorerLayout(); apply(true); });
+    apply();
+}
+
 function csvExportUrl(filters) {
     const params = buildSearchParams(filters);
     params.delete('limit');
@@ -202,6 +243,7 @@ if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
         filterEntries,
+        normalizeExplorerLayout,
         csvExportUrl,
         sessionExplorerUrl,
         copyShareLink,
@@ -315,6 +357,7 @@ if (typeof document !== "undefined") {
     };
 
     if (!elements.form) return;
+    initializeExplorerLayout(document);
 
     const state = {
         items: [],

@@ -55,7 +55,24 @@
     <div class="explorer-content">
     <header class="explorer-heading">
         <div><h1>Screenshot explorer</h1><p>Search, inspect and export recognition captures.</p></div>
-        <button class="button secondary" id="download-screenshot-csv" type="button" aria-describedby="csv-export-help"><span aria-hidden="true">↓</span> Download CSV</button>
+        <div class="explorer-heading-actions">
+            <details class="explorer-filter-popup explorer-layout" name="explorer-filters">
+                <summary>Layout</summary>
+                <div class="explorer-filter-popover">
+                    <label><input type="checkbox" data-pane-setting="resultsVisible" checked> Show screenshot list</label>
+                    <label><input type="checkbox" data-pane-setting="detailsVisible" checked> Show details</label>
+                    <label class="results-width-control" for="explorer-results-width">List width <output id="explorer-results-width-value" for="explorer-results-width">234 px</output>
+                        <input id="explorer-results-width" data-pane-setting="resultsWidth" type="range" min="200" max="340" step="2" value="234">
+                    </label>
+                    <label class="details-width-control" for="explorer-details-width">Details width <output id="explorer-details-width-value" for="explorer-details-width">280 px</output>
+                        <input id="explorer-details-width" data-pane-setting="detailsWidth" type="range" min="240" max="400" step="2" value="280">
+                    </label>
+                    <button type="button" class="button secondary" id="reset-explorer-layout">Reset layout</button>
+                    <p id="explorer-layout-message">Remembered in this browser. Widths apply when panels are side by side.</p>
+                </div>
+            </details>
+            <button class="button secondary" id="download-screenshot-csv" type="button" aria-describedby="csv-export-help"><span aria-hidden="true">↓</span> Download CSV</button>
+        </div>
     </header>
     <section class="explorer-search" aria-label="Screenshot filters">
         <form id="screenshot-filter-form" class="explorer-filters" data-utc-date-range>
