@@ -63,7 +63,8 @@ class OperatorUiRenderingWebTest {
         String empty = mvc.perform(get("/statistics").with(user(operator))).andExpect(status().isOk())
                 .andReturn().getResponse().getContentAsString();
         fixture("statistics-empty.html", empty);
-        assertThat(empty).doesNotContain("NaN", "Infinity").contains("daily-zero-message", "Back to review");
+        assertThat(empty).doesNotContain("NaN", "Infinity", "daily-chart-frame")
+                .contains("No reviews in the last 7 days", "Back to review");
     }
 
     @Test

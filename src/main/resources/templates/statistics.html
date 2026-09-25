@@ -19,8 +19,7 @@
             <div>
                 <h1>Operator statistics</h1>
                 <p>
-                    <span th:text="${operatorName}">operator</span>
-                    · daily boundaries are calculated in UTC
+                    Your completed reviews. All dates and daily totals use UTC.
                 </p>
             </div>
             <a class="button primary" th:href="@{/review}">Back to review</a>
@@ -35,12 +34,12 @@
             <article class="metric-card">
                 <span>Last 7 days</span>
                 <strong th:text="${statistics.lastSevenDays()}">0</strong>
-                <small>rolling UTC week</small>
+                <small>today and the previous 6 days</small>
             </article>
             <article class="metric-card">
                 <span>All time</span>
                 <strong th:text="${statistics.allTime()}">0</strong>
-                <small>permanent total</small>
+                <small>all completed reviews</small>
             </article>
         </section>
 
@@ -48,19 +47,20 @@
             <header>
                 <div>
                     <h2 id="daily-performance-title">Reviews by day</h2>
+                    <p class="statistics-chart-caption">Last 7 days · your decisions</p>
                 </div>
                 <div class="chart-legend" aria-label="Chart legend">
                     <span class="matched-key">Matches</span>
                     <span class="not-matched-key">Does not match</span>
                 </div>
             </header>
-            <div class="daily-chart-frame">
+            <div class="daily-chart-frame" th:if="${statistics.maxDaily() > 0}">
                 <div class="daily-scale" aria-hidden="true">
                     <span th:text="${statistics.maxDaily()}">30</span>
-                    <span th:text="${(statistics.maxDaily() + 1) / 2}">15</span>
+                    <span th:text="${statistics.maxDaily() / 2.0}">15</span>
                     <span>0</span>
                 </div>
-                <div class="daily-chart" th:classappend="${statistics.maxDaily() == 0} ? ' is-empty'">
+                <div class="daily-chart">
                     <article class="daily-bar" th:each="day : ${statistics.daily()}">
                         <div class="daily-bar-plot">
                             <div class="daily-bar-stack" role="img"
@@ -79,11 +79,12 @@
                 </div>
             </div>
             <p class="daily-zero-message" th:if="${statistics.maxDaily() == 0}">
-                Completed reviews will appear here as daily columns.
+                <strong>No reviews in the last 7 days</strong>
+                Your completed reviews will appear here. Return to the review desk to start.
             </p>
             <details class="daily-data">
                 <summary>View daily values</summary>
-                <table>
+                <div class="daily-table-scroll" role="region" aria-label="Daily review values" tabindex="0"><table>
                     <caption>Reviews in the last seven days (UTC)</caption>
                     <thead><tr><th scope="col">Date</th><th scope="col">Matches</th><th scope="col">Does not match</th><th scope="col">Total</th></tr></thead>
                     <tbody><tr th:each="day : ${statistics.daily()}">
@@ -92,17 +93,17 @@
                         <td th:text="${day.notMatched()}"></td>
                         <td th:text="${day.total()}"></td>
                     </tr></tbody>
-                </table>
+                </table></div>
             </details>
         </section>
 
         <section class="decision-totals" aria-label="Decisions in the last seven days">
             <article>
-                <span>Matches</span>
+                <span><b>Matches</b><small>Last 7 days</small></span>
                 <strong th:text="${statistics.matched()}">0</strong>
             </article>
             <article>
-                <span>Does not match</span>
+                <span><b>Does not match</b><small>Last 7 days</small></span>
                 <strong th:text="${statistics.notMatched()}">0</strong>
             </article>
         </section>
