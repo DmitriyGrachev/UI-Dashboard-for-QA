@@ -15,7 +15,8 @@ public class ReviewPageController {
     }
 
     @GetMapping("/review")
-    String review(Model model) {
+    String review(Model model, java.security.Principal principal) {
+        model.addAttribute("operatorName", principal.getName());
         model.addAttribute("games", properties.games());
         model.addAttribute(
                 "countRemainingScreenshots",

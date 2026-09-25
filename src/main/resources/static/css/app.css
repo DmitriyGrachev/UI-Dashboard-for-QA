@@ -3363,3 +3363,47 @@ span.flatpickr-weekday {
     .statistics-main .metric-grid { grid-template-columns: 1fr; }
     .daily-data { overflow-x: auto; }
 }
+
+/* Shared product palette for administrator and operator workspaces. */
+:is(.admin-page.admin-workspace, .operator-page) {
+    --ink-950: #101721;
+    --ink-900: #19232f;
+    --ink-850: #223040;
+    --ink-800: #2b3d50;
+    --text: #eef4f8;
+    --muted: #a8bacb;
+    --line: #304052;
+    --line-strong: #698294;
+    --signal: #69dfc2;
+    --focus: #8df5dc;
+    --accept: #69dfc2;
+    --reject: #ff929f;
+    --primary-background: #69dfc2;
+    --primary-hover: #8cebd4;
+    --primary-text: #08251e;
+    --stage-background: #070f16;
+    --admin-selected: #123e38;
+    --admin-rail: 204px;
+    --admin-panel-shadow: 0 3px 14px rgba(0, 0, 0, .09);
+    background: var(--ink-950);
+}
+:root[data-theme="light"] :is(.admin-page.admin-workspace, .operator-page) {
+    --ink-950: #f4f7f9;
+    --ink-900: #ffffff;
+    --ink-850: #eaf1f4;
+    --ink-800: #dce7ed;
+    --text: #172d3b;
+    --muted: #506675;
+    --line: #d9e3e9;
+    --line-strong: #758b98;
+    --signal: #086a56;
+    --focus: #086a56;
+    --accept: #086a56;
+    --reject: #af2844;
+    --primary-background: #086a56;
+    --primary-hover: #075542;
+    --primary-text: #ffffff;
+    --stage-background: #e3ecf0;
+    --admin-selected: #daf1e9;
+    --admin-panel-shadow: 0 3px 16px rgba(31, 50, 68, .045);
+}

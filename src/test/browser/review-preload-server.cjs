@@ -22,11 +22,12 @@ const remote = http.createServer((req, res) => {
 });
 const app = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://127.0.0.1:18992");
-    if (["/review", "/admin", "/admin/overview", "/admin/rejects", "/admin/ai-queue", "/admin/screenshots"].includes(url.pathname)) {
+    if (["/review", "/statistics", "/admin", "/admin/overview", "/admin/rejects", "/admin/ai-queue", "/admin/screenshots"].includes(url.pathname)) {
         held.forEach(release => release()); held = [];
         scenario = url.searchParams.get("case") || "match"; counts = {}; decisions = 0; claims = [];
         const template = url.pathname === '/admin/overview'
             ? (url.searchParams.get('case') === 'empty' ? 'admin-overview-empty.html' : url.searchParams.get('days') === '30' ? 'admin-overview-30.html' : 'admin-overview.html')
+            : url.pathname === '/statistics' ? (scenario === 'empty' ? 'statistics-empty.html' : 'statistics.html')
             : ({'/review': 'review.html', '/admin': 'admin.html', '/admin/rejects': 'admin-rejects.html',
             '/admin/screenshots': 'admin-screenshots.html', '/admin/ai-queue': 'admin-ai-queue.html'})[url.pathname];
         const rendered = path.resolve(__dirname, '../../../target/browser-fixtures', template);
@@ -52,7 +53,7 @@ const app = http.createServer(async (req, res) => {
                 html = html.replace(/<script[^>]*src="[^"]*flatpickr[^"]*"[^>]*><\/script>/g, "")
                     .replace(/<link[^>]*flatpickr[^>]*>/g, "");
             }
-        } else html = html.replace(/<script[^>]*src="[^"]*(flatpickr|time-segment-combobox|utc-datetime-picker)[^"]*"[^>]*><\/script>/g, "")
+        } else if (!fs.existsSync(rendered)) html = html.replace(/<script[^>]*src="[^"]*(flatpickr|time-segment-combobox|utc-datetime-picker)[^"]*"[^>]*><\/script>/g, "")
             .replace(/<link[^>]*flatpickr[^>]*>/g, "")
             .replace("</head>", '<script>window.UtcDateTimePicker={createRange:()=>({clear(){}})};</script></head>');
         res.writeHead(200, {"Content-Type": "text/html"}); res.end(html); return;

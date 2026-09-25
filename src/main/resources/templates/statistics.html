@@ -7,30 +7,14 @@
     <title>My statistics — Recognition Validator</title>
     <script th:src="@{/js/theme.js}"></script>
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/operator.css}">
 </head>
-<body>
+<body class="operator-page">
+<a class="operator-skip-link" href="#statistics-content">Skip to statistics</a>
 <div class="app-shell statistics-shell">
-    <header class="topbar">
-        <a class="brand" th:href="@{/review}" aria-label="Recognition Validator">
-            <span class="brand-mark" aria-hidden="true">RV</span>
-            <span>
-                <strong>Recognition Validator</strong>
-            </span>
-        </a>
-        <nav class="topbar-actions" aria-label="Navigation">
-            <button class="theme-toggle" type="button" data-theme-toggle
-                    aria-label="Switch to light theme" title="Switch to light theme">
-                <span aria-hidden="true" data-theme-icon>☀</span>
-                <span data-theme-label>Light</span>
-            </button>
-            <a th:href="@{/review}">Back to review</a>
-            <form method="post" th:action="@{/logout}">
-                <button class="link-button" type="submit">Sign out</button>
-            </form>
-        </nav>
-    </header>
+    <header th:replace="~{fragments/operator-navigation :: topbar('statistics')}"></header>
 
-    <main class="statistics-main">
+    <main class="statistics-main" id="statistics-content" tabindex="-1">
         <section class="statistics-heading">
             <div>
                 <h1>Operator statistics</h1>
@@ -39,7 +23,7 @@
                     · daily boundaries are calculated in UTC
                 </p>
             </div>
-            <p class="statistics-period">Last 7 days · UTC</p>
+            <a class="button primary" th:href="@{/review}">Back to review</a>
         </section>
 
         <section class="metric-grid statistics-kpis" aria-label="Review totals">

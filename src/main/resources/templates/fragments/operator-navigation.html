@@ -1,0 +1,22 @@
+<header class="topbar operator-topbar" th:fragment="topbar(active)">
+    <a class="brand" th:href="@{/review}" aria-label="Recognition Validator">
+        <span th:replace="~{fragments/admin-navigation :: brandMark}"></span>
+        <span><strong>Recognition Validator</strong>
+            <small class="operator-demo-label" th:if="${@environment.getProperty('validator.ui-demo', 'false') == 'true'}">Local demo · synthetic data</small>
+        </span>
+    </a>
+    <nav class="operator-navigation" aria-label="Operator navigation">
+        <a th:href="@{/review}" th:attr="aria-current=${active == 'review'} ? 'page' : null">Review desk</a>
+        <a th:href="@{/statistics}" th:attr="aria-current=${active == 'statistics'} ? 'page' : null">My statistics</a>
+    </nav>
+    <div class="topbar-actions">
+        <button th:if="${active == 'review'}" class="topbar-help" id="faq-open" type="button" aria-haspopup="dialog" aria-controls="faq-dialog">Help</button>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-label="Switch to light theme" title="Switch to light theme">
+            <span aria-hidden="true" data-theme-icon>☀</span><span data-theme-label>Light</span>
+        </button>
+        <span class="operator-account"><span class="operator-avatar" aria-hidden="true" th:text="${#strings.substring(operatorName, 0, 1).toUpperCase()}">O</span>
+            <span><strong th:text="${operatorName}">Operator</strong><small>Operator</small></span>
+        </span>
+        <form method="post" th:action="@{/logout}"><button class="link-button" type="submit">Sign out</button></form>
+    </div>
+</header>

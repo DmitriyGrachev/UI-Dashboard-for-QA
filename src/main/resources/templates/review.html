@@ -6,11 +6,12 @@
     <link rel="icon" href="data:,">
     <meta name="_csrf" th:content="${_csrf.token}">
     <meta name="_csrf_header" th:content="${_csrf.headerName}">
-    <title>Recognition Validator</title>
+    <title>Review desk — Recognition Validator</title>
     <script th:src="@{/js/theme.js}"></script>
     <link rel="stylesheet"
           th:href="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.css}">
     <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/operator.css}">
     <script defer
             th:src="@{/webjars/flatpickr/4.6.13/dist/flatpickr.min.js}"></script>
     <script defer th:src="@{/js/time-segment-combobox.js}"></script>
@@ -19,34 +20,13 @@
     <script defer th:src="@{/js/recognized-cards.js}"></script>
     <script defer th:src="@{/js/review.js}"></script>
 </head>
-<body>
+<body class="operator-page">
+<a class="operator-skip-link" href="#review-content">Skip to review</a>
 <div class="app-shell review-shell">
-    <header class="topbar review-topbar">
-        <a class="brand" th:href="@{/review}" aria-label="Recognition Validator">
-            <span class="brand-mark" aria-hidden="true">RV</span>
-            <span>
-                <strong>Recognition Validator</strong>
-            </span>
-        </a>
-        <nav class="topbar-actions" aria-label="Navigation">
-            <button class="topbar-help" id="faq-open" type="button"
-                    aria-haspopup="dialog" aria-controls="faq-dialog">
-                Help
-            </button>
-            <button class="theme-toggle" type="button" data-theme-toggle
-                    aria-label="Switch to light theme" title="Switch to light theme">
-                <span aria-hidden="true" data-theme-icon>☀</span>
-                <span data-theme-label>Light</span>
-            </button>
-            <a th:href="@{/statistics}">My statistics</a>
-            <form method="post" th:action="@{/logout}">
-                <button class="link-button" type="submit">Sign out</button>
-            </form>
-        </nav>
-    </header>
+    <header th:replace="~{fragments/operator-navigation :: topbar('review')}"></header>
 
     <div class="review-toolbar" aria-label="Review queue controls">
-        <h1>Review</h1>
+        <h1>Review desk</h1>
                 <button class="filter-toggle" id="filter-toggle" type="button"
                         aria-expanded="false" aria-controls="review-filters"
                         title="Show filters">
@@ -60,7 +40,7 @@
         </span>
     </div>
 
-    <main class="review-workspace" data-filters-collapsed="true">
+    <main id="review-content" tabindex="-1" class="review-workspace" data-filters-collapsed="true">
         <aside class="filter-sidebar" id="review-filters" aria-labelledby="filter-title" hidden>
             <div class="filter-sidebar-header">
                 <div class="filter-sidebar-heading">
@@ -298,7 +278,9 @@
                 <div><span>Available actions</span><strong id="flags-value">—</strong></div>
             </section>
 
-            <section id="ai-result-details" class="ai-review-card" aria-label="AI review"><div class="ai-card-header"><strong>AI review</strong><span class="ai-status neutral">Not checked</span></div></section>
+            <details class="review-ai-disclosure"><summary>AI review <span>Optional guidance</span></summary>
+                <section id="ai-result-details" class="ai-review-card" aria-label="AI review"><div class="ai-card-header"><strong>AI review</strong><span class="ai-status neutral">Not checked</span></div></section>
+            </details>
             <details class="technical-disclosure">
                 <summary>Technical details</summary>
                 <dl class="metadata-list">
