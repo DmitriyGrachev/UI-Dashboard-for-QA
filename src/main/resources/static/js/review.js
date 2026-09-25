@@ -237,6 +237,9 @@ if (typeof document !== "undefined") {
         queueOldestDate: document.getElementById("queue-oldest-date"),
         queueNewestDate: document.getElementById("queue-newest-date"),
         gameSummary: document.getElementById("game-summary"),
+        captureSummary: document.getElementById("capture-summary"),
+        filterSummary: document.getElementById("review-filter-summary"),
+        recognitionWarning: document.getElementById("recognition-warning"),
         fileName: document.getElementById("file-name"),
         stage: document.getElementById("image-stage"),
         image: document.getElementById("review-image"),
@@ -368,6 +371,16 @@ if (typeof document !== "undefined") {
             "aria-label",
             `${isFiltersCollapsed() ? "Show" : "Hide"} filters${suffix}`
         );
+        const labels = {createdFrom: 'From', createdTo: 'To', tokenId: 'Token', sessionId: 'Session',
+            gameCode: 'Game', notification: 'Notification', hasUserHand: 'User hand', aiResult: 'AI result',
+            aiVerdict: 'AI verdict', confidenceFrom: 'Confidence from', confidenceTo: 'Confidence to'};
+        const summary = Object.entries(filterInputValues()).filter(([, value]) => value !== '').map(([key, value]) => {
+            const text = key.startsWith('created') ? formatUtcDate(toUtcIso(value))
+                : elements[key].selectedOptions?.[0]?.textContent || value;
+            return `${labels[key]}: ${text}${key.startsWith('confidence') ? '%' : ''}`;
+        }).join(' · ') || 'Entire queue · no filters';
+        elements.filterSummary.textContent = summary;
+        elements.filterSummary.title = summary;
     }
 
     function isFiltersCollapsed() {
@@ -601,6 +614,8 @@ if (typeof document !== "undefined") {
         elements.stage.classList.remove("dragging");
         elements.fileName.textContent = item.fileName;
         setText(elements.gameSummary, item.gameCode);
+        elements.captureSummary.textContent = formatUtcDate(item.fileCreatedAt) || '';
+        elements.captureSummary.hidden = !item.fileCreatedAt;
         setText(elements.game, item.gameCode);
         setText(elements.session, item.sessionId);
         setText(elements.created, formatUtcDate(item.fileCreatedAt));
@@ -714,6 +729,9 @@ if (typeof document !== "undefined") {
             elements.parseStatus
         ].forEach(element => setText(element, null));
         elements.parseStatus.classList.remove("warning-value");
+        elements.recognitionWarning.hidden = true;
+        elements.captureSummary.hidden = true;
+        elements.captureSummary.textContent = '';
     }
 
     function setText(element, value) {
@@ -730,6 +748,7 @@ if (typeof document !== "undefined") {
             "warning-value",
             value != null && value !== "" && value !== "SUCCESS"
         );
+        elements.recognitionWarning.hidden = !value || value === 'SUCCESS';
     }
 
     function actionFlags(item) {
@@ -755,6 +774,7 @@ if (typeof document !== "undefined") {
         const disabled = reviewActionsDisabled(state);
         elements.accept.disabled = disabled;
         elements.reject.disabled = disabled;
+        elements.stage.setAttribute('aria-busy', String(state.busy || Boolean(state.item && !state.imageReady && elements.retry.hidden)));
     }
 
     function zoom(delta) {
@@ -855,6 +875,7 @@ if (typeof document !== "undefined") {
 
     elements.filterToggle.addEventListener("click", () => {
         setFiltersCollapsed(!isFiltersCollapsed());
+        if (!isFiltersCollapsed()) document.getElementById('filter-close').focus();
     });
     document.getElementById('filter-close').addEventListener('click', () => {
         setFiltersCollapsed(true);

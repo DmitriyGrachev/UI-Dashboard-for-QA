@@ -34,6 +34,7 @@
                     <span class="filter-toggle-label" data-filter-toggle-label>Filters</span>
                     <span class="active-filter-count" id="active-filter-count" hidden>0</span>
                 </button>
+        <p class="review-filter-summary" id="review-filter-summary">Entire queue · no filters</p>
         <span class="review-remaining" th:if="${countRemainingScreenshots}" title="Matching screenshots still to review, including assignments held by all operators">
             <output id="remaining-count">—</output> left to review
             <small id="remaining-status">Counting…</small>
@@ -221,6 +222,7 @@
                 <div class="viewer-caption">
                     <span class="section-kicker">Screenshot</span>
                     <strong id="game-summary">Waiting for assignment</strong>
+                    <small id="capture-summary" hidden></small>
                 </div>
                 <div class="viewer-tools" aria-label="Image zoom">
                     <button type="button" id="zoom-out" aria-label="Zoom out">−</button>
@@ -247,6 +249,7 @@
                 <p>Compare with the screenshot</p>
             </div>
 
+            <p id="recognition-warning" class="recognition-warning" role="status" hidden>Recognition may be incomplete. Check the screenshot carefully.</p>
             <dl class="primary-context">
                 <div>
                     <dt>Game</dt>
