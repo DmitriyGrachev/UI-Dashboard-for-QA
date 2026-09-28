@@ -574,6 +574,11 @@
 .admin-page.admin-workspace .brand { gap: 12px; }
 .admin-page.admin-workspace .brand-mark { width: 34px; height: 34px; padding: 7px; background: var(--admin-selected); color: var(--signal); border: 0; }
 .admin-workspace .brand-mark svg { width: 100%; height: 100%; }
+.admin-brand-group { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.admin-sidebar-toggle { display: inline-grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 7px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--ink-900); color: var(--muted); cursor: pointer; }
+.admin-sidebar-toggle:hover { color: var(--signal); border-color: var(--signal); }
+.admin-sidebar-toggle svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.5; }
+.admin-page.admin-workspace[data-navigation-collapsed="true"] .app-shell { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
 .admin-page.admin-workspace .signed-in-user { display: flex; align-items: center; gap: 10px; color: var(--text); border-left: 1px solid var(--line); padding-left: 20px; }
 .admin-workspace .account-avatar { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; background: var(--admin-selected); color: var(--signal); font-weight: 650; }
 .admin-workspace .account-name { display: grid; gap: 3px; }

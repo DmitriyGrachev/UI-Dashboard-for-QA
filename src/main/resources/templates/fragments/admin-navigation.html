@@ -17,6 +17,12 @@
 </nav>
 
     <header class="topbar" th:fragment="topbar">
+        <script defer th:src="@{/js/admin-navigation.js}"></script>
+        <div class="admin-brand-group">
+        <button id="admin-sidebar-toggle" class="admin-sidebar-toggle" type="button" hidden
+                aria-controls="admin-sidebar" aria-expanded="true" aria-label="Hide navigation" title="Hide navigation">
+            <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M9 4v16m4-11h4m-4 4h4"/></svg>
+        </button>
         <a class="brand" th:href="@{/admin/overview}" aria-label="Recognition Validator admin">
             <span class="brand-mark" aria-hidden="true" th:fragment="brandMark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 3H4a1 1 0 0 0-1 1v5m12-6h5a1 1 0 0 1 1 1v5M3 15v5a1 1 0 0 0 1 1h5m6 0h5a1 1 0 0 0 1-1v-5M7 12l3 3 7-7"/></svg></span>
             <span>
@@ -24,6 +30,7 @@
                 <small class="admin-demo-label" th:if="${@environment.getProperty('validator.ui-demo', 'false') == 'true'}">Local demo · synthetic data</small>
             </span>
         </a>
+        </div>
         <nav class="topbar-actions" aria-label="Account actions">
             <button class="theme-toggle" type="button" data-theme-toggle
                     aria-label="Switch to light theme" title="Switch to light theme">

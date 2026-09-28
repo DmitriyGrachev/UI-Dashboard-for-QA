@@ -20,7 +20,7 @@
 <a class="admin-skip-link" href="#admin-content">Skip to content</a>
 <div class="app-shell admin-shell">
     <header th:replace="~{fragments/admin-navigation :: topbar}"></header>
-    <aside class="admin-sidebar" aria-label="Administration">
+    <aside class="admin-sidebar" id="admin-sidebar" aria-label="Administration">
         <p class="admin-nav-label">Administration</p>
         <nav th:replace="~{fragments/admin-navigation :: navigation('rejects')}"></nav>
     </aside>
