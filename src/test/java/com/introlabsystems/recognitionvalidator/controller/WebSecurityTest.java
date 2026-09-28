@@ -969,9 +969,8 @@ class WebSecurityTest extends AbstractWebIntegrationTest {
                 .andExpect(content().string(containsString(
                         "<div class=\"app-shell review-shell\""
                 )))
-                .andExpect(content().string(containsString(
-                        "<main class=\"review-workspace\""
-                )))
+                .andExpect(result -> assertThat(result.getResponse().getContentAsString())
+                        .containsPattern("<main\\b[^>]*\\bclass=\"review-workspace\""))
                 .andExpect(content().string(containsString(
                         "<aside class=\"filter-sidebar\""
                 )))
