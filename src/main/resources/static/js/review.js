@@ -239,7 +239,7 @@ if (typeof document !== "undefined") {
         gameSummary: document.getElementById("game-summary"),
         captureSummary: document.getElementById("capture-summary"),
         filterSummary: document.getElementById("review-filter-summary"),
-        recognitionWarning: document.getElementById("recognition-warning"),
+        aiWarning: document.getElementById("review-ai-warning"),
         fileName: document.getElementById("file-name"),
         stage: document.getElementById("image-stage"),
         image: document.getElementById("review-image"),
@@ -266,8 +266,7 @@ if (typeof document !== "undefined") {
         inactiveCards: document.getElementById("inactive-cards"),
         notificationValue: document.getElementById("notification-value"),
         buttons: document.getElementById("buttons-value"),
-        flags: document.getElementById("flags-value"),
-        parseStatus: document.getElementById("parse-value")
+        flags: document.getElementById("flags-value")
     };
     const remainingCountEnabled = elements.remainingCount !== null;
     const filtersCollapsedKey = "recognition-validator.filters-collapsed";
@@ -603,6 +602,8 @@ if (typeof document !== "undefined") {
         const version = ++state.imageVersion;
         state.nextHint = hint;
         renderAiResult(elements.aiDetails, item.ai);
+        elements.aiWarning.hidden = item.ai?.status !== 'COMPLETED' || item.ai.verdict === 'MATCH';
+        elements.aiWarning.textContent = elements.aiWarning.hidden ? '' : `AI: ${aiPresentation(item.ai).label} · View AI review`;
         clearTimeout(state.imageRetryTimer);
         state.item = item;
         state.imageReady = false;
@@ -629,7 +630,6 @@ if (typeof document !== "undefined") {
         setText(elements.notificationValue, item.notification ? "Yes" : "No");
         setText(elements.buttons, item.notification ? null : item.buttonsRaw);
         setText(elements.flags, actionFlags(item));
-        setParseStatus(item.parseStatus);
         elements.viewerMessage.hidden = false;
         elements.viewerMessage.textContent = "Loading screenshot…";
         elements.retry.hidden = true;
@@ -725,11 +725,10 @@ if (typeof document !== "undefined") {
             elements.inactiveCards,
             elements.notificationValue,
             elements.buttons,
-            elements.flags,
-            elements.parseStatus
+            elements.flags
         ].forEach(element => setText(element, null));
-        elements.parseStatus.classList.remove("warning-value");
-        elements.recognitionWarning.hidden = true;
+        elements.aiWarning.hidden = true;
+        elements.aiWarning.textContent = '';
         elements.captureSummary.hidden = true;
         elements.captureSummary.textContent = '';
     }
@@ -740,15 +739,6 @@ if (typeof document !== "undefined") {
             return;
         }
         element.textContent = value == null || value === "" ? "—" : value;
-    }
-
-    function setParseStatus(value) {
-        setText(elements.parseStatus, value);
-        elements.parseStatus.classList.toggle(
-            "warning-value",
-            value != null && value !== "" && value !== "SUCCESS"
-        );
-        elements.recognitionWarning.hidden = !value || value === 'SUCCESS';
     }
 
     function actionFlags(item) {
@@ -886,6 +876,11 @@ if (typeof document !== "undefined") {
         if (!elements.faqDialog.open) {
             elements.faqDialog.showModal();
         }
+    });
+    elements.aiWarning.addEventListener('click', () => {
+        const disclosure = elements.aiDetails.closest('details');
+        disclosure.open = true;
+        disclosure.querySelector('summary').focus();
     });
     elements.faqClose.addEventListener("click", () => elements.faqDialog.close());
     elements.faqDialog.addEventListener("click", event => {

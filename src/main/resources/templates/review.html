@@ -249,7 +249,7 @@
                 <p>Compare with the screenshot</p>
             </div>
 
-            <p id="recognition-warning" class="recognition-warning" role="status" hidden>Recognition may be incomplete. Check the screenshot carefully.</p>
+            <button id="review-ai-warning" class="review-ai-warning" type="button" aria-controls="ai-result-details" hidden></button>
             <dl class="primary-context">
                 <div>
                     <dt>Game</dt>
@@ -310,10 +310,6 @@
                     <div>
                         <dt>Raw buttons</dt>
                         <dd id="buttons-value" class="mono">—</dd>
-                    </div>
-                    <div>
-                        <dt>Parse status</dt>
-                        <dd id="parse-value">—</dd>
                     </div>
                 </dl>
             </details>
@@ -378,10 +374,8 @@
                     </dl>
                 </section>
                 <section>
-                    <h3>Parse status and assignment</h3>
-                    <p><strong>SUCCESS</strong> means the supported filename was parsed.
-                        <strong>PARTIAL</strong> means some metadata is incomplete and needs
-                        extra attention. A screenshot is reserved for one operator for up to
+                    <h3>Assignment</h3>
+                    <p>A screenshot is reserved for one operator for up to
                         30 minutes; if that assignment expires, the page loads another item.</p>
                 </section>
             </div>

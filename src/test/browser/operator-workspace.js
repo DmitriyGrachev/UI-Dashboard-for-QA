@@ -20,7 +20,7 @@ async (page) => {
         const counts = async () => (await p.request.get(base + '/fixture/counts')).json();
         await p.goto(base + '/review');
         await ready();
-        check(await p.locator('#recognition-warning').isVisible(), 'Partial recognition warning is hidden');
+        check(await p.locator('#recognition-warning, #parse-value').count() === 0, 'Parse status still distracts from review');
         check((await p.locator('#capture-summary').innerText()).includes('UTC'), 'Capture time has no timezone');
         check(await p.locator('#image-stage').getAttribute('aria-busy') === 'false', 'Ready image remains busy');
         check(!await p.locator('.review-ai-disclosure').getAttribute('open'), 'AI guidance takes over the desk');
@@ -56,7 +56,7 @@ async (page) => {
         await p.waitForFunction(() => document.querySelector('#file-name').textContent === '2.png');
         await ready();
         check((await counts()).decisions === 1, 'Decision shortcut was not saved');
-        check(!await p.locator('#recognition-warning').isVisible(), 'Old parse warning leaked into the next task');
+        check(!await p.locator('#review-ai-warning').isVisible(), 'AI warning leaked into an unchecked task');
         check(!await p.locator('#capture-summary').isVisible(), 'Old capture time leaked into the next task');
         check(await p.locator('.review-ai-disclosure').getAttribute('open') !== null, 'AI guidance preference reset between tasks');
         await p.locator('#filter-toggle').click();
@@ -64,7 +64,39 @@ async (page) => {
         await ready();
         check(await p.locator('#review-filter-summary').innerText() === 'Entire queue · no filters', 'Reset left stale filter context');
         await p.locator('#filter-close').click();
-        results.push('Review filters, image controls, keyboard, optional AI and parse warnings');
+        for (const verdict of ['MATCH', 'MISMATCH', 'LOW_CONFIDENCE', 'HAND_COUNT_MISMATCH', 'NO_HANDS_FOUND']) {
+            await p.route('**/api/review-tasks/claim', route => route.fulfill({json: {item: {
+                imageId: '1', imageUrl: '/api/images/1/content', parseStatus: 'PARTIAL',
+                ai: {status: 'COMPLETED', verdict, valid: verdict === 'MATCH', confidence: 80}
+            }}}));
+            await p.reload();
+            await ready();
+            check(await p.locator('#review-ai-warning').isVisible() === (verdict !== 'MATCH'), 'Incorrect AI attention state for ' + verdict);
+            if (verdict !== 'MATCH') {
+                await p.locator('#review-ai-warning').click();
+                check(await p.locator('.review-ai-disclosure').getAttribute('open') !== null, 'AI warning does not open details');
+                check((await p.locator('#ai-result-details .ai-status').innerText()) !== 'Matches', 'Wrong verdict in AI details');
+            }
+            if (verdict === 'NO_HANDS_FOUND') {
+                await p.route('**/api/review-tasks/1/decision', route => route.fulfill({json: {item: null}}));
+                await p.locator('#accept-button').click();
+                await p.getByText('No screenshots are available for these filters.').waitFor();
+                check(!await p.locator('#review-ai-warning').isVisible(), 'AI warning remained on an empty queue');
+                check(await p.locator('#accept-button').isDisabled(), 'Empty queue allows decisions');
+                await p.unroute('**/api/review-tasks/1/decision');
+            }
+            await p.unroute('**/api/review-tasks/claim');
+        }
+        for (const status of ['PROCESSING', 'FAILED']) {
+            await p.route('**/api/review-tasks/claim', route => route.fulfill({json: {item: {
+                imageId: '1', imageUrl: '/api/images/1/content', ai: {status, verdict: 'MISMATCH'}
+            }}}));
+            await p.reload();
+            await ready();
+            check(!await p.locator('#review-ai-warning').isVisible(), 'Unfinished AI check shown as a verdict');
+            await p.unroute('**/api/review-tasks/claim');
+        }
+        results.push('Review controls, no parse warnings, completed AI warnings and details');
 
         for (const theme of ['light', 'dark']) {
             await p.evaluate(value => {localStorage.setItem('recognition-validator-theme', value);}, theme);
