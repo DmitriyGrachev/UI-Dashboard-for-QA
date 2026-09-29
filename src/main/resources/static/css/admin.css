@@ -531,7 +531,8 @@
 .ai-failure-heading { display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 8px; font-size: .75rem; color: var(--muted); }
 .ai-failure-source { color: var(--reject); font-size: .8125rem; }
 .ai-failure-reason { margin: 10px 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: .875rem; }
-.ai-failure-detail > a { font-size: .8125rem; overflow-wrap: anywhere; }
+.ai-failure-detail a { font-size: .8125rem; overflow-wrap: anywhere; }
+.ai-failure-detail pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .ai-failure-meta { color: var(--muted); font-size: .75rem; margin: 8px 0 0; overflow-wrap: anywhere; }
 .ai-failure-breakdown { margin-top: 20px; border-top: 1px solid var(--line); padding-top: 16px; }
 .ai-failure-breakdown > summary { cursor: pointer; padding-block: 8px; }

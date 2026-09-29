@@ -37,6 +37,18 @@ async page => {
         await p.waitForFunction(() => document.querySelector('.ai-failure-preview img').naturalWidth > 0);
         await p.locator('#ai-failure-inspector img').waitFor();
         check(await p.locator('.ai-failure-reason img').count() === 0, 'Error message executed as HTML');
+        check(await p.getByRole('button', {name: 'Copy diagnostics', exact: true}).count() === 1, 'Missing diagnostic copy');
+        await p.evaluate(() => Object.defineProperty(navigator, 'clipboard', {configurable: true,
+            value: {writeText: async text => {window.copiedDiagnostics = text;}}}));
+        await p.getByRole('button', {name: 'Copy diagnostics', exact: true}).click();
+        await p.getByText('Diagnostics copied.', {exact: true}).waitFor();
+        const report = await p.evaluate(() => window.copiedDiagnostics);
+        for (const value of [id, first.errorCode, first.errorMessage, 'Attempts: 3', first.failedAt, 'Rule: Not recorded'])
+            check(report.includes(value), 'Diagnostic report omitted ' + value);
+        await p.evaluate(() => {navigator.clipboard.writeText = async () => {throw Error('denied');};});
+        await p.getByRole('button', {name: 'Copy diagnostics', exact: true}).click();
+        await p.getByText('Copy unavailable. Select and copy the details below.', {exact: false}).waitFor();
+        check(await p.locator('#ai-failure-inspector pre').textContent() === report, 'Clipboard fallback lost diagnostics');
         await p.locator('.ai-failure-select').last().click();
         await p.locator('#ai-failure-image-status').filter({hasText:'Image unavailable'}).waitFor();
         check((await p.locator('#ai-failure-inspector').textContent()).includes('Error time unavailable'), 'Invented missing error time');

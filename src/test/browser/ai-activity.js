@@ -40,6 +40,11 @@ async (page) => {
         check((await p.title()).startsWith('AI queue'), 'Wrong page');
         check(await p.locator('#ai-rules-view').isHidden(), 'Rules should not crowd Activity');
         const first = p.locator('.ai-rule').first();
+        for (const status of ['processing', 'completed', 'failed']) {
+            check(await first.locator(`[data-rule-stat="${status}"]`).getAttribute('href') ===
+                `/admin/screenshots?aiTaskStatus=${status.toUpperCase()}&issuedRuleId=${settings.rules[0].id}`, 'Missing task link for ' + status);
+        }
+        check((await p.locator('#ai-rule-stats-message').textContent()).includes('Remaining, Completed and Failed'), 'Count snapshot freshness is ambiguous');
         const route = p.locator('#ai-rule-route');
         check(await route.locator('button').count() === 3, 'Priority route omitted a rule');
         check(await route.locator('[data-latest="true"]').count() === 1, 'Route has wrong latest pointer');

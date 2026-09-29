@@ -219,7 +219,28 @@ function initializeAiFailureLog(doc) {
         meta.textContent = `${item.errorCode || 'Unknown error code'} · Attempts: ${item.attemptCount} · ${item.gameCode}`;
         const rule = doc.createElement('p'); rule.className = 'ai-failure-meta';
         rule.textContent = 'Rule: ' + (item.ruleName || (item.ruleId ? `${item.ruleId} (no longer in settings)` : 'Not recorded'));
-        detail.append(heading, reason, meta, rule, file);
+        const copy = doc.createElement('button'); copy.type = 'button'; copy.className = 'button secondary';
+        copy.textContent = 'Copy diagnostics';
+        const copyStatus = doc.createElement('div'); copyStatus.setAttribute('role', 'status');
+        copy.addEventListener('click', async () => {
+            const report = [
+                'AI task failed', `Image ID: ${item.imageId}`, `File: ${item.fileName || 'Not recorded'}`,
+                `Game: ${item.gameCode || 'Not recorded'}`, rule.textContent,
+                `Rule ID: ${item.ruleId || 'Not recorded'}`, `Attempts: ${item.attemptCount ?? 'Not recorded'}`,
+                `Failed at (UTC): ${item.failedAt || 'Not recorded'}`, `Error: ${item.errorCode || 'Not recorded'}`,
+                `Message: ${item.errorMessage || 'Not recorded'}`
+            ].join('\n');
+            try {
+                await navigator.clipboard.writeText(report);
+                copyStatus.textContent = 'Diagnostics copied.';
+            } catch {
+                copyStatus.textContent = 'Copy unavailable. Select and copy the details below.';
+                const text = doc.createElement('pre'); text.textContent = report;
+                copyStatus.append(text);
+            }
+        });
+        const actions = doc.createElement('div'); actions.className = 'ai-queue-actions'; actions.append(file, copy);
+        detail.append(heading, reason, meta, rule, actions, copyStatus);
         inspector.replaceChildren(title, detail, imageStatus, image);
     }
     function entry(item) {
@@ -534,12 +555,16 @@ function initializeAiQueue(form, operations) {
             const value = counts.get(node.dataset.ruleId);
             node.querySelectorAll('[data-rule-stat]').forEach(target => {
                 target.textContent = value ? Number(value[target.dataset.ruleStat]).toLocaleString('en-US') : '—';
+                target.title = value ? `Snapshot at ${formatAiTime(statistics.generatedAt)}` : 'Unavailable';
                 if (target.dataset.ruleStat === 'processing' && activity?.revision === current?.revision && !dirty()) {
                     const live = assignmentCounts(activity.rules.find(row => row.ruleId === node.dataset.ruleId));
-                    if (live) target.textContent = live.processing.toLocaleString('en-US');
+                    if (live) {
+                        target.textContent = live.processing.toLocaleString('en-US');
+                        target.title = `Activity updated ${formatAiTime(activity.generatedAt)}`;
+                    }
                 }
-                if (target.dataset.ruleStat === 'failed') {
-                    if (value) target.setAttribute('href', `/admin/screenshots?aiTaskStatus=FAILED&issuedRuleId=${encodeURIComponent(value.ruleId)}`);
+                if (['processing', 'completed', 'failed'].includes(target.dataset.ruleStat)) {
+                    if (target.textContent !== '—') target.setAttribute('href', `/admin/screenshots?aiTaskStatus=${target.dataset.ruleStat.toUpperCase()}&issuedRuleId=${encodeURIComponent(node.dataset.ruleId)}`);
                     else target.removeAttribute('href');
                 }
             });
@@ -561,7 +586,7 @@ function initializeAiQueue(form, operations) {
             : statsError ? `${statsError} Select Refresh rule statistics to retry.`
             : dirty() ? 'Statistics apply to saved settings. Save or reload settings to see counts for these rules.'
             : statistics && !matches ? 'Settings changed in another session. Reload saved settings to see current counts.'
-            : statistics ? `Updated ${formatAiTime(statistics.generatedAt)}. Counts can change as tasks are claimed or added.`
+            : statistics ? `Remaining, Completed and Failed: snapshot at ${formatAiTime(statistics.generatedAt)}. Use Refresh rule statistics to update. Processing refreshes with activity every 15 seconds while this page is visible.`
             : 'Rule statistics unavailable.';
     }
 
