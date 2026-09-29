@@ -38,6 +38,20 @@ The queries share one read-only repeatable-read transaction, limited to 15 secon
 Responses are `Cache-Control: no-store`. Swagger exposes a separate `StatisticsApiKey`
 security scheme. No database migration is required for this endpoint.
 
+# One-time statistics bootstrap
+
+`validator_statistics_bootstrap` records completion of the initial operator/AI daily
+aggregates and retained AI/operator disagreements. The checkpoint and all backfills
+commit together; a failed attempt rolls back and can retry. Concurrent startups are
+serialized by a PostgreSQL advisory lock. Later starts skip the history queries and
+do not lock either task table. New decisions/results continue updating aggregates normally.
+
+The first start after this change still performs the existing bounded bootstrap once.
+On a large existing database, schedule that first start in a maintenance window; the
+5-second statement limit remains in place. A timeout fails startup and leaves no
+completion marker. Do not manually insert a marker to bypass an unfinished backfill.
+Restore this small checkpoint table together with the statistics tables in backups.
+
 # Shared operator queue reads
 
 The review page's **left to review** count includes matching PENDING and ASSIGNED
