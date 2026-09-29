@@ -38,18 +38,40 @@ The queries share one read-only repeatable-read transaction, limited to 15 secon
 Responses are `Cache-Control: no-store`. Swagger exposes a separate `StatisticsApiKey`
 security scheme. No database migration is required for this endpoint.
 
-# One-time statistics bootstrap
+# Explicit statistics backfill
 
 `validator_statistics_bootstrap` records completion of the initial operator/AI daily
 aggregates and retained AI/operator disagreements. The checkpoint and all backfills
-commit together; a failed attempt rolls back and can retry. Concurrent startups are
-serialized by a PostgreSQL advisory lock. Later starts skip the history queries and
-do not lock either task table. New decisions/results continue updating aggregates normally.
+commit together; a failed attempt rolls back and can retry. Normal application
+startup never runs this operation, scans historical tasks, or locks the queues.
+New decisions/results continue updating aggregates normally.
 
-The first start after this change still performs the existing bounded bootstrap once.
-On a large existing database, schedule that first start in a maintenance window; the
-5-second statement limit remains in place. A timeout fails startup and leaves no
-completion marker. Do not manually insert a marker to bypass an unfinished backfill.
+Run the command separately during a maintenance window, after the database schema
+has been initialized and **all application instances/writers have been stopped**:
+
+```text
+java -jar target/recognition-validator-app-0.0.1-SNAPSHOT.jar --backfill-statistics
+```
+
+Use the same `DB_URL`, `DB_USERNAME` and `DB_PASSWORD` environment variables as the
+application. The command starts only JDBC, performs the backfill, and exits. It does
+not start HTTP, change the schema through Hibernate, run schedulers/watchers, or send
+Slack messages. The command creates only its small checkpoint table when necessary.
+Existing checkpoints are honored; rerunning a completed operation skips all scans.
+
+Maintenance transactions default to 600 seconds, independently of web query timeouts.
+Override with `--validator.statistics.backfill-timeout-seconds=1200` if required after
+measuring on a safe copy. Active writers cause an immediate lock failure; a concurrent
+maintenance command waits at most five seconds for the advisory lock. A failure exits
+nonzero, rolls back all changes and leaves no completion marker. Retry after resolving
+the cause. Do not manually insert a marker to bypass an unfinished backfill.
+
+This preserves the previous fill-missing-days semantics: existing daily aggregate
+rows are never overwritten because they may include screenshots already deleted by
+retention. Historical backfill should be completed before accepting live decisions
+on an imported database with no aggregates. Running it later does not repair partial
+days already created by live traffic and cannot reconstruct deleted source data.
+Until then, historical totals are incomplete; there is no automatic background job.
 Restore this small checkpoint table together with the statistics tables in backups.
 
 # Shared operator queue reads
