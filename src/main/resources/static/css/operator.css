@@ -102,6 +102,33 @@
 .operator-page .statistics-heading h1 { margin: 0; font-size: 1.625rem; }
 .operator-page .statistics-heading p { line-height: 1.6; }
 .operator-page .statistics-heading .button { flex-shrink: 0; }
+.history-note { color: var(--muted); font-size: .8125rem; line-height: 1.6; margin: 0 0 20px; }
+.history-panel { border: 1px solid var(--line); border-radius: 10px; background: var(--ink-900); overflow: hidden; }
+.history-table-scroll { overflow-x: auto; }
+.history-table-scroll:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.history-table { width: 100%; border-collapse: collapse; font-size: .8125rem; }
+.history-table caption { text-align: left; padding: 16px; color: var(--muted); }
+.history-table :is(th, td) { padding: 14px 16px; text-align: left; border-top: 1px solid var(--line); vertical-align: top; }
+.history-table th { color: var(--muted); font-weight: 500; }
+.history-table td:first-child { min-width: 200px; max-width: 400px; overflow-wrap: anywhere; }
+.history-table td small { display: block; margin-top: 6px; font-size: .6875rem; color: var(--muted); }
+.history-preview-link { display: inline-block; min-height: 24px; color: var(--signal); line-height: 1.6; }
+.history-table time { font-variant-numeric: tabular-nums; }
+.history-decision { display: inline-block; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 5px; }
+.history-decision[data-decision="ACCEPTED"] { color: var(--accept); }
+.history-decision[data-decision="REJECTED"] { color: var(--reject); }
+.history-empty { padding: 24px; }
+.history-empty h2 { font-size: 1rem; }
+.history-empty p { color: var(--muted); }
+.history-paging { display: flex; justify-content: space-between; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+.history-dialog { width: min(1100px, 94vw); max-width: 94vw; max-height: 92dvh; padding: 20px; border: 1px solid var(--line-strong); border-radius: 12px; background: var(--ink-900); color: var(--text); overflow: auto; }
+.history-dialog::backdrop { background: rgb(0 0 0 / .65); }
+.history-dialog header { display: flex; align-items: start; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
+.history-dialog h2 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; flex: 1 1 200px; }
+.history-dialog p { color: var(--muted); font-size: .8125rem; line-height: 1.6; }
+.history-dialog img { width: 100%; max-height: 65dvh; object-fit: contain; }
+.history-dialog footer { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 16px; }
+.history-dialog :is(button, a):focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
 .operator-page .statistics-kpis { gap: 16px; border: 0; border-radius: 0; background: transparent; overflow: visible; }
 .operator-page .metric-card { padding: 22px; border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--admin-shadow); }
 .operator-page .metric-card.signal-card { border-top: 3px solid var(--signal); padding-top: 20px; }

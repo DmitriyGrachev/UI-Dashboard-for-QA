@@ -8,6 +8,7 @@
     <nav class="operator-navigation" aria-label="Operator navigation">
         <a th:href="@{/review}" th:attr="aria-current=${active == 'review'} ? 'page' : null">Review desk</a>
         <a th:href="@{/statistics}" th:attr="aria-current=${active == 'statistics'} ? 'page' : null">My statistics</a>
+        <a th:href="@{/history}" th:attr="aria-current=${active == 'history'} ? 'page' : null">My history</a>
     </nav>
     <div class="topbar-actions">
         <button th:if="${active == 'review'}" class="topbar-help" id="faq-open" type="button" aria-haspopup="dialog" aria-controls="faq-dialog">Help</button>

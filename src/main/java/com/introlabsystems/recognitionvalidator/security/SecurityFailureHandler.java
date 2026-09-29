@@ -137,7 +137,7 @@ public class SecurityFailureHandler implements
     }
 
     private boolean isOperatorArea(String path) {
-        return path.equals("/review") || path.equals("/statistics");
+        return path.equals("/review") || path.equals("/statistics") || path.equals("/history");
     }
 
     private String applicationPath(HttpServletRequest request) {

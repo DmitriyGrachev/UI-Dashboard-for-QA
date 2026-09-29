@@ -27,12 +27,13 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@WebMvcTest(controllers = {ReviewPageController.class, StatisticsController.class})
+@WebMvcTest(controllers = {ReviewPageController.class, StatisticsController.class, ReviewHistoryController.class})
 @Import({SecurityConfig.class, SecurityFailureHandler.class})
 class OperatorUiRenderingWebTest {
     @Autowired MockMvc mvc;
     @MockitoBean ValidatorProperties properties;
     @MockitoBean StatisticsService statisticsService;
+    @MockitoBean com.introlabsystems.recognitionvalidator.dao.jdbc.ReviewHistoryRepository reviewHistory;
     @MockitoBean UserDetailsService users;
     private final OperatorPrincipal operator = new OperatorPrincipal(new UUID(0, 1), "Olena", "unused", true);
 
@@ -69,9 +70,18 @@ class OperatorUiRenderingWebTest {
 
     @Test
     void operatorPagesStillRequireSignIn() throws Exception {
-        for (String path : List.of("/review", "/statistics")) {
+        for (String path : List.of("/review", "/statistics", "/history")) {
             mvc.perform(get(path)).andExpect(status().isFound()).andExpect(redirectedUrl("/login"));
         }
+    }
+
+    @Test
+    void historyFailureShowsRetryWithoutPretendingTheHistoryIsEmpty() throws Exception {
+        when(reviewHistory.recent(operator.id(), null, null)).thenThrow(new org.springframework.dao.QueryTimeoutException("fixture timeout"));
+        String html = mvc.perform(get("/history").with(user(operator))).andExpect(status().isServiceUnavailable())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(html).contains("History is temporarily unavailable", "Retry", "Back to review").doesNotContain("No reviews to show", "fixture timeout");
+        fixture("review-history-error.html", html);
     }
 
     private void fixture(String name, String html) throws Exception {

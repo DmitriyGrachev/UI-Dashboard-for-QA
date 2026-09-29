@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" href="data:,">
+    <title>My history — Recognition Validator</title>
+    <script th:src="@{/js/theme.js}"></script>
+    <link rel="stylesheet" th:href="@{/css/app.css}">
+    <link rel="stylesheet" th:href="@{/css/operator.css}">
+    <script defer th:src="@{/js/review-history.js}"></script>
+</head>
+<body class="operator-page">
+<a class="operator-skip-link" href="#history-content">Skip to history</a>
+<div class="app-shell statistics-shell">
+    <header th:replace="~{fragments/operator-navigation :: topbar('history')}"></header>
+    <main class="statistics-main" id="history-content" tabindex="-1">
+        <section class="statistics-heading">
+            <div><h1>My review history</h1><p>Your decisions, newest first. Open a screenshot to inspect it.</p></div>
+            <a class="button primary" th:href="@{/review}">Back to review</a>
+        </section>
+        <p class="history-note">Viewing history does not change your decisions or current assignment. Older screenshots disappear when their retention period ends.</p>
+        <section class="history-panel" aria-label="Recent decisions">
+            <div th:if="${historyError == true}" class="history-empty" role="alert">
+                <h2>History is temporarily unavailable</h2>
+                <p>Your assignment is unchanged. Try loading this page again.</p>
+                <a class="button secondary" th:href="@{/history(beforeAt=${beforeAt},beforeId=${beforeId})}">Retry</a>
+            </div>
+            <div th:if="${historyError != true and #lists.isEmpty(history)}" class="history-empty">
+                <h2>No reviews to show</h2>
+                <p th:text="${beforeAt == null} ? 'Your completed reviews will appear here.' : 'There are no older retained reviews.'"></p>
+            </div>
+            <div th:unless="${#lists.isEmpty(history)}" class="history-table-scroll" tabindex="0" role="region" aria-label="Review history table">
+                <table class="history-table">
+                    <caption>Up to 25 reviews · dates in UTC</caption>
+                    <thead><tr><th scope="col">Screenshot</th><th scope="col">Game</th><th scope="col">Your decision</th><th scope="col">Reviewed (UTC)</th></tr></thead>
+                    <tbody><tr th:each="entry : ${history}">
+                        <td><a class="history-preview-link" th:href="@{/api/images/{id}/content(id=${entry.imageId})}"
+                               th:text="${entry.fileName}" th:attr="data-history-title=${entry.fileName},data-history-meta=|${entry.gameCode} · ${entry.decisionLabel()} · ${entry.reviewedAtUtc()}|"
+                               aria-haspopup="dialog"></a><small th:text="|#${entry.imageId}|"></small></td>
+                        <td th:text="${entry.gameCode}"></td>
+                        <td><span class="history-decision" th:attr="data-decision=${entry.decision}" th:text="${entry.decisionLabel()}"></span></td>
+                        <td><time th:datetime="${entry.reviewedAt}" th:text="${entry.reviewedAtUtc()}"></time></td>
+                    </tr></tbody>
+                </table>
+            </div>
+        </section>
+        <nav class="history-paging" aria-label="History pages">
+            <a class="button secondary" th:href="@{/history}" th:text="${beforeAt == null} ? 'Refresh history' : 'Latest reviews'"></a>
+            <a class="button secondary" th:if="${next != null}" th:href="@{/history(beforeAt=${next.reviewedAt},beforeId=${next.imageId})}">Older reviews →</a>
+        </nav>
+    </main>
+</div>
+<dialog class="history-dialog" id="history-preview" aria-labelledby="history-preview-title">
+    <header><h2 id="history-preview-title">Screenshot</h2><button type="button" class="button secondary" id="history-preview-close" autofocus>Close preview</button></header>
+    <p id="history-preview-meta"></p>
+    <p id="history-preview-status" role="status"></p>
+    <img id="history-preview-image" alt="" hidden>
+    <footer><a id="history-original" class="button secondary" target="_blank" rel="noopener">Open original in new tab</a><button id="history-preview-retry" class="button secondary" type="button" hidden>Retry image</button></footer>
+</dialog>
+</body>
+</html>

@@ -118,6 +118,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/review",
                                 "/statistics",
+                                "/history",
                                 "/api/review-tasks/**",
                                 "/api/images/**",
                                 "/api/statistics/**"
