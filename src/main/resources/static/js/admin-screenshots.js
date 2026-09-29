@@ -363,6 +363,7 @@ if (typeof document !== "undefined") {
 
     const state = {
         items: [],
+        pages: [],
         selectedIndex: -1,
         selectionSequence: 0,
         selectedDetails: null,
@@ -540,7 +541,9 @@ if (typeof document !== "undefined") {
         params.delete("limit");
         if (selectedId) params.set("selected", selectedId);
         const query = params.toString();
-        history.replaceState(null, "", query ? `/admin/screenshots?${query}` : "/admin/screenshots");
+        const url = query ? `/admin/screenshots?${query}` : "/admin/screenshots";
+        const page = state.pages.findLast(page => page.start <= state.selectedIndex);
+        history.replaceState({explorer: {url, cursor: page?.cursor || null}}, "", url);
     }
 
     function setInputFromQuery(input, params, name, fallback = "") {
@@ -630,14 +633,16 @@ if (typeof document !== "undefined") {
         return value === "CHECKED" ? "Operator: Checked" : "Operator: Unchecked";
     }
 
-    function renderResults() {
+    function renderResults(startIndex = 0) {
         const focusedIndex = document.activeElement?.closest?.(".screenshot-result")?.dataset.index;
-        elements.results.replaceChildren();
+        if (!startIndex) elements.results.replaceChildren();
+        elements.results.querySelector('.explorer-result-message')?.remove();
         if (state.items.length === 0) {
             showResultsMessage("No screenshots match these filters.");
             return;
         }
-        state.items.forEach((item, index) => {
+        state.items.slice(startIndex).forEach((item, offset) => {
+            const index = startIndex + offset;
             const button = document.createElement("button");
             button.type = "button";
             button.className = "screenshot-result";
@@ -727,7 +732,9 @@ if (typeof document !== "undefined") {
         }
     }
 
-    function applyPage(page, append) {
+    function applyPage(page, append, cursor) {
+        const start = append ? state.items.length : 0;
+        state.pages.push({start, cursor});
         state.items = append ? state.items.concat(page.items) : page.items;
         state.nextCursor = page.nextCreatedAt && page.nextId
             ? {createdAt: page.nextCreatedAt, id: page.nextId}
@@ -735,10 +742,10 @@ if (typeof document !== "undefined") {
         elements.loadMore.hidden = !state.nextCursor;
         elements.loadMore.disabled = false;
         updateLoadedCount();
-        renderResults();
+        renderResults(start);
     }
 
-    async function search({append = false, selectedId = null} = {}) {
+    async function search({append = false, selectedId = null, resumeCursor = null} = {}) {
         if (state.searching || state.loadingMore) return;
         if (!append) resolveDatePeriod();
         if (!append && !validateFilters()) return;
@@ -755,6 +762,7 @@ if (typeof document !== "undefined") {
         if (!append) {
             showResultsMessage("Searching…");
             state.items = [];
+            state.pages = [];
             state.selectedIndex = -1;
             state.nextCursor = null;
             state.totalCount = null;
@@ -765,20 +773,21 @@ if (typeof document !== "undefined") {
             clearSelection();
         }
         elements.loadMore.disabled = true;
-        const params = buildSearchParams(filters, append ? state.nextCursor : null);
+        const cursor = append ? state.nextCursor : resumeCursor;
+        const params = buildSearchParams(filters, cursor);
         try {
             let page;
             if (append) {
                 page = await fetchJson(`/admin/api/screenshots?${params}`);
                 if (sequence !== state.searchSequence) return;
-                applyPage(page, true);
+                applyPage(page, true, cursor);
             } else {
                 const summaryParams = buildSearchParams(filters);
                 page = await loadPageThenSummary(
                     () => fetchJson(`/admin/api/screenshots?${params}`),
                     () => refreshSummary(summaryParams, sequence),
                     loadedPage => {
-                        if (sequence === state.searchSequence) applyPage(loadedPage, false);
+                        if (sequence === state.searchSequence) applyPage(loadedPage, false, cursor);
                     }
                 );
             }
@@ -789,9 +798,17 @@ if (typeof document !== "undefined") {
             if (targetIndex < 0 && !append && state.items.length > 0) targetIndex = 0;
             if (targetIndex >= 0) await selectResult(targetIndex);
             else if (!append && state.items.length === 0) clearSelection();
+            if (selectedId) elements.results.querySelector('[aria-pressed="true"]')?.scrollIntoView({block: 'nearest'});
             writeSearchUrl(state.items[state.selectedIndex]?.imageId || null);
         } catch (error) {
-            showResultsMessage(error.message || "Could not load screenshots.");
+            if (append) {
+                elements.results.querySelector('.explorer-result-message')?.remove();
+                const message = document.createElement('p');
+                message.className = 'explorer-result-message';
+                message.setAttribute('role', 'alert');
+                message.textContent = (error.message || 'Could not load screenshots.') + ' Select Load more results to retry.';
+                elements.results.append(message);
+            } else showResultsMessage(error.message || "Could not load screenshots.");
             if (!append) state.appliedFilters = null;
         } finally {
             state.searching = false;
@@ -1327,9 +1344,12 @@ if (typeof document !== "undefined") {
     });
 
     const selectedId = restoreFromUrl();
+    const checkpoint = history.state?.explorer;
+    const resumeCursor = selectedId && checkpoint?.url === location.pathname + location.search
+        ? checkpoint.cursor : null;
     void loadIssuingRules();
     clearSelection();
     refreshStorage();
-    search({selectedId});
+    search({selectedId, resumeCursor});
 })();
 }
