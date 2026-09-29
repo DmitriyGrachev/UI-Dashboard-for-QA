@@ -12,6 +12,11 @@ import com.introlabsystems.recognitionvalidator.model.value.AdminScreenshotSumma
 import com.introlabsystems.recognitionvalidator.service.AdminScreenshotService;
 import com.introlabsystems.recognitionvalidator.service.ImageStorageService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataAccessException;
+import org.springframework.transaction.TransactionException;
+import org.springframework.http.ProblemDetail;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.awt.RenderingHints;
@@ -36,11 +41,22 @@ import java.nio.charset.StandardCharsets;
 @RestController
 @RequestMapping("/admin/api/screenshots")
 @RequiredArgsConstructor
+@Slf4j
 public class AdminScreenshotApiController {
 
     private final AdminScreenshotService screenshots;
     private final ImageStorageService storage;
     private final AiQueueService aiQueue;
+
+    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    ResponseEntity<ProblemDetail> databaseUnavailable(RuntimeException exception,
+                                                     jakarta.servlet.http.HttpServletResponse response) {
+        if (response.isCommitted()) throw exception;
+        log.warn("Screenshot query failed", exception);
+        return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).cacheControl(CacheControl.noStore())
+                .body(ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE,
+                        "Screenshot data is temporarily unavailable. Retry the search."));
+    }
 
     @GetMapping
     AdminScreenshotPage search(@ModelAttribute AdminScreenshotSearchRequest request) {

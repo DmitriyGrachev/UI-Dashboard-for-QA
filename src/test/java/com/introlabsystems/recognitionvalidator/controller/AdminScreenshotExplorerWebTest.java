@@ -18,6 +18,58 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class AdminScreenshotExplorerWebTest extends AbstractWebIntegrationTest {
 
     @Test
+    void slowSummaryTimesOutAndRecoversWithoutBlockingSearch() throws Exception {
+        insertReviewImage(779, "timeout.png", true, "bj_igt", "timeout", null, "Two", null);
+        try (var blocker = jdbc.getDataSource().getConnection()) {
+            blocker.setAutoCommit(false);
+            try (var statement = blocker.createStatement()) {
+                // Test-only fail-safe releases the lock even when the application has no timeout.
+                statement.execute("SET LOCAL idle_in_transaction_session_timeout='8s'");
+                statement.execute("LOCK TABLE review_task IN ACCESS EXCLUSIVE MODE");
+                long started = System.nanoTime();
+                mockMvc.perform(get("/admin/api/screenshots/summary").with(user("admin").roles("ADMIN")))
+                        .andExpect(status().isServiceUnavailable())
+                        .andExpect(jsonPath("$.detail").value("Screenshot data is temporarily unavailable. Retry the search."));
+                assertThat((System.nanoTime() - started) / 1_000_000).isLessThan(7000);
+            }
+            blocker.rollback();
+        }
+        mockMvc.perform(get("/admin/api/screenshots/summary").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.totalCount").value(1));
+        mockMvc.perform(get("/admin/api/screenshots").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(1));
+    }
+
+    @Test
+    void localThumbnailBenchmarkKeepsBoundedOutputAndPrivateCaching() throws Exception {
+        var image = new java.awt.image.BufferedImage(1920, 1080, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        var graphics = image.createGraphics();
+        try {
+            var random = new java.util.Random(1);
+            for (int y = 0; y < 1080; y += 12) for (int x = 0; x < 1920; x += 12) {
+                graphics.setColor(new java.awt.Color(random.nextInt(0x1000000)));
+                graphics.fillRect(x, y, 12, 12);
+            }
+        } finally { graphics.dispose(); }
+        javax.imageio.ImageIO.write(image, "png", imageRoot.resolve("benchmark.png").toFile());
+        String id = insertReviewImage(778, "benchmark.png", true, "bj_igt", "benchmark", null, "Two", null);
+        var elapsed = new java.util.ArrayList<Long>();
+        for (int i = 0; i < 12; i++) {
+            long started = System.nanoTime();
+            byte[] data = mockMvc.perform(get("/admin/api/screenshots/" + id + "/thumbnail").with(user("admin").roles("ADMIN")))
+                    .andExpect(status().isOk())
+                    .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers.header().string("Cache-Control", "max-age=300, private"))
+                    .andReturn().getResponse().getContentAsByteArray();
+            if (i >= 2) elapsed.add((System.nanoTime() - started) / 1_000_000);
+            var preview = javax.imageio.ImageIO.read(new java.io.ByteArrayInputStream(data));
+            assertThat(preview.getWidth()).isEqualTo(320);
+            assertThat(preview.getHeight()).isEqualTo(180);
+        }
+        elapsed.sort(Long::compareTo);
+        System.out.printf("LOCAL_THUMBNAIL source=1920x1080 medianMs=%d maxMs=%d cache=private-300s%n", elapsed.get(5), elapsed.getLast());
+    }
+
+    @Test
     void wholeSessionIncludesEveryDateAndReviewStateOnlyWithinItsGame() throws Exception {
         String oldest = insertReviewImage(780, "old.png", true, "bj_igt", "table A&B", null, "Two", null);
         String newest = insertReviewImage(781, "new.png", true, "bj_igt", "table A&B", null, "Two", null);

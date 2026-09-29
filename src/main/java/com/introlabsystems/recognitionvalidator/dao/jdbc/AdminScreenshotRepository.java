@@ -43,7 +43,6 @@ public class AdminScreenshotRepository {
     private static final String SUMMARY_FROM = """
             FROM review_task rt
             LEFT JOIN app_user reviewer ON reviewer.id = rt.assigned_to
-            WHERE TRUE
             """;
     private static final String AI_SEARCH_FROM = """
             FROM ai_review_task ai
@@ -112,19 +111,21 @@ public class AdminScreenshotRepository {
         );
     }
 
+    @Transactional(readOnly = true, timeout = 5)
     public AdminScreenshotSummary summary(AdminScreenshotFilters filters, Instant cloudCutoff) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("cloudCutoff", Timestamp.from(cloudCutoff));
         // Preserve the existing EXISTS-only path for result filters that do not need image metadata.
         boolean aiOrdered = hasAiTaskFilters(filters);
         String baseConditions = conditions(filters, parameters, aiOrdered);
-        String summaryFrom = aiOrdered ? AI_SEARCH_FROM + "WHERE TRUE\n"
-                : requiresImageAsset(filters) ? SEARCH_FROM + "WHERE TRUE\n" : SUMMARY_FROM;
+        // review_task has a foreign key to image_asset; join it only when a filter reads image metadata.
+        String summaryFrom = requiresImageAsset(filters) ? SEARCH_FROM : SUMMARY_FROM;
+        if (aiOrdered) summaryFrom += "JOIN ai_review_task ai ON ai.image_id=rt.image_id\n";
         return jdbc.queryForObject("""
                 SELECT COUNT(*) AS total_count,
                        MIN(rt.file_created_at) AS oldest_created_at,
                        MAX(rt.file_created_at) AS newest_created_at
-                %s
+                %s WHERE TRUE
                 %s
                 """.formatted(summaryFrom, baseConditions), parameters,
                 (resultSet, rowNumber) -> new AdminScreenshotSummary(

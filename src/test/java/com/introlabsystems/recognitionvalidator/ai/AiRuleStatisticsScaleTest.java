@@ -99,6 +99,7 @@ class AiRuleStatisticsScaleTest extends AiTestSupport {
             assertThat(dateExported).isEqualTo(5000);
         });
         System.out.printf("AI_REVIEW_DATE rows=100000 matches=5000 searchSummaryCsvMs=%d%n", (System.nanoTime() - started) / 1_000_000);
+        explainExplorerSummary(dateRequest, "ai-date");
         // A high failed ratio with recent writes exercises heap visibility as well as many groups.
         jdbc.update("""
                 UPDATE ai_review_task SET status='FAILED',
@@ -119,5 +120,42 @@ class AiRuleStatisticsScaleTest extends AiTestSupport {
         assertThat(summary.groups()).hasSize(16);
         verify(failureJdbc, times(1)).query(anyString(), any(RowMapper.class));
         System.out.printf("AI_FAILURES_HIGH_RATIO rows=100000 failed=80000 groups=16 ms=%d%n", (System.nanoTime() - failureStarted) / 1_000_000);
+        explainExplorerSummary(new AdminScreenshotSearchRequest(), "all");
+        var failedRequest = new AdminScreenshotSearchRequest();
+        failedRequest.setAiTaskStatus(com.introlabsystems.recognitionvalidator.ai.model.AiTaskStatus.FAILED);
+        explainExplorerSummary(failedRequest, "failed");
+    }
+
+    private void explainExplorerSummary(AdminScreenshotSearchRequest request, String name) {
+        var template = spy(new NamedParameterJdbcTemplate(jdbc));
+        var repository = new AdminScreenshotRepository(template);
+        var summary = repository.summary(request.toFilters(), Instant.now());
+        var sql = org.mockito.ArgumentCaptor.forClass(String.class);
+        var parameters = org.mockito.ArgumentCaptor.forClass(SqlParameterSource.class);
+        verify(template).queryForObject(sql.capture(), parameters.capture(), any(RowMapper.class));
+        String query = sql.getValue();
+        String legacy = name.equals("all") || query.contains("JOIN image_asset") ? query
+                : query.replace("FROM review_task rt", "FROM review_task rt JOIN image_asset ia ON ia.id=rt.image_id");
+        var plain = new NamedParameterJdbcTemplate(jdbc);
+        Long legacyCount = plain.queryForObject(legacy, parameters.getValue(), (rs, row) -> rs.getLong("total_count"));
+        assertThat(legacyCount).isEqualTo(summary.totalCount());
+        for (String version : new String[]{"before", "after"}) {
+            var times = new ArrayList<Double>();
+            for (int run = 0; run < 3; run++) {
+                var plan = plain.queryForList("EXPLAIN (ANALYZE, BUFFERS) " + (version.equals("before") ? legacy : query),
+                        parameters.getValue(), String.class);
+                String execution = plan.stream().filter(line -> line.startsWith("Execution Time:")).findFirst().orElseThrow();
+                times.add(Double.parseDouble(execution.replace("Execution Time:", "").replace("ms", "").trim()));
+                try {
+                    var directory = java.nio.file.Path.of("target", "explorer-plans");
+                    java.nio.file.Files.createDirectories(directory);
+                    java.nio.file.Files.write(directory.resolve(name + "-" + version + ".txt"), plan);
+                } catch (java.io.IOException exception) { throw new java.io.UncheckedIOException(exception); }
+            }
+            times.sort(Double::compareTo);
+            System.out.printf("EXPLORER_SUMMARY case=%s version=%s rows=%d medianMs=%.3f%n", name, version, summary.totalCount(), times.get(1));
+            assertThat(times.get(1)).isLessThan(5000);
+        }
+        assertThat(query).doesNotContain("JOIN image_asset");
     }
 }
