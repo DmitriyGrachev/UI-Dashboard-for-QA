@@ -96,6 +96,7 @@ validator:
     - bj_first_person
     - bj_black_throne
     - bj_double_deck_black_throne
+    - bj_double_deck_ags
     - bj_single_deck_ags
     - bj_side_bets_ags
     - bj_americas_ags

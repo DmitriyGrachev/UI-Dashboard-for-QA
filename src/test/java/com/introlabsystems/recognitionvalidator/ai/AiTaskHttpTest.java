@@ -36,6 +36,13 @@ class AiTaskHttpTest extends AiTestSupport {
     static final String KEY = "local-ai-test-key";
 
     @Test
+    void exposesDoubleDeckAgsAsAvailableRuleGame() throws Exception {
+        mvc.perform(get("/admin/api/ai-queue/settings").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.games").value(org.hamcrest.Matchers.hasItem("bj_double_deck_ags")));
+    }
+
+    @Test
     void savedReorderChangesNextClaimsButPreservesActiveClaimsAndRejectsStaleSaves() throws Exception {
         String oldest = image(1, 1);
         String specificFirst = image(2, 53);
