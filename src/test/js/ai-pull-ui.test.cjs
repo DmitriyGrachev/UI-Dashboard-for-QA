@@ -58,6 +58,7 @@ function testDocument() {
         children: [], dataset: {}, attributes: {}, textContent: '',
         append(...children) { this.children.push(...children); },
         replaceChildren(...children) { this.children = children; },
+        querySelector(selector) { return this.children.find(node => '.' + node.className === selector) || null; },
         setAttribute(name, value) { this.attributes[name] = value; },
         addEventListener() {}, focus() { doc.activeElement = this; }
     })};
