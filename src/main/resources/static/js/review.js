@@ -272,6 +272,20 @@ if (typeof document !== "undefined") {
     const filtersCollapsedKey = "recognition-validator.filters-collapsed";
     const filtersStorageKey = "recognition-validator.review-filters";
     const scaleStorageKey = "recognition-validator.review-scale";
+    const focusMode = document.getElementById('review-focus-mode');
+    function setFocusMode(enabled) {
+        document.body.classList.toggle('review-focus-mode', enabled);
+        focusMode.setAttribute('aria-pressed', String(enabled));
+        focusMode.title = enabled ? 'Restore navigation and full spacing' : 'Hide navigation and give the screenshot more space';
+    }
+    try { setFocusMode(window.localStorage.getItem('recognition-validator.review-focus-mode') === 'true'); }
+    catch { /* Keep the default layout when storage is unavailable. */ }
+    focusMode.addEventListener('click', () => {
+        const enabled = focusMode.getAttribute('aria-pressed') !== 'true';
+        setFocusMode(enabled);
+        try { window.localStorage.setItem('recognition-validator.review-focus-mode', String(enabled)); }
+        catch { /* Focus mode still works without browser storage. */ }
+    });
 
     const state = {
         queueVersion: 0,

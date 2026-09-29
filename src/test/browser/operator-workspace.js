@@ -20,6 +20,16 @@ async (page) => {
         const counts = async () => (await p.request.get(base + '/fixture/counts')).json();
         await p.goto(base + '/review');
         await ready();
+        check(await p.locator('#review-focus-mode').count() === 1, 'Missing optional focus mode');
+        const normalStage = await p.locator('#image-stage').boundingBox();
+        const beforeFocus = await counts();
+        await p.evaluate(() => {window.originalImage = document.querySelector('#review-image');});
+        await p.locator('#review-focus-mode').focus(); await p.keyboard.press('Enter');
+        check(await p.locator('#review-focus-mode').getAttribute('aria-pressed') === 'true', 'Focus mode is not announced');
+        check((await p.locator('#image-stage').boundingBox()).height > normalStage.height, 'Focus mode gives no extra image space');
+        check(await p.evaluate(() => window.originalImage === document.querySelector('#review-image')), 'Focus mode replaced the loaded image');
+        check(JSON.stringify(await counts()) === JSON.stringify(beforeFocus), 'Layout change made a queue request');
+        await p.locator('#review-focus-mode').click();
         check(await p.locator('#recognition-warning, #parse-value').count() === 0, 'Parse status still distracts from review');
         check((await p.locator('#capture-summary').innerText()).includes('UTC'), 'Capture time has no timezone');
         check(await p.locator('#image-stage').getAttribute('aria-busy') === 'false', 'Ready image remains busy');
@@ -120,6 +130,12 @@ async (page) => {
             }
         }
         results.push('Both themes at desktop, laptop, 768px and 390px');
+        await p.goto(base + '/review'); await ready();
+        await p.locator('#review-focus-mode').click();
+        await p.reload(); await ready();
+        check(await p.locator('#review-focus-mode').getAttribute('aria-pressed') === 'true', 'Focus preference was not restored');
+        check(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Focus mode overflows a narrow window');
+        await p.locator('#review-focus-mode').click();
         await p.setViewportSize({width: 1280, height: 720});
         for (const path of ['/review', '/statistics']) {
             await p.goto(base + path);

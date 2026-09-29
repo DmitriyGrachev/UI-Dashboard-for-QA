@@ -26,6 +26,12 @@
 .operator-page .review-toolbar { padding: 16px 24px; gap: 12px; }
 .operator-page .review-toolbar h1 { font-size: 1.375rem; margin-right: 8px; }
 .operator-page .review-toolbar .filter-toggle { background: var(--ink-900); border-radius: 7px; min-height: 40px; }
+.operator-page.review-focus-mode .operator-topbar { display: none; }
+.operator-page.review-focus-mode .review-shell { grid-template-rows: auto minmax(0, 1fr) auto; }
+.operator-page.review-focus-mode .review-toolbar { padding-block: 8px; }
+.operator-page.review-focus-mode .viewer-hint { display: none; }
+.operator-page.review-focus-mode .viewer-bar { padding-block: 6px; }
+.operator-page #review-focus-mode[aria-pressed="true"] { background: var(--admin-selected); border-color: var(--signal); color: var(--signal); }
 .operator-page .review-remaining { font-size: .8125rem; }
 .operator-page .review-remaining output { font-weight: 650; font-size: 1rem; }
 .review-filter-summary { flex: 1 1 160px; min-width: 0; margin: 0; color: var(--muted); font-size: .8125rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
