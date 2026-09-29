@@ -367,6 +367,8 @@ if (typeof document !== "undefined") {
         selectedIndex: -1,
         selectionSequence: 0,
         selectedDetails: null,
+        detailsController: null,
+        summaryController: null,
         nextCursor: null,
         totalCount: null,
         searching: false,
@@ -514,10 +516,11 @@ if (typeof document !== "undefined") {
         return new URL(response.url, window.location.href).pathname === "/login";
     }
 
-    async function fetchJson(url) {
+    async function fetchJson(url, signal) {
         const response = await fetch(url, {
             headers: {Accept: "application/json"},
-            credentials: "same-origin"
+            credentials: "same-origin",
+            signal
         });
         if (isLoginResponse(response)) {
             window.location.assign("/login?expired");
@@ -714,8 +717,10 @@ if (typeof document !== "undefined") {
     }
 
     async function refreshSummary(params, sequence) {
+        const controller = new AbortController();
+        state.summaryController = controller;
         try {
-            const summary = await fetchJson(`/admin/api/screenshots/summary?${params}`);
+            const summary = await fetchJson(`/admin/api/screenshots/summary?${params}`, controller.signal);
             if (sequence !== state.searchSequence) return;
             state.totalCount = Number(summary.totalCount);
             elements.resultCount.textContent = state.totalCount.toLocaleString("en-US");
@@ -760,6 +765,7 @@ if (typeof document !== "undefined") {
         append ? state.loadingMore = true : state.searching = true;
         updateSearchControls();
         if (!append) {
+            state.summaryController?.abort();
             showResultsMessage("Searching…");
             state.items = [];
             state.pages = [];
@@ -893,6 +899,7 @@ if (typeof document !== "undefined") {
     }
 
     function clearSelection() {
+        state.detailsController?.abort();
         elements.openSession.hidden = true;
         elements.openSession.removeAttribute('href');
         state.selectionSequence++;
@@ -917,9 +924,12 @@ if (typeof document !== "undefined") {
 
     async function selectResult(index) {
         if (index < 0 || index >= state.items.length) return;
+        state.detailsController?.abort();
+        const controller = new AbortController();
+        state.detailsController = controller;
         elements.openSession.hidden = true;
         elements.openSession.removeAttribute('href');
-        state.selectionSequence++;
+        const sequence = ++state.selectionSequence;
         state.selectedIndex = index;
         state.selectedDetails = null;
         const item = state.items[index];
@@ -945,8 +955,8 @@ if (typeof document !== "undefined") {
         writeSearchUrl(item.imageId);
 
         try {
-            const details = await fetchJson(`/admin/api/screenshots/${encodeURIComponent(item.imageId)}`);
-            if (state.items[state.selectedIndex]?.imageId !== item.imageId) return;
+            const details = await fetchJson(`/admin/api/screenshots/${encodeURIComponent(item.imageId)}`, controller.signal);
+            if (state.selectionSequence !== sequence) return;
             state.selectedDetails = details;
             renderDetails(details);
             elements.download.href = details.downloadUrl;
@@ -955,7 +965,7 @@ if (typeof document !== "undefined") {
             elements.copyReport.disabled = false;
             elements.image.src = `${details.imageUrl}?view=${Date.now()}`;
         } catch (error) {
-            if (state.items[state.selectedIndex]?.imageId !== item.imageId) return;
+            if (state.selectionSequence !== sequence || error.name === 'AbortError') return;
             elements.viewerMessage.textContent = error.message || "Could not load screenshot details.";
         }
     }

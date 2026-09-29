@@ -31,6 +31,21 @@ async (page) => {
     try {
         await p.goto('http://127.0.0.1:18992/admin/screenshots?sessionId=continuity');
         await ready();
+        await p.evaluate(id => {
+            const original = window.fetch;
+            window.fetch = (url, options) => String(url).endsWith('/' + id)
+                ? new Promise((resolve, reject) => {
+                    window.detailsPending = true;
+                    options?.signal?.addEventListener('abort', () => {
+                        window.detailsAborted = true; reject(new DOMException('Aborted', 'AbortError'));
+                    });
+                }) : original(url, options);
+        }, items[1].imageId);
+        await p.locator('.screenshot-result').nth(1).click();
+        await p.waitForFunction(() => window.detailsPending);
+        await p.locator('.screenshot-result').nth(2).click();
+        await p.waitForFunction(() => !document.querySelector('#detail-content').hidden);
+        check(await p.evaluate(() => window.detailsAborted === true), 'Obsolete details request was not aborted');
         await p.locator('#load-more-results').click(); await ready();
         check(await p.locator('.screenshot-result').count() === 50, 'Failed append removed existing rows');
         check((await p.locator('#screenshot-results').innerText()).includes('Temporary database error'), 'Append error is not visible');

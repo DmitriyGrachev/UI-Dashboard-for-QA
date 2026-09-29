@@ -210,7 +210,7 @@ test("screenshot selection and navigation keep zoom until an explicit reset", as
         ${stopDragging}
         return {selectResult, nextResult, previousResult, setScale, resetZoom};
     })()`, {
-        state, elements: {...elements, results: {querySelectorAll: () => []}}, storageSupportsTemporaryLink, formatUtcDate,
+        state, elements: {...elements, results: {querySelectorAll: () => []}}, storageSupportsTemporaryLink, formatUtcDate, AbortController,
         renderResults() {}, updateNavigation() {}, writeSearchUrl() {}, renderDetails() {},
         fetchJson: async () => ({imageUrl: '/image.png', downloadUrl: '/download', storageState: 'LOCAL_ONLY'})
     });
