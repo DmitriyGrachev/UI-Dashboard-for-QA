@@ -48,7 +48,8 @@ class ApiExceptionHandlerLoggingTest {
         AdminController controller = new AdminController(
                 mock(AdminUserService.class),
                 mock(AdminStatisticsService.class),
-                mock(RejectedScreenshotExportService.class)
+                mock(RejectedScreenshotExportService.class),
+                mock(com.introlabsystems.recognitionvalidator.config.ValidatorProperties.class)
         );
 
         controller.adminUserError(new AdminUserException("username", "private input details"));

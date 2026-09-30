@@ -34,6 +34,7 @@ public class AdminController {
     private final AdminUserService users;
     private final AdminStatisticsService statistics;
     private final RejectedScreenshotExportService rejectedExports;
+    private final com.introlabsystems.recognitionvalidator.config.ValidatorProperties properties;
 
     @GetMapping("/admin/overview")
     String overview(@RequestParam(defaultValue = "7") int days, Model model, Principal principal) {
@@ -63,12 +64,14 @@ public class AdminController {
     @GetMapping("/admin/ai-queue")
     String aiQueue(Model model, Principal principal) {
         model.addAttribute("adminName", principal.getName());
+        model.addAttribute("games", properties.games());
         return "admin-ai-queue";
     }
 
     @GetMapping("/admin/rejects")
     String rejects(Model model, Principal principal) {
         model.addAttribute("adminName", principal.getName());
+        model.addAttribute("games", properties.games());
         return "admin-rejects";
     }
 

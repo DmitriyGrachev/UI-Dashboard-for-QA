@@ -33,15 +33,24 @@ public class AiOperationsController {
                                                    @RequestParam(required = false) java.util.UUID issuedRuleId,
                                                    @RequestParam(required = false) String aiErrorCode,
                                                    @RequestParam(defaultValue = "false") boolean aiErrorMissing,
-                                                   @RequestParam(defaultValue = "false") boolean issuedRuleMissing) {
+                                                   @RequestParam(defaultValue = "false") boolean issuedRuleMissing,
+                                                   @RequestParam(required = false) String gameCode,
+                                                   @RequestParam(required = false) String errorText,
+                                                   @RequestParam(required = false) Instant failedFrom,
+                                                   @RequestParam(required = false) Instant failedTo) {
         if ((beforeAt == null) != (beforeId == null) || (beforeId != null && !beforeId.matches("[0-9a-f]{64}"))) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide both cursor time and image ID");
         }
         if (aiErrorCode != null && aiErrorCode.length() > 100) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Error code is too long");
         }
+        if (gameCode != null && gameCode.length() > 100 || errorText != null && errorText.length() > 200
+                || failedFrom != null && failedTo != null && !failedFrom.isBefore(failedTo)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid failure filters");
+        }
         return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(
-                operations.failureLog(aiOnly, beforeAt, beforeId, issuedRuleId, aiErrorCode, aiErrorMissing, issuedRuleMissing));
+                operations.failureLog(aiOnly, beforeAt, beforeId, issuedRuleId, aiErrorCode, aiErrorMissing, issuedRuleMissing,
+                        gameCode, errorText, failedFrom, failedTo));
     }
 
     @GetMapping("/failures")

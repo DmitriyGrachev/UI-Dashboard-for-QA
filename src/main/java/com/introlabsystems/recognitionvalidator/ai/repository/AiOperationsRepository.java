@@ -30,12 +30,29 @@ public class AiOperationsRepository {
 
     @Transactional(readOnly = true, timeout = 5)
     public AiFailurePage failureLog(boolean aiOnly, Instant beforeAt, String beforeId,
-                                   java.util.UUID ruleId, String errorCode, boolean errorMissing, boolean ruleMissing) {
+                                   java.util.UUID ruleId, String errorCode, boolean errorMissing, boolean ruleMissing,
+                                   String gameCode, String errorText, Instant failedFrom, Instant failedTo) {
         jdbc.execute("SET LOCAL statement_timeout='5s'");
         var parameters = new org.springframework.jdbc.core.namedparam.MapSqlParameterSource();
         var filters = new StringBuilder();
         AiResultFilterSql.appendDiagnostics(filters, parameters, ruleId, errorCode, errorMissing, ruleMissing);
         if (aiOnly) filters.append(" AND last_error_code='AI_REJECTED'");
+        if (gameCode != null && !gameCode.isBlank()) {
+            filters.append(" AND ai.game_code=:gameCode");
+            parameters.addValue("gameCode", gameCode.trim());
+        }
+        if (errorText != null && !errorText.isBlank()) {
+            filters.append(" AND POSITION(LOWER(:errorText) IN LOWER(COALESCE(ai.last_error_message,''))) > 0");
+            parameters.addValue("errorText", errorText.trim());
+        }
+        if (failedFrom != null) {
+            filters.append(" AND ai.last_error_at >= :failedFrom");
+            parameters.addValue("failedFrom", Timestamp.from(failedFrom));
+        }
+        if (failedTo != null) {
+            filters.append(" AND ai.last_error_at < :failedTo");
+            parameters.addValue("failedTo", Timestamp.from(failedTo));
+        }
         String cursor = "";
         if (beforeAt != null) {
             cursor = "AND (COALESCE(last_error_at,file_created_at),image_id) < (:beforeAt,:beforeId)";

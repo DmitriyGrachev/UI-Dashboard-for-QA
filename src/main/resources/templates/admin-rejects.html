@@ -30,10 +30,27 @@
             <div>
                 <span class="section-kicker">Recognition output</span>
                 <h1>Rejected screenshots</h1>
-                <p>Each ZIP includes images and results.csv with AI and operator results.</p>
+                <p>Inspect operator decisions, negative AI results or failed AI checks.</p>
             </div>
             <a class="button secondary" th:href="@{/admin/screenshots(reviewState=CHECKED,decision=REJECTED)}">View operator rejects</a>
         </header>
+
+        <section class="rejected-export-panel" aria-labelledby="reject-browse-title">
+            <h2 id="reject-browse-title">Inspect screenshots</h2>
+            <p>Operator rejects are completed human decisions. AI Unmatched means a negative result; AI Failed means the check could not finish.</p>
+            <form class="failure-filters" method="get" th:action="@{/admin/screenshots}">
+                <input type="hidden" name="reviewState" value="CHECKED">
+                <input type="hidden" name="decision" value="REJECTED">
+                <label>Game<select name="gameCode"><option value="">All games</option><option th:each="game : ${games}" th:value="${game}" th:text="${game}"></option></select></label>
+                <label>File name contains<input type="search" name="fileName" maxlength="255" placeholder="Part of the file name"></label>
+                <label>Reviewed by<input name="reviewedBy" maxlength="100" placeholder="Operator username"></label>
+                <button type="submit" class="button primary">View operator rejects</button>
+            </form>
+            <div class="ai-queue-actions">
+                <a class="button secondary" th:href="@{/admin/screenshots(aiResult=UNMATCHED)}">View AI Unmatched</a>
+                <a class="button secondary" th:href="@{/admin/ai-queue#ai-failures}">View AI Failed log</a>
+            </div>
+        </section>
 
         <section class="rejected-export-panel" aria-labelledby="rejected-export-title">
             <header>

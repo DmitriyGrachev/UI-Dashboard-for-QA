@@ -189,9 +189,13 @@ function initializeAiFailureLog(doc) {
     const panel = doc.getElementById('ai-failures'), refresh = doc.getElementById('ai-failures-refresh');
     const more = doc.getElementById('ai-failure-log-more');
     const reasonFilter = doc.getElementById('ai-failure-reason-filter'), ruleFilter = doc.getElementById('ai-failure-rule-filter');
+    const filterForm = doc.getElementById('ai-failure-filters');
+    const gameFilter = doc.getElementById('ai-failure-game'), textFilter = doc.getElementById('ai-failure-text');
+    const fromFilter = doc.getElementById('ai-failure-from'), toFilter = doc.getElementById('ai-failure-to');
+    const filterInputs = [reasonFilter, ruleFilter, gameFilter, textFilter, fromFilter, toFilter].filter(Boolean);
     const inspector = doc.getElementById('ai-failure-inspector');
     const message = doc.getElementById('ai-failure-log-message');
-    let cursor = null, busy = false, loaded = false, selectedId = null;
+    let cursor = null, busy = false, loaded = false, selectedId = null, appliedQuery = '';
     function inspect(item) {
         selectedId = item.imageId;
         list.querySelectorAll('button').forEach(button => button.setAttribute('aria-pressed', String(button.dataset.imageId === selectedId)));
@@ -239,7 +243,9 @@ function initializeAiFailureLog(doc) {
                 copyStatus.append(text);
             }
         });
-        const actions = doc.createElement('div'); actions.className = 'ai-queue-actions'; actions.append(file, copy);
+        const original = doc.createElement('a'); original.className = 'button secondary';
+        original.href = image.src; original.target = '_blank'; original.rel = 'noopener'; original.textContent = 'Open full-size image';
+        const actions = doc.createElement('div'); actions.className = 'ai-queue-actions'; actions.append(file, original, copy);
         detail.append(heading, reason, meta, rule, actions, copyStatus);
         inspector.replaceChildren(title, detail, imageStatus, image);
     }
@@ -261,18 +267,33 @@ function initializeAiFailureLog(doc) {
     }
     async function load(reset = false) {
         if (busy) return;
+        if (toFilter) toFilter.setCustomValidity(fromFilter.value && toFilter.value && fromFilter.value > toFilter.value ? 'End date must not be before start date.' : '');
+        if (reset && filterForm && !filterForm.reportValidity()) return;
         const focusNext = doc.activeElement === more;
         const previousCount = reset ? 0 : list.children.length;
-        busy = true; more.disabled = true; reasonFilter.disabled = true; ruleFilter.disabled = true;
+        busy = true; more.disabled = true; filterInputs.forEach(input => input.disabled = true);
         if (reset) {
             cursor = null; list.replaceChildren(); more.hidden = true; loaded = false; selectedId = null;
             inspector.textContent = 'Select a failed screenshot to inspect its image and error.';
         }
         message.dataset.error = 'false'; message.textContent = 'Loading failed screenshots…';
         const query = new URLSearchParams();
+        if (gameFilter?.value) query.set('gameCode', gameFilter.value);
+        if (textFilter?.value.trim()) query.set('errorText', textFilter.value.trim());
+        if (fromFilter?.value) query.set('failedFrom', fromFilter.value + 'T00:00:00Z');
+        if (toFilter?.value) {
+            const exclusiveEnd = new Date(toFilter.value + 'T00:00:00Z');
+            exclusiveEnd.setUTCDate(exclusiveEnd.getUTCDate() + 1);
+            query.set('failedTo', exclusiveEnd.toISOString());
+        }
         if (reasonFilter.value === 'missing') query.set('aiErrorMissing', 'true');
         else if (reasonFilter.value) query.set('aiErrorCode', reasonFilter.value.slice(6));
         if (ruleFilter.value) query.set(ruleFilter.value === 'missing' ? 'issuedRuleMissing' : 'issuedRuleId', ruleFilter.value === 'missing' ? 'true' : ruleFilter.value);
+        if (reset) appliedQuery = query.toString();
+        else {
+            for (const key of [...query.keys()]) query.delete(key);
+            new URLSearchParams(appliedQuery).forEach((value, key) => query.set(key, value));
+        }
         if (cursor) { query.set('beforeAt', cursor.at); query.set('beforeId', cursor.id); }
         try {
             const response = await fetch('/admin/api/ai-queue/operations/failures/tasks?' + query, {cache: 'no-store'});
@@ -289,13 +310,21 @@ function initializeAiFailureLog(doc) {
             cursor = data.nextId ? {id: data.nextId, at: data.nextAt} : null;
             more.hidden = !cursor;
             message.textContent = list.children.length ? `${list.children.length} failed ${list.children.length === 1 ? 'task' : 'tasks'} shown. Refresh to update.`
-                : reasonFilter.value || ruleFilter.value ? 'No failed tasks match these filters.' : 'No failed AI tasks.';
+                : appliedQuery ? 'No failed tasks match these filters.' : 'No failed AI tasks.';
             loaded = true;
         } catch (error) {
             message.dataset.error = 'true';
             message.textContent = `${error.message || 'Could not load failed screenshots.'} ${cursor ? 'Select Load more failures to retry.' : 'Select Refresh failures to retry.'}`;
-        } finally { busy = false; more.disabled = false; reasonFilter.disabled = false; ruleFilter.disabled = false; }
+        } finally { busy = false; more.disabled = false; filterInputs.forEach(input => input.disabled = false); }
     }
+    filterForm?.addEventListener('submit', event => { event.preventDefault(); void load(true); });
+    [fromFilter, toFilter].forEach(input => input?.addEventListener('input', () => toFilter.setCustomValidity('')));
+    filterForm?.addEventListener('reset', event => {
+        event.preventDefault();
+        if (busy) return;
+        filterInputs.forEach(input => input.value = '');
+        void load(true);
+    });
     panel.addEventListener('toggle', () => { if (panel.open && !loaded) void load(true); });
     refresh.addEventListener('click', () => load(true));
     reasonFilter.addEventListener('change', () => load(true));

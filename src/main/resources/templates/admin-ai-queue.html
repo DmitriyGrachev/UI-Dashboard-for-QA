@@ -124,11 +124,19 @@
         <details id="ai-failures" data-ai-view class="rejected-export-panel ai-queue-panel">
             <summary>AI Failed · screenshot log</summary>
             <p>Current failed AI tasks, newest errors first. Operator rejects and AI mismatches are not failures. This shows the latest error per task, not a full event history.</p>
-            <div class="ai-queue-actions">
+            <form id="ai-failure-filters" class="failure-filters">
+                <label>Game<select id="ai-failure-game"><option value="">All games</option><option th:each="game : ${games}" th:value="${game}" th:text="${game}"></option></select></label>
+                <label>Error text<input id="ai-failure-text" type="search" maxlength="200" placeholder="e.g. unparseable"></label>
+                <label>Failed from · UTC<input id="ai-failure-from" type="date"></label>
+                <label>Failed through · UTC<input id="ai-failure-to" type="date"></label>
                 <label>Reason<select id="ai-failure-reason-filter"><option value="">All reasons</option><option value="error:AI_REJECTED">AI_REJECTED</option></select></label>
                 <label>Issuing rule<select id="ai-failure-rule-filter"><option value="">All rules</option></select></label>
+                <div class="ai-queue-actions">
+                <button type="submit" class="button primary">Apply filters</button>
+                <button type="reset" class="button secondary">Reset filters</button>
                 <button type="button" class="button secondary" id="ai-failures-refresh">Refresh failures</button>
-            </div>
+                </div>
+            </form>
             <p id="ai-failure-log-message" role="status" aria-live="polite">Open to load failed screenshots.</p>
             <div class="ai-failure-workspace">
                 <div class="ai-failure-list-pane">

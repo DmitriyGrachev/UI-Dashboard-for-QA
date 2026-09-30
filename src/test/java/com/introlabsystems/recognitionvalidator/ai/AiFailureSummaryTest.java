@@ -32,9 +32,9 @@ class AiFailureSummaryTest extends AiTestSupport {
         jdbc.update("UPDATE ai_review_task SET status='PROCESSING' WHERE image_id=?", "%064x".formatted(47));
         jdbc.update("UPDATE ai_review_task SET status='PENDING' WHERE image_id=?", "%064x".formatted(48));
         jdbc.update("UPDATE review_task SET status='COMPLETED',decision='REJECTED' WHERE image_id=?", "%064x".formatted(48));
-        var first = operations.failureLog(false, null, null, null, null, false, false);
-        var second = operations.failureLog(false, first.nextAt(), first.nextId(), null, null, false, false);
-        var third = operations.failureLog(false, second.nextAt(), second.nextId(), null, null, false, false);
+        var first = operations.failureLog(false, null, null, null, null, false, false, null, null, null, null);
+        var second = operations.failureLog(false, first.nextAt(), first.nextId(), null, null, false, false, null, null, null, null);
+        var third = operations.failureLog(false, second.nextAt(), second.nextId(), null, null, false, false, null, null, null, null);
         var all = java.util.stream.Stream.of(first, second, third).flatMap(page -> page.items().stream()).toList();
         org.assertj.core.api.Assertions.assertThat(first.items()).hasSize(20);
         org.assertj.core.api.Assertions.assertThat(second.items()).hasSize(20);
@@ -124,6 +124,26 @@ class AiFailureSummaryTest extends AiTestSupport {
         mvc.perform(get(PATH + "/tasks").param("aiErrorCode", "' OR TRUE --").with(user("admin").roles("ADMIN")))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
         mvc.perform(get(PATH + "/tasks").param("issuedRuleId", "invalid").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void failureSearchUsesErrorTimeAndLiteralMessageBeforePagination() throws Exception {
+        for (int i = 1; i <= 25; i++) image(i, 53);
+        jdbc.update("UPDATE ai_review_task SET status='FAILED',last_error_code='AI_REJECTED',last_error_message='Unparseable: 60%_cards',last_error_at='2026-09-29T23:59:59Z'");
+        String target = "%064x".formatted(1);
+        jdbc.update("UPDATE ai_review_task SET game_code='bj_igt',last_error_at='2026-09-30T00:00:00Z' WHERE image_id=?", target);
+        var request = get(PATH + "/tasks").param("gameCode", "bj_igt").param("errorText", "UNPARSEABLE: 60%_")
+                .param("failedFrom", "2026-09-30T00:00:00Z").param("failedTo", "2026-10-01T00:00:00Z");
+        mvc.perform(request.with(user("admin").roles("ADMIN"))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1)).andExpect(jsonPath("$.items[0].imageId").value(target));
+        mvc.perform(get(PATH + "/tasks").param("errorText", "' OR TRUE --").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items").isEmpty());
+        mvc.perform(get(PATH + "/tasks").param("failedTo", "2026-09-30T00:00:00Z").with(user("admin").roles("ADMIN")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.items.length()").value(20));
+        mvc.perform(get(PATH + "/tasks").param("failedFrom", "2026-10-01T00:00:00Z").param("failedTo", "2026-09-30T00:00:00Z")
+                        .with(user("admin").roles("ADMIN"))).andExpect(status().isBadRequest());
+        mvc.perform(get(PATH + "/tasks").param("errorText", "x".repeat(201)).with(user("admin").roles("ADMIN")))
                 .andExpect(status().isBadRequest());
     }
 }

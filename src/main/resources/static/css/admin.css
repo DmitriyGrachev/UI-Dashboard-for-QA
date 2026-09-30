@@ -515,6 +515,10 @@
 .admin-page #ai-failures > .ai-queue-actions label { display: grid; gap: 6px; min-width: 0; }
 .admin-page #ai-failures select { max-width: 100%; }
 .ai-failure-workspace { display: grid; grid-template-columns: minmax(240px, 32%) minmax(0, 1fr); gap: 20px; align-items: start; }
+.failure-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); align-items: end; gap: 12px; margin-block: 16px; }
+.failure-filters label { display: grid; gap: 6px; min-width: 0; font-size: .8125rem; }
+.failure-filters :is(input, select) { width: 100%; min-width: 0; }
+.failure-filters > .ai-queue-actions { grid-column: 1 / -1; }
 .ai-failure-list-pane { max-height: 70vh; overflow-y: auto; padding: 3px; }
 .ai-failure-log { list-style: none; padding: 0; margin: 0 0 12px; }
 .ai-failure-entry { border-bottom: 1px solid var(--line); }

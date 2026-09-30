@@ -52,7 +52,9 @@ async page => {
         await p.locator('.ai-failure-select').last().click();
         await p.locator('#ai-failure-image-status').filter({hasText:'Image unavailable'}).waitFor();
         check((await p.locator('#ai-failure-inspector').textContent()).includes('Error time unavailable'), 'Invented missing error time');
-        check(await p.locator('#ai-failure-inspector a').getAttribute('href') === '/admin/screenshots?imageId=' + missing, 'Wrong screenshot link');
+        check(await p.getByRole('link', {name:'Open in Explorer',exact:true}).getAttribute('href') === '/admin/screenshots?imageId=' + missing, 'Wrong screenshot link');
+        check((await p.getByRole('link', {name:'Open full-size image'}).getAttribute('href')).includes('/' + missing + '/content'), 'Wrong full-size image link');
+        await p.locator('#ai-failure-text').fill('draft not applied');
         await p.locator('#ai-failure-log-more').click();
         await p.getByText('Log unavailable Select Load more failures to retry.',{exact:true}).waitFor();
         check(await p.locator('.ai-failure-entry').count() === 2, 'Pagination failure removed existing log');
@@ -61,6 +63,8 @@ async page => {
         check(await p.locator('.ai-failure-select').last().evaluate(node => node === document.activeElement), 'Load more lost focus instead of moving to the new screenshot');
         check(await p.locator('#ai-failure-log-more').isHidden(), 'Terminal page kept Load more');
         check(calls[1] === calls[2], 'Retry skipped a cursor');
+        check(!calls[2].includes('errorText'), 'Pagination used an unapplied filter');
+        await p.locator('#ai-failure-text').fill('');
         await p.locator('.ai-failure-select').first().click();
         await p.waitForFunction(() => {
             const image = document.querySelector('#ai-failure-inspector > img');
@@ -83,6 +87,25 @@ async page => {
         await p.locator('#ai-failure-rule-filter').selectOption('11111111-1111-1111-1111-111111111111');
         await p.waitForFunction(() => !document.querySelector('#ai-failure-rule-filter').disabled);
         check(calls.at(-1).includes('issuedRuleId=11111111'), 'Rule filter not sent');
+        await p.locator('#ai-failure-game').selectOption('bj_igt');
+        await p.locator('#ai-failure-text').fill('Unparseable: 60%_cards');
+        await p.locator('#ai-failure-from').fill('2026-09-30');
+        await p.locator('#ai-failure-to').fill('2026-09-29');
+        const beforeInvalid = calls.length;
+        await p.getByRole('button', {name:'Apply filters',exact:true}).click();
+        check(await p.locator('#ai-failure-to').evaluate(node => !node.validity.valid), 'Invalid period accepted');
+        check(calls.length === beforeInvalid, 'Invalid period requested');
+        await p.locator('#ai-failure-to').fill('2026-09-30');
+        await p.getByRole('button', {name:'Apply filters',exact:true}).click();
+        await p.waitForFunction(() => !document.querySelector('#ai-failure-game').disabled);
+        const query = new URLSearchParams(calls.at(-1));
+        check(query.get('gameCode') === 'bj_igt' && query.get('errorText') === 'Unparseable: 60%_cards', 'Search fields missing');
+        check(query.get('failedFrom') === '2026-09-30T00:00:00Z' && query.get('failedTo') === '2026-10-01T00:00:00.000Z', 'UTC day bounds incorrect');
+        await p.getByRole('button', {name:'Reset filters',exact:true}).click();
+        await p.waitForFunction(() => !document.querySelector('#ai-failure-game').disabled);
+        check(calls.at(-1) === '?', 'Reset retained filters');
+        await p.locator('#ai-failure-reason-filter').selectOption('error:AI_REJECTED');
+        await p.waitForFunction(() => !document.querySelector('#ai-failure-game').disabled);
         empty=true; await p.locator('#ai-failures-refresh').click();
         await p.getByText('No failed tasks match these filters.',{exact:true}).waitFor();
         check((await p.locator('#ai-failure-inspector').textContent()).includes('Select a failed screenshot'), 'Empty result kept stale inspector');
