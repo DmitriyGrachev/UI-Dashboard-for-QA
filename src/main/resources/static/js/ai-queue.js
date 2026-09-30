@@ -612,7 +612,7 @@ function initializeAiQueue(form, operations) {
         });
         statsMessage.dataset.error = String(Boolean(statsError));
         statsMessage.textContent = statsBusy ? 'Refreshing rule statistics…'
-            : statsError ? `${statsError} Select Refresh rule statistics to retry.`
+            : statsError ? `${statsError} ${matches ? `Showing the previous snapshot from ${formatAiTime(statistics.generatedAt)}; counts may be out of date. ` : ''}Saved settings and task issuance are unchanged. Select Refresh rule statistics to retry.`
             : dirty() ? 'Statistics apply to saved settings. Save or reload settings to see counts for these rules.'
             : statistics && !matches ? 'Settings changed in another session. Reload saved settings to see current counts.'
             : statistics ? `Remaining, Completed and Failed: snapshot at ${formatAiTime(statistics.generatedAt)}. Use Refresh rule statistics to update. Processing refreshes with activity every 15 seconds while this page is visible.`
@@ -640,7 +640,6 @@ function initializeAiQueue(form, operations) {
             }
             statistics = data;
         } catch (error) {
-            statistics = null;
             statsError = error.message || 'Could not load rule statistics.';
         } finally {
             statsBusy = false;

@@ -143,12 +143,15 @@ public class AiTaskRepository {
         var parameters = new MapSqlParameterSource("now", timestamp(now))
                 .addValue("ruleIds", settings.rules().stream().map(AiRule::id).toList());
         StringBuilder owner = new StringBuilder("CASE");
+        List<String> conditions = new ArrayList<>();
         int index = 0;
         for (AiRule rule : settings.rules()) {
             if (!settings.enabled() || !rule.enabled()) continue;
             String suffix = "_" + index++;
-            owner.append(" WHEN TRUE");
-            appendRuleConditions(owner, parameters, rule, suffix);
+            var condition = new StringBuilder("TRUE");
+            appendRuleConditions(condition, parameters, rule, suffix);
+            conditions.add("(" + condition + ")");
+            owner.append(" WHEN ").append(condition);
             owner.append(" THEN CAST(:ruleId").append(suffix).append(" AS uuid)");
             parameters.addValue("ruleId" + suffix, rule.id());
         }
@@ -156,8 +159,11 @@ public class AiTaskRepository {
         // Read-only preview of the same bounded recovery performed before claim; no leases are changed.
         // Disjoint branches keep the PENDING partial indexes usable; an OR with recovery
         // made PostgreSQL scan the entire task table and spill an oversized hash join.
-        String pending = eligiblePendingSql(parameters, assignment + " AS rule_id", now, false, true).toString()
-                + " UNION ALL " + eligiblePendingSql(parameters, assignment + " AS rule_id", now, true, true);
+        // Expose selective predicates to the planner; CASE alone hides indexable rule conditions.
+        String scope = " /* active rule scope */ AND (" + String.join(" OR ", conditions) + ") /* end scope */ ";
+        String pending = index == 0 ? "SELECT NULL::uuid AS rule_id WHERE FALSE"
+                : eligiblePendingSql(parameters, assignment + " AS rule_id", now, false, true) + scope
+                + " UNION ALL " + eligiblePendingSql(parameters, assignment + " AS rule_id", now, true, true) + scope;
         String sql = "WITH recoverable AS (" + EXPIRED_SELECTION + "), remaining AS (" + pending + """
                 ), counts AS (
                   SELECT rule_id, COUNT(*) AS remaining, 0::bigint AS processing,

@@ -744,6 +744,11 @@ test('rule statistics refresh saved counts without saving or discarding a draft'
         assert.equal(remaining.textContent, '1');
         await queue.refreshStatistics();
         assert.equal(remaining.textContent, '2');
+        fail = true;
+        await queue.refreshStatistics();
+        assert.equal(remaining.textContent, '2');
+        assert.match(message.textContent, /previous snapshot.*out of date/);
+        fail = false;
         const name = rules.firstElementChild.querySelector('[name="name"]');
         name.value = 'Draft';
         form.dispatchEvent({type: 'input', target: name});
