@@ -3314,6 +3314,10 @@ span.flatpickr-weekday {
 .ai-diagnostics summary { cursor: pointer; }
 
 /* Keep the working image and controls usable with a keyboard and enlarged text. */
+.viewer-panel, .explorer-viewer { grid-template-columns: minmax(0, 1fr); }
+.viewer-bar { flex-wrap: wrap; }
+.viewer-bar > div:first-child { min-width: 0; max-width: 100%; }
+.viewer-bar strong { max-width: 100%; }
 .image-stage:focus-visible { outline: 2px solid var(--focus); outline-offset: -3px; }
 .viewer-tools { flex-wrap: wrap; }
 .review-shell .topbar { flex-wrap: wrap; padding-block: 8px; }
@@ -3322,7 +3326,7 @@ span.flatpickr-weekday {
 .review-shell .verdict strong { font-size: 1rem; }
 .review-shell .verdict small, .decision-status p { font-size: .75rem; }
 .primary-context dt, .viewer-hint { font-size: .75rem; }
-.viewer-tools :is(button, output) { min-height: 38px; }
+.viewer-tools :is(button, output) { height: auto; min-height: max(38px, 2.25rem); }
 .viewer-panel:fullscreen, .explorer-viewer:fullscreen {
     width: 100%; height: 100dvh; background: var(--ink-900);
     display: grid; grid-template-rows: auto minmax(0, 1fr) auto;

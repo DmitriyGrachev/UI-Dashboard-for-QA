@@ -590,9 +590,10 @@
 .admin-workspace .account-name strong { font-size: .8125rem; font-weight: 600; }
 .admin-workspace .account-name small { font-size: .75rem; color: var(--muted); }
 .admin-page.admin-workspace .admin-sidebar { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 20px; padding: 24px 12px 16px; border-right: 1px solid var(--line); background: var(--ink-900); overflow-y: auto; }
-.admin-workspace .admin-nav-label { margin: 0 12px; color: var(--muted); font-size: .6875rem; letter-spacing: .1em; text-transform: uppercase; }
+.admin-workspace .admin-nav-label { margin: 0 12px; color: var(--muted); font-size: .6875rem; letter-spacing: .1em; text-transform: uppercase; overflow-wrap: anywhere; }
 .admin-page.admin-workspace .admin-navigation { flex-direction: column; gap: 6px; border: 0; overflow: visible; padding: 0; }
-.admin-page.admin-workspace .admin-navigation a { display: flex; gap: 12px; border: 0; border-radius: 8px; padding: 13px 12px; color: var(--muted); }
+@media (min-width: 1101px) { .admin-page.admin-workspace .admin-navigation { flex-shrink: 0; } }
+.admin-page.admin-workspace .admin-navigation a { display: flex; gap: 12px; border: 0; border-radius: 8px; padding: 13px 12px; color: var(--muted); overflow-wrap: anywhere; }
 .admin-page.admin-workspace .admin-navigation a[aria-current="page"] { background: var(--admin-selected); color: var(--signal); box-shadow: inset 3px 0 var(--signal); }
 .admin-page.admin-workspace .admin-nav-icon { display: block; width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.6; flex-shrink: 0; }
 .admin-page.admin-workspace .button { border-radius: 7px; min-height: 40px; white-space: nowrap; }
