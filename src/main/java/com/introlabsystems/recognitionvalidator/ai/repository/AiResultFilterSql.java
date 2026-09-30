@@ -25,8 +25,13 @@ public final class AiResultFilterSql {
         boolean hasDetails = verdict != null && verdict != AiVerdict.ALL
                 || confidenceFrom != null || confidenceTo != null;
         if ((state == null || state == AiResultState.ALL) && !hasDetails) return;
-        if (state == AiResultState.UNCHECKED && hasDetails) {
+        if ((state == AiResultState.UNCHECKED || state == AiResultState.FAILED) && hasDetails) {
             sql.append(" AND FALSE");
+            return;
+        }
+        if (state == AiResultState.FAILED) {
+            sql.append(joined ? " AND ai.status = 'FAILED'"
+                    : " AND EXISTS (SELECT 1 FROM ai_review_task ai WHERE ai.image_id=rt.image_id AND ai.status='FAILED')");
             return;
         }
         if (joined) sql.append(state == AiResultState.UNCHECKED ? " AND ai.status <> 'COMPLETED'" : " AND ai.status = 'COMPLETED'");

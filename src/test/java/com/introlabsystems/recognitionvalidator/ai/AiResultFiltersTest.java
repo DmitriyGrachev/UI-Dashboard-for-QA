@@ -203,7 +203,7 @@ class AiResultFiltersTest extends AiTestSupport {
     }
 
     @ParameterizedTest
-    @CsvSource({"'',6,1", "ALL,6,1", "CHECKED,2,1", "MATCHED,1,1", "UNMATCHED,1,2", "UNCHECKED,4,3"})
+    @CsvSource({"'',6,1", "ALL,6,1", "CHECKED,2,1", "MATCHED,1,1", "UNMATCHED,1,2", "UNCHECKED,4,3", "FAILED,1,6"})
     void aiStateFiltersPagesSummariesAndOperatorClaims(String state, int count, int oldest) throws Exception {
         String matched = image(1, 53);
         String unmatched = image(2, 53);

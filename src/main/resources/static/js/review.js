@@ -335,6 +335,14 @@ if (typeof document !== "undefined") {
         };
     }
 
+    function syncAiFilterControls() {
+        const failed = elements.aiResult.value === 'FAILED';
+        [elements.aiVerdict, elements.confidenceFrom, elements.confidenceTo].forEach(input => {
+            input.disabled = failed;
+            if (failed) input.value = '';
+        });
+    }
+
     function filterInputValues() {
         return {
             createdFrom: elements.createdFrom.value,
@@ -807,6 +815,7 @@ if (typeof document !== "undefined") {
     }
 
     function applyFilters() {
+        syncAiFilterControls();
         clearPreload();
         clearTimeout(state.filterTimer);
         state.filtersPending = true;
@@ -821,6 +830,7 @@ if (typeof document !== "undefined") {
     }
 
     function scheduleFilterApplication() {
+        syncAiFilterControls();
         clearPreload();
         state.queueVersion++;
         state.claimController?.abort();
@@ -836,6 +846,7 @@ if (typeof document !== "undefined") {
     }
 
     restoreFilters();
+    syncAiFilterControls();
     const dateRange = createReviewDateRange(
         window.UtcDateTimePicker,
         elements,
