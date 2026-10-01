@@ -116,6 +116,13 @@ AWS SDK використовує стандартну retry-стратегію �
 після вичерпання SDK-спроб діє наявний scheduler retry через
 `B2_UPLOAD_RETRY_DELAY`. Це не є окремою чергою або SLA-механізмом.
 
+Якщо batch має помилки, його єдиний WARN містить `sampleFailure`: ID одного
+скриншота, етап (`headObject`, `putObject` або операція БД), типи причин,
+HTTP status/error code B2 чи SQLState БД, якщо доступні. Це один приклад,
+а не перелік усіх причин batch; `failed` рахує невдалі обробки кандидатів,
+не унікальні файли. Сирі повідомлення й stack trace залишаються на DEBUG
+для `com.introlabsystems.recognitionvalidator.scheduler.CloudUploadScheduler`.
+
 Для rollback встановіть `B2_ENABLED=false` і перезапустіть `validator-api-app`.
 Нові upload, клієнт B2 та scheduler не запускаються; локальна індексація і 4-денне
 локальне очищення продовжують працювати. Об'єкти B2 при цьому не видаляються — ними

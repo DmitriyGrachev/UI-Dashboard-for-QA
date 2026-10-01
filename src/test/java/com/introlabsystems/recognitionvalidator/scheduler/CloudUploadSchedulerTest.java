@@ -13,16 +13,27 @@ import ch.qos.logback.core.read.ListAppender;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.test.context.ActiveProfiles;
 import org.slf4j.LoggerFactory;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
+import software.amazon.awssdk.core.exception.SdkClientException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.UncheckedIOException;
+import java.net.SocketTimeoutException;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.FileSystemException;
 import java.nio.file.Path;
+import java.nio.file.NoSuchFileException;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -34,6 +45,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -228,7 +240,9 @@ class CloudUploadSchedulerTest {
             assertThat(warnings).singleElement()
                     .extracting(ILoggingEvent::getFormattedMessage)
                     .asString()
-                    .contains("B2 upload batch completed", "failed=2");
+                    .contains("B2 upload batch completed", "failed=2", "stage=putObject",
+                            "cause=IllegalStateException")
+                    .containsPattern("imageId=failed-(one|two)");
             assertThat(appender.list)
                     .filteredOn(event -> event.getLevel() == Level.DEBUG)
                     .extracting(ILoggingEvent::getFormattedMessage)
@@ -237,6 +251,70 @@ class CloudUploadSchedulerTest {
             logger.detachAppender(appender);
             logger.setLevel(previousLevel);
         }
+    }
+
+    @ParameterizedTest
+    @MethodSource("diagnosticFailures")
+    void warningIdentifiesFailureStageAndCauseWithoutExposingExceptionMessages(
+            String stage, RuntimeException failure, String expectedCause
+    ) throws Exception {
+        write("diagnostic.png");
+        CloudUploadRepository repository = mock(CloudUploadRepository.class);
+        ImageAssetBatchWriter writer = mock(ImageAssetBatchWriter.class);
+        CloudObjectStorage cloud = mock(CloudObjectStorage.class);
+        B2StorageProperties b2 = b2Properties(1, 1, Duration.ofMinutes(5));
+        when(repository.findCandidates(NOW, 1)).thenReturn(List.of(
+                new CloudUploadCandidate("diagnostic", "diagnostic.png", NOW,
+                        "validator/diagnostic.png", NOW, 1)
+        ));
+        switch (stage) {
+            case "headObject" -> when(cloud.exists(any())).thenThrow(failure);
+            case "putObject" -> doThrow(failure).when(cloud).upload(any(), any());
+            case "markUploaded" -> doThrow(failure).when(repository).markUploaded(any(), any(), any());
+            default -> throw new IllegalArgumentException(stage);
+        }
+        executor = Executors.newFixedThreadPool(1);
+        Logger logger = (Logger) LoggerFactory.getLogger(CloudUploadScheduler.class);
+        Level previousLevel = logger.getLevel();
+        logger.setLevel(Level.INFO);
+        ListAppender<ILoggingEvent> appender = new ListAppender<>();
+        appender.start();
+        logger.addAppender(appender);
+        try {
+            assertThat(scheduler(repository, writer, cloud, b2, executor).runOnce()).isZero();
+            assertThat(appender.list).singleElement().satisfies(event -> {
+                assertThat(event.getLevel()).isEqualTo(Level.WARN);
+                assertThat(event.getFormattedMessage())
+                        .contains("failed=1", "imageId=diagnostic", "stage=" + stage, expectedCause)
+                        .doesNotContain("sensitive", "https://", "\n", "\r");
+                assertThat(event.getThrowableProxy()).isNull();
+            });
+        } finally {
+            logger.detachAppender(appender);
+            logger.setLevel(previousLevel);
+        }
+    }
+
+    private static Stream<Arguments> diagnosticFailures() {
+        return Stream.of(
+                Arguments.of("headObject", S3Exception.builder().statusCode(503)
+                                .awsErrorDetails(AwsErrorDetails.builder().errorCode("ServiceUnavailable").build())
+                                .message("sensitive B2 response").build(),
+                        "S3Exception[httpStatus=503,errorCode=ServiceUnavailable]"),
+                Arguments.of("putObject", SdkClientException.create("sensitive URL",
+                                new SocketTimeoutException("sensitive endpoint")),
+                        "SdkClientException <- SocketTimeoutException"),
+                Arguments.of("putObject", new UncheckedIOException(new NoSuchFileException("sensitive path")),
+                        "UncheckedIOException <- NoSuchFileException"),
+                Arguments.of("markUploaded", new DataAccessResourceFailureException("sensitive SQL",
+                                new SQLException("sensitive parameters", "08006")),
+                        "DataAccessResourceFailureException <- SQLException[sqlState=08006]"),
+                Arguments.of("putObject", S3Exception.builder().statusCode(500)
+                                .awsErrorDetails(AwsErrorDetails.builder()
+                                        .errorCode("sensitive\nhttps://example.test/?secret=hidden").build())
+                                .build(),
+                        "S3Exception[httpStatus=500,errorCode=unavailable]")
+        );
     }
 
     @Test
@@ -287,7 +365,8 @@ class CloudUploadSchedulerTest {
                     .singleElement()
                     .extracting(ILoggingEvent::getFormattedMessage)
                     .asString()
-                    .contains("B2 upload batch completed", "missing=0", "failed=1");
+                    .contains("B2 upload batch completed", "missing=0", "failed=1",
+                            "imageId=missing", "stage=markUnavailable", "cause=IllegalStateException");
             verify(repository).markFailed("missing", NOW.plus(Duration.ofMinutes(5)));
             assertThat(appender.list)
                     .filteredOn(event -> event.getLevel() == Level.DEBUG)

@@ -12,10 +12,12 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -23,6 +25,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Component
 @ConditionalOnProperty(prefix = "validator.b2", name = "enabled", havingValue = "true")
@@ -75,9 +78,10 @@ public class CloudUploadScheduler {
                 return 0;
             }
 
+            AtomicReference<String> sampleFailure = new AtomicReference<>();
             List<CompletableFuture<UploadResult>> futures = candidates.stream()
                     .map(candidate -> CompletableFuture.supplyAsync(
-                            () -> upload(candidate),
+                            () -> upload(candidate, sampleFailure),
                             uploadExecutor
                     ))
                     .toList();
@@ -85,38 +89,42 @@ public class CloudUploadScheduler {
             int uploaded = 0;
             int missing = 0;
             int failed = 0;
-            for (CompletableFuture<UploadResult> future : futures) {
+            for (int index = 0; index < futures.size(); index++) {
                 try {
-                    UploadResult result = future.join();
+                    UploadResult result = futures.get(index).join();
                     uploaded += result == UploadResult.UPLOADED ? 1 : 0;
                     missing += result == UploadResult.MISSING ? 1 : 0;
                     failed += result == UploadResult.FAILED ? 1 : 0;
                 } catch (CompletionException exception) {
                     failed++;
+                    sampleFailure.compareAndSet(null, failureDetails(
+                            candidates.get(index).imageId(), "worker", exception.getCause()
+                    ));
                     log.debug("B2 upload task failed unexpectedly", exception.getCause());
                 }
             }
-            logBatchSummary(candidates.size(), uploaded, missing, failed, startedNanos);
+            logBatchSummary(candidates.size(), uploaded, missing, failed, startedNanos, sampleFailure.get());
             return uploaded;
         } finally {
             running.set(false);
         }
     }
 
-    private UploadResult upload(CloudUploadCandidate candidate) {
+    private UploadResult upload(CloudUploadCandidate candidate, AtomicReference<String> sampleFailure) {
         Path source = imageRoot.resolve(candidate.relativePath()).normalize();
         boolean localAvailable = isSafeRegularFile(source);
         boolean prepared = candidate.objectKey() != null
                 && !candidate.objectKey().isBlank()
                 && candidate.attemptCount() > 0;
         if (!localAvailable && !prepared) {
-            return markUnavailable(candidate);
+            return markUnavailable(candidate, sampleFailure);
         }
 
         String objectKey = prepared
                 ? candidate.objectKey()
                 : b2Properties.objectKey(candidate.imageId());
         Instant attemptAt = clock.instant();
+        String stage = "markAttemptStarted";
         try {
             uploads.markAttemptStarted(
                     candidate.imageId(),
@@ -124,7 +132,9 @@ public class CloudUploadScheduler {
                     attemptAt.plus(b2Properties.uploadRetryDelay())
             );
 
+            stage = "headObject";
             if (prepared && storage.exists(objectKey)) {
+                stage = "markUploaded";
                 uploads.markUploaded(
                         candidate.imageId(),
                         objectKey,
@@ -133,15 +143,20 @@ public class CloudUploadScheduler {
                 return UploadResult.UPLOADED;
             }
             if (!localAvailable) {
+                stage = "markUnavailable";
                 images.markUnavailable(candidate.imageId());
+                stage = "clearAttempt";
                 uploads.clearAttempt(candidate.imageId());
                 return UploadResult.MISSING;
             }
 
+            stage = "putObject";
             storage.upload(objectKey, source);
+            stage = "markUploaded";
             uploads.markUploaded(candidate.imageId(), objectKey, attemptAt);
             return UploadResult.UPLOADED;
         } catch (RuntimeException exception) {
+            sampleFailure.compareAndSet(null, failureDetails(candidate.imageId(), stage, exception));
             log.debug("B2 upload failed for image {}; retry scheduled", candidate.imageId(), exception);
             return UploadResult.FAILED;
         }
@@ -154,11 +169,12 @@ public class CloudUploadScheduler {
         return candidate.nextAttemptAt().minus(b2Properties.uploadRetryDelay());
     }
 
-    private UploadResult markUnavailable(CloudUploadCandidate candidate) {
+    private UploadResult markUnavailable(CloudUploadCandidate candidate, AtomicReference<String> sampleFailure) {
         try {
             images.markUnavailable(candidate.imageId());
             return UploadResult.MISSING;
         } catch (RuntimeException exception) {
+            sampleFailure.compareAndSet(null, failureDetails(candidate.imageId(), "markUnavailable", exception));
             Instant nextAttemptAt = clock.instant().plus(b2Properties.uploadRetryDelay());
             try {
                 uploads.markFailed(candidate.imageId(), nextAttemptAt);
@@ -188,16 +204,18 @@ public class CloudUploadScheduler {
             int uploaded,
             int missing,
             int failed,
-            long startedNanos
+            long startedNanos,
+            String sampleFailure
     ) {
         if (failed > 0) {
             log.warn(
-                    "B2 upload batch completed: candidates={}, uploaded={}, missing={}, failed={}, durationMs={}",
+                    "B2 upload batch completed: candidates={}, uploaded={}, missing={}, failed={}, durationMs={}, sampleFailure={}",
                     candidates,
                     uploaded,
                     missing,
                     failed,
-                    (System.nanoTime() - startedNanos) / 1_000_000
+                    (System.nanoTime() - startedNanos) / 1_000_000,
+                    sampleFailure
             );
         } else {
             log.info(
@@ -209,6 +227,33 @@ public class CloudUploadScheduler {
                     (System.nanoTime() - startedNanos) / 1_000_000
             );
         }
+    }
+
+    private static String failureDetails(String imageId, String stage, Throwable exception) {
+        // Keep one bounded sample per batch; raw messages can contain URLs, SQL or credentials.
+        StringBuilder details = new StringBuilder("imageId=").append(diagnosticToken(imageId))
+                .append(" stage=").append(stage).append(" cause=");
+        Throwable cause = exception;
+        for (int depth = 0; cause != null && depth < 8; depth++, cause = cause.getCause()) {
+            if (depth > 0) {
+                details.append(" <- ");
+            }
+            details.append(cause.getClass().getSimpleName());
+            if (cause instanceof S3Exception s3) {
+                details.append("[httpStatus=").append(s3.statusCode())
+                        .append(",errorCode=").append(diagnosticToken(
+                                s3.awsErrorDetails() == null ? null : s3.awsErrorDetails().errorCode()
+                        )).append(']');
+            }
+            if (cause instanceof SQLException sql) {
+                details.append("[sqlState=").append(diagnosticToken(sql.getSQLState())).append(']');
+            }
+        }
+        return details.toString();
+    }
+
+    private static String diagnosticToken(String value) {
+        return value != null && value.matches("[A-Za-z0-9_.-]{1,128}") ? value : "unavailable";
     }
 
     private boolean isSafeRegularFile(Path source) {
