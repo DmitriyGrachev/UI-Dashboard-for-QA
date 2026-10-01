@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.sql.Timestamp;
@@ -94,6 +95,37 @@ public class AiTaskRepository {
             activity.issued(issuedCounts, claimNow);
             return List.copyOf(claimed);
         });
+    }
+
+    @Transactional(readOnly = true, timeout = 5)
+    public AiRulePreview preview(AiSettings settings, int priority) {
+        if (priority < 1 || priority > settings.rules().size()) {
+            throw new IllegalArgumentException("Unknown rule priority");
+        }
+        Instant now = databaseNow();
+        AiRule selected = settings.rules().get(priority - 1);
+        if (!settings.enabled() || !selected.enabled()) return new AiRulePreview(now, false, List.of(), false);
+        jdbc.getJdbcTemplate().execute("SET LOCAL statement_timeout='5s'");
+        var parameters = new MapSqlParameterSource("now", timestamp(now));
+        var scope = new StringBuilder();
+        appendRuleConditions(scope, parameters, selected, "Selected");
+        for (AiRule earlier : settings.rules().subList(0, priority - 1)) {
+            if (!earlier.enabled()) continue;
+            scope.append(" AND (TRUE");
+            appendRuleConditions(scope, parameters, earlier, "Earlier" + earlier.priority());
+            // NULL token/session/hand values do not match an earlier rule either.
+            scope.append(") IS NOT TRUE");
+        }
+        String projection = "ai.image_id, ia.file_name, ai.game_code, ai.file_created_at";
+        String pending = eligiblePendingSql(parameters, projection, now, false, false) + scope.toString();
+        String recovered = eligiblePendingSql(parameters, projection, now, true, false) + scope.toString();
+        String orderedLimit = " ORDER BY ai.file_created_at, ai.image_id LIMIT 11";
+        String sql = "WITH recoverable AS (" + EXPIRED_SELECTION + ") SELECT * FROM (("
+                + pending + orderedLimit + ") UNION ALL (" + recovered + orderedLimit
+                + ")) preview ORDER BY file_created_at, image_id LIMIT 11";
+        var rows = jdbc.query(sql, parameters, (rs, row) -> new AiRulePreview.Item(rs.getString("image_id"),
+                rs.getString("file_name"), rs.getString("game_code"), instant(rs, "file_created_at")));
+        return new AiRulePreview(now, true, List.copyOf(rows.subList(0, Math.min(10, rows.size()))), rows.size() > 10);
     }
 
     public boolean hasEligiblePending(AiSettings settings, Instant now) {

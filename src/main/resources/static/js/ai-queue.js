@@ -805,6 +805,7 @@ function initializeAiQueue(form, operations) {
         });
         node.querySelectorAll('[data-move-rule]').forEach(button =>
             button.addEventListener('click', () => moveRule(node, button.dataset.moveRule === 'up' ? -1 : 1, button)));
+        node.querySelector('[data-preview-rule]')?.addEventListener('click', () => previewRule(node));
         const remove = node.querySelector('[data-remove-rule]');
         if (remove) remove.addEventListener('click', () => {
             if (busy) return;
@@ -817,14 +818,15 @@ function initializeAiQueue(form, operations) {
         return node;
     }
 
-    async function request(body) {
+    async function request(body, previewPriority, signal) {
         const csrfToken = doc.querySelector('meta[name="_csrf"]');
         const csrfHeader = doc.querySelector('meta[name="_csrf_header"]');
         const headers = {'Content-Type': 'application/json'};
         if (csrfToken && csrfHeader && csrfHeader.content) headers[csrfHeader.content] = csrfToken.content;
-        const response = await fetch('/admin/api/ai-queue/settings', {
-            method: body ? 'PUT' : 'GET',
+        const response = await fetch('/admin/api/ai-queue/settings' + (previewPriority ? `/rules/${previewPriority}/preview` : ''), {
+            method: previewPriority ? 'POST' : body ? 'PUT' : 'GET',
             cache: 'no-store',
+            signal,
             headers,
             ...(body ? {body: JSON.stringify(body)} : {})
         });
@@ -835,7 +837,7 @@ function initializeAiQueue(form, operations) {
         }
         let data = {};
         try { data = await response.json(); } catch (_) {
-            if (response.ok) throw new Error('Could not read AI settings. Sign in again or reload the page.');
+            if (response.ok) throw new Error('Could not read the server response. Sign in again or reload the page.');
         }
         if (!data || typeof data !== 'object') data = {};
         if (!response.ok) {
@@ -844,6 +846,10 @@ function initializeAiQueue(form, operations) {
                 : data.detail || data.message || `Request failed (${response.status})`);
             error.status = response.status;
             throw error;
+        }
+        if (previewPriority) {
+            if (!Array.isArray(data.items) || typeof data.enabled !== 'boolean') throw new Error('Could not read the rule preview.');
+            return data;
         }
         if (!Array.isArray(data.rules) || !Array.isArray(data.games)
                 || typeof data.enabled !== 'boolean' || !Number.isSafeInteger(data.revision)) {
@@ -913,6 +919,40 @@ function initializeAiQueue(form, operations) {
         return false;
     }
 
+    const previewDialog = byId('ai-rule-preview');
+    let previewController;
+    previewDialog?.addEventListener('close', () => { previewController?.abort(); previewController = null; });
+    async function previewRule(node) {
+        if (busy || !current || !validDraft()) return;
+        previewController?.abort();
+        const controller = new AbortController();
+        previewController = controller;
+        const priority = Number(node.dataset.priority), draft = draftSettings();
+        const status = byId('ai-rule-preview-message'), items = byId('ai-rule-preview-items');
+        byId('ai-rule-preview-title').textContent = `Preview · ${draft.rules[priority - 1].name}`;
+        items.replaceChildren(); setMessage('Loading examples…', false, status);
+        previewDialog.showModal();
+        try {
+            const data = await request({revision: current.revision, ...draft}, priority, controller.signal);
+            if (previewController !== controller || !previewDialog.open) return;
+            setMessage(!data.enabled ? 'This draft pauses assignments or disables this rule. No screenshots would be issued.'
+                : !data.items.length ? 'No available screenshots match this rule after earlier enabled rules.'
+                : `${data.items.length} examples${data.hasMore ? ' · more available' : ''} · snapshot ${formatAiTime(data.generatedAt)}`, false, status);
+            for (const item of data.items) {
+                const li = doc.createElement('li'), link = doc.createElement('a'), image = doc.createElement('img');
+                link.href = '/admin/screenshots?imageId=' + encodeURIComponent(item.imageId);
+                link.target = '_blank'; link.rel = 'noopener';
+                image.src = '/admin/api/screenshots/' + encodeURIComponent(item.imageId) + '/thumbnail';
+                image.alt = ''; image.loading = 'lazy'; image.width = 96; image.height = 54;
+                const label = doc.createElement('span');
+                label.textContent = `${item.fileName} · ${item.gameCode} · ${formatAiTime(item.createdAt)} · Opens in a new tab`;
+                link.append(image, label); li.append(link); items.append(li);
+            }
+        } catch (error) {
+            if (previewController === controller && error.name !== 'AbortError') setMessage(error.message || 'Could not load examples. Close and try again.', true, status);
+        }
+    }
+
     function discardConfirmed() {
         if (!dirty()) return true;
         const confirmDiscard = (form.ownerDocument?.defaultView || globalThis).confirm;
@@ -977,6 +1017,7 @@ function initializeAiQueue(form, operations) {
     });
 
     const view = form.ownerDocument?.defaultView || (typeof window !== 'undefined' ? window : null);
+    view?.addEventListener('pagehide', () => previewController?.abort());
     if (view?.addEventListener) {
         view.addEventListener('beforeunload', event => {
             if (!dirty()) return;

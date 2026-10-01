@@ -117,9 +117,17 @@
                         <button class="button secondary" type="button" data-move-rule="up" aria-label="Move rule up">Move up</button>
                         <button class="button secondary" type="button" data-move-rule="down" aria-label="Move rule down">Move down</button>
                         <button class="button secondary" type="button" data-remove-rule>Remove rule</button>
+                        <button class="button secondary" type="button" data-preview-rule>Preview rule</button>
                     </div>
                 </details>
             </template>
+            <dialog id="ai-rule-preview" class="ai-rule-preview" aria-labelledby="ai-rule-preview-title" aria-describedby="ai-rule-preview-help">
+                <h2 id="ai-rule-preview-title">Rule preview</h2>
+                <p id="ai-rule-preview-help">Uses your current draft and excludes earlier enabled rules. Up to 10 oldest available screenshots; this preview does not save settings or reserve tasks. Availability may change.</p>
+                <p id="ai-rule-preview-message" role="status"></p>
+                <ol id="ai-rule-preview-items"></ol>
+                <form method="dialog"><button class="button secondary" autofocus>Close preview</button></form>
+            </dialog>
         </section>
         <details id="ai-failures" data-ai-view class="rejected-export-panel ai-queue-panel">
             <summary>AI Failed · screenshot log</summary>

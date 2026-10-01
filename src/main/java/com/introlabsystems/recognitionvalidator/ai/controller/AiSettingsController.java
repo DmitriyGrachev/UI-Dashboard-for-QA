@@ -3,7 +3,9 @@ package com.introlabsystems.recognitionvalidator.ai.controller;
 import com.introlabsystems.recognitionvalidator.ai.config.AiQueueProperties;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiRule;
 import com.introlabsystems.recognitionvalidator.ai.dto.AiSettings;
+import com.introlabsystems.recognitionvalidator.ai.dto.AiRulePreview;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiSettingsRepository;
+import com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository;
 import com.introlabsystems.recognitionvalidator.config.ValidatorProperties;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,15 +24,14 @@ public class AiSettingsController {
     private final AiSettingsRepository settings;
     private final AiQueueProperties properties;
     private final ValidatorProperties validatorProperties;
+    private final AiTaskRepository tasks;
 
     @GetMapping
     public ResponseEntity<View> read() { return response(settings.read()); }
 
     @PutMapping
     public ResponseEntity<View> save(@RequestBody AiSettings requested, Principal principal) {
-        if (requested.rules().stream().anyMatch(rule -> !validatorProperties.games().contains(rule.gameCode()))) {
-            throw new IllegalArgumentException("Unknown game code");
-        }
+        validateGames(requested);
         AiSettings saved = settings.save(requested);
         log.info(
                 "AI queue settings saved: revision={}, enabled={}, rules={}, enabledRules={}, actor={}, order={}",
@@ -43,6 +44,18 @@ public class AiSettingsController {
                         + ":" + (rule.enabled() ? "enabled" : "disabled")).toList()
         );
         return response(saved);
+    }
+
+    @PostMapping("/rules/{priority}/preview")
+    public ResponseEntity<AiRulePreview> preview(@PathVariable int priority, @RequestBody AiSettings requested) {
+        validateGames(requested);
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore()).body(tasks.preview(requested, priority));
+    }
+
+    private void validateGames(AiSettings requested) {
+        if (requested.rules().stream().anyMatch(rule -> !validatorProperties.games().contains(rule.gameCode()))) {
+            throw new IllegalArgumentException("Unknown game code");
+        }
     }
 
     private ResponseEntity<View> response(AiSettings value) {

@@ -33,7 +33,7 @@ class AiSettingsControllerLoggingTest {
         ValidatorProperties validator = mock(ValidatorProperties.class);
         when(validator.games()).thenReturn(List.of("bj_single_deck_ags", "bj_igt"));
         AiSettingsController controller = new AiSettingsController(repository,
-                new AiQueueProperties(Duration.ofMinutes(2)), validator);
+                new AiQueueProperties(Duration.ofMinutes(2)), validator, mock(com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository.class));
 
         controller.save(request, () -> "audit\nadmin");
 
@@ -49,7 +49,7 @@ class AiSettingsControllerLoggingTest {
         ValidatorProperties validator = mock(ValidatorProperties.class);
         when(validator.games()).thenReturn(List.of("bj_single_deck_ags", "bj_igt"));
         AiSettingsController controller = new AiSettingsController(repository,
-                new AiQueueProperties(Duration.ofMinutes(2)), validator);
+                new AiQueueProperties(Duration.ofMinutes(2)), validator, mock(com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository.class));
         AiSettings request = new AiSettings(0, false, List.of(new AiRule(
                 UUID.randomUUID(), "Unknown", true, 1, "bj_unknown",
                 null, null, null, null, null)));
@@ -65,7 +65,7 @@ class AiSettingsControllerLoggingTest {
         var validator = mock(ValidatorProperties.class);
         var request = new AiSettings(3, false, List.of());
         when(repository.save(request)).thenThrow(new org.springframework.dao.DataAccessResourceFailureException("offline"));
-        var controller = new AiSettingsController(repository, new AiQueueProperties(Duration.ofMinutes(2)), validator);
+        var controller = new AiSettingsController(repository, new AiQueueProperties(Duration.ofMinutes(2)), validator, mock(com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository.class));
         assertThatThrownBy(() -> controller.save(request, () -> "admin"))
                 .isInstanceOf(org.springframework.dao.DataAccessResourceFailureException.class);
         assertThat(output).doesNotContain("AI queue settings saved:");
