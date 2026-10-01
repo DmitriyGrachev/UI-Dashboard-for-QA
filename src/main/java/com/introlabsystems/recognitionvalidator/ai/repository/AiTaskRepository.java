@@ -100,7 +100,7 @@ public class AiTaskRepository {
     @Transactional(readOnly = true, timeout = 5)
     public AiRulePreview preview(AiSettings settings, int priority) {
         if (priority < 1 || priority > settings.rules().size()) {
-            throw new IllegalArgumentException("Unknown rule priority");
+            throw new AiQueueException(HttpStatus.BAD_REQUEST, "INVALID_REQUEST", "Unknown rule priority");
         }
         Instant now = databaseNow();
         AiRule selected = settings.rules().get(priority - 1);

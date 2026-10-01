@@ -2,17 +2,28 @@ package com.introlabsystems.recognitionvalidator.ai;
 
 import com.introlabsystems.recognitionvalidator.ai.dto.*;
 import com.introlabsystems.recognitionvalidator.ai.repository.AiTaskRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
+@AutoConfigureMockMvc
 class AiRulePreviewTest extends AiTestSupport {
     @Autowired AiTaskRepository tasks;
+    @Autowired MockMvc mvc;
+    @Autowired ObjectMapper mapper;
 
     private AiRule rule(int priority, boolean enabled, String game, Long token) {
         return new AiRule(null, "Rule " + priority, enabled, priority, game, null, null, token, null, null);
@@ -71,7 +82,17 @@ class AiRulePreviewTest extends AiTestSupport {
         assertThat(one.hasMore()).isFalse();
         assertThat(tasks.claim(bounded, 10)).extracting(AiClaim::imageId).containsExactly("%064x".formatted(6));
         assertThat(tasks.preview(bounded, 1).items()).isEmpty();
-        assertThatIllegalArgumentException().isThrownBy(() -> tasks.preview(settings, 0));
-        assertThatIllegalArgumentException().isThrownBy(() -> tasks.preview(settings, 2));
+    }
+
+    @Test
+    void invalidPriorityReturnsBadRequestThroughTheRealRepository() throws Exception {
+        var settings = new AiSettings(0, true, List.of(rule(1, true, "bj_igt", null)));
+        for (int priority : List.of(0, 2)) {
+            mvc.perform(post("/admin/api/ai-queue/settings/rules/{priority}/preview", priority)
+                            .with(user("admin").roles("ADMIN")).with(csrf())
+                            .contentType(MediaType.APPLICATION_JSON).content(mapper.writeValueAsString(settings)))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
     }
 }
