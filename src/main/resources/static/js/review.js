@@ -364,19 +364,15 @@ if (typeof document !== "undefined") {
     }
 
     function restoreFilters() {
-        const stored = readStoredFilters(window.sessionStorage, filtersStorageKey);
+        const shared = elements.filterForm.dataset.sharedFilters;
+        const stored = shared ? JSON.parse(shared) : readStoredFilters(window.sessionStorage, filtersStorageKey);
         if (!stored) return;
-        elements.createdFrom.value = stored.createdFrom || "";
-        elements.createdTo.value = stored.createdTo || "";
-        elements.tokenId.value = stored.tokenId || "";
-        elements.sessionId.value = stored.sessionId || "";
-        elements.gameCode.value = stored.gameCode || "";
-        elements.notification.value = stored.notification || "";
-        elements.hasUserHand.value = stored.hasUserHand || "";
-        elements.aiResult.value = stored.aiResult || "";
-        elements.aiVerdict.value = stored.aiVerdict || "";
-        elements.confidenceFrom.value = stored.confidenceFrom || "";
-        elements.confidenceTo.value = stored.confidenceTo || "";
+        for (const key of Object.keys(filterInputValues())) {
+            let value = stored[key] == null ? '' : String(stored[key]);
+            if (key === 'createdFrom' || key === 'createdTo') value = value.replace(/Z$/, '');
+            if ((key === 'aiResult' || key === 'aiVerdict') && value === 'ALL') value = '';
+            elements[key].value = value;
+        }
     }
 
     function activeFilterTotal() {
@@ -1108,7 +1104,11 @@ if (typeof document !== "undefined") {
     });
 
     setFiltersCollapsed(storedFiltersCollapsed(), false);
+    if (elements.filterForm.dataset.sharedFilters) {
+        persistFilters();
+        window.history.replaceState(null, '', window.location.pathname);
+    }
     if (remainingCountEnabled) startSharedCountPolling(refreshQueueSummary, document, window);
-    loadQueue();
+    loadQueue({replaceCurrent: Boolean(elements.filterForm.dataset.sharedFilters)});
 })();
 }

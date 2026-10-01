@@ -56,7 +56,7 @@
                 <button class="filter-toggle" id="filter-close" type="button">Close filters</button>
             </div>
             <div class="filter-sidebar-content" id="filter-panel">
-                <form id="filter-form" class="filters" data-utc-date-range>
+                <form id="filter-form" class="filters" data-utc-date-range th:attr="data-shared-filters=${sharedFilters}">
                 <label>
                     <span>Created from (UTC)</span>
                     <span class="utc-datetime-control" data-utc-boundary>

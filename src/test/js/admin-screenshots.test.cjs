@@ -16,6 +16,23 @@ const {
 } = require("../../main/resources/static/js/admin-screenshots.js");
 const {filterStatus} = require("../../main/resources/static/js/admin-screenshots.js");
 
+test('operator queue links preserve supported filters and never silently broaden admin searches', () => {
+    const {operatorQueueUrl} = require('../../main/resources/static/js/admin-screenshots.js');
+    const query = new URL(operatorQueueUrl({gameCode:'bj_igt',createdFrom:'2026-10-01T00:00',
+        tokenId:0,notification:false,aiTaskStatus:'FAILED',reviewState:'UNCHECKED',sessionId:'a & b'}), 'https://validator.test').searchParams;
+    assert.equal(query.get('queue'),'1');
+    assert.equal(query.get('aiResult'),'FAILED');
+    assert.equal(query.get('createdFrom'),'2026-10-01T00:00:00Z');
+    assert.equal(query.get('tokenId'),'0');
+    assert.equal(query.get('notification'),'false');
+    assert.equal(query.get('sessionId'),'a & b');
+    assert.equal(query.has('reviewState'),false);
+    assert.match(operatorQueueUrl({aiTaskStatus:'COMPLETED',aiResult:'UNMATCHED',confidenceFrom:0}),/aiResult=UNMATCHED/);
+    for (const filter of [{reviewState:'CHECKED'}, {fileName:'one'}, {aiReviewedFrom:'2026-10-01T00:00'},
+        {issuedRuleId:'rule'}, {aiTaskStatus:'PROCESSING'}, {aiTaskStatus:'FAILED',aiResult:'MATCHED'},
+        {aiTaskStatus:'FAILED',confidenceFrom:60}]) assert.throws(() => operatorQueueUrl(filter),/operator|Failed/i);
+});
+
 test('filter chips describe effective query conditions without losing false or zero', () => {
     const {filterEntries} = require('../../main/resources/static/js/admin-screenshots.js');
     assert.deepEqual(filterEntries({reviewState:'ALL', aiResult:'ALL', aiVerdict:'ALL'}), []);

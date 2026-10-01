@@ -43,7 +43,18 @@ public class SecurityConfig {
         return (request, response, authentication) -> {
             boolean admin = AuthorityUtils.authorityListToSet(authentication.getAuthorities())
                     .contains("ROLE_ADMIN");
-            response.sendRedirect(admin ? "/admin/overview" : "/review");
+            var cache = new org.springframework.security.web.savedrequest.HttpSessionRequestCache();
+            var saved = cache.getRequest(request, response);
+            String target = admin ? "/admin/overview" : "/review";
+            // Resume only our operator queue link, never an arbitrary saved redirect URL/host.
+            if (!admin && saved instanceof org.springframework.security.web.savedrequest.DefaultSavedRequest original
+                    && "GET".equals(saved.getMethod())
+                    && (request.getContextPath() + "/review").equals(original.getRequestURI())
+                    && java.util.Arrays.equals(saved.getParameterValues("queue"), new String[]{"1"})) {
+                target = "/review?" + original.getQueryString();
+            }
+            cache.removeRequest(request, response);
+            response.sendRedirect(target);
         };
     }
 

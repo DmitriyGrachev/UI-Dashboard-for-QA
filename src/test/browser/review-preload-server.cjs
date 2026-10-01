@@ -29,6 +29,7 @@ const app = http.createServer(async (req, res) => {
             ? (url.searchParams.get('case') === 'empty' ? 'admin-overview-empty.html' : url.searchParams.get('days') === '30' ? 'admin-overview-30.html' : 'admin-overview.html')
             : url.pathname === '/statistics' ? (scenario === 'empty' ? 'statistics-empty.html' : 'statistics.html')
             : url.pathname === '/history' ? (scenario === 'empty' ? 'review-history-empty.html' : scenario === 'error' ? 'review-history-error.html' : 'review-history.html')
+            : url.pathname === '/review' && url.searchParams.get('queue') === '1' ? 'review-shared.html'
             : ({'/review': 'review.html', '/admin': 'admin.html', '/admin/rejects': 'admin-rejects.html',
             '/admin/screenshots': 'admin-screenshots.html', '/admin/ai-queue': 'admin-ai-queue.html'})[url.pathname];
         const rendered = path.resolve(__dirname, '../../../target/browser-fixtures', template);

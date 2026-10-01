@@ -71,6 +71,7 @@
                     <p id="explorer-layout-message">Remembered in this browser. Widths apply when panels are side by side.</p>
                 </div>
             </details>
+            <button class="button secondary" id="share-operator-queue" type="button" aria-describedby="operator-queue-share-message">Share operator queue</button>
             <button class="button secondary" id="download-screenshot-csv" type="button" aria-describedby="csv-export-help"><span aria-hidden="true">↓</span> Download CSV</button>
         </div>
     </header>
@@ -353,6 +354,8 @@
             <button class="button primary" id="search-screenshots" type="submit">Search</button>
             <button type="button" class="button secondary" id="reset-screenshot-filters">Reset</button>
         </form>
+        <p id="operator-queue-share-message" role="status"></p>
+        <input id="operator-queue-share-url" aria-label="Operator queue link" type="text" readonly hidden>
         <div id="pinned-filters" class="explorer-filter-chips" role="group" aria-label="Pinned saved filters" hidden></div>
         <div id="explorer-filter-chips" class="explorer-filter-chips" role="group" aria-label="Selected filters; Search applies changes" hidden></div>
         <p class="utc-date-error" id="explorer-date-range-error" role="alert" hidden></p>

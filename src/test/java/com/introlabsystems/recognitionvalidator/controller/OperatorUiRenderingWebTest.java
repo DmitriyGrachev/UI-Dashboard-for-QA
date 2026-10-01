@@ -38,6 +38,35 @@ class OperatorUiRenderingWebTest {
     private final OperatorPrincipal operator = new OperatorPrincipal(new UUID(0, 1), "Olena", "unused", true);
 
     @Test
+    void sharedQueueFiltersAreValidatedAndRenderedWithoutClaimingTasks() throws Exception {
+        when(properties.games()).thenReturn(List.of("bj_igt"));
+        String html = mvc.perform(get("/review?queue=1&gameCode=bj_igt&aiResult=FAILED&tokenId=0&notification=false&createdFrom=2026-10-01T00:00:00Z")
+                        .with(user(operator))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertThat(html).contains("data-shared-filters=", "&quot;aiResult&quot;:&quot;FAILED&quot;", "&quot;notification&quot;:false", "2026-10-01T00:00:00Z");
+        fixture("review-shared.html",html);
+        for (String invalid : List.of("gameCode=unknown", "confidenceFrom=101", "aiResult=INVALID", "tokenId=-1",
+                "createdFrom=not-a-date", "createdFrom=2026-10-02T00:00:00Z&createdTo=2026-10-01T00:00:00Z",
+                "gameCode=bj_igt&gameCode=unknown", "fileName=unsupported", "aiResult=FAILED&confidenceFrom=50")) {
+            mvc.perform(get("/review?queue=1&"+invalid).with(user(operator))).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(statisticsService,reviewHistory);
+    }
+
+    @Test
+    void loginResumesOnlyTheSavedOperatorQueuePath() throws Exception {
+        var password = new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder().encode("queue-secret");
+        when(users.loadUserByUsername("Olena")).thenReturn(new OperatorPrincipal(new UUID(0,1),"Olena",password,true));
+        var requested = mvc.perform(get("/review?queue=1&gameCode=bj_igt").header("Host","untrusted.example"))
+                .andExpect(status().isFound()).andReturn();
+        var session = (org.springframework.mock.web.MockHttpSession) requested.getRequest().getSession(false);
+        assertThat(session).isNotNull();
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/login").session(session)
+                .with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf())
+                .param("username","Olena").param("password","queue-secret"))
+                .andExpect(status().isFound()).andExpect(redirectedUrl("/review?queue=1&gameCode=bj_igt"));
+    }
+
+    @Test
     void reviewRendersOperatorNavigationWithoutFetchingStatisticsOrClaimingTasks() throws Exception {
         when(properties.games()).thenReturn(List.of("bj_igt", "bj_netent"));
         when(properties.countRemainingScreenshots()).thenReturn(true);

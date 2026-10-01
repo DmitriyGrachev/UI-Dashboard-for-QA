@@ -48,6 +48,31 @@ function buildSearchParams(filters, cursor = null) {
     return params;
 }
 
+function operatorQueueUrl(filters) {
+    const params = buildSearchParams(filters);
+    params.delete('limit');
+    if (params.get('reviewState') === 'CHECKED') throw new Error('Operator queues contain only unreviewed screenshots. Remove the Checked filter.');
+    params.delete('reviewState');
+    const status = params.get('aiTaskStatus'), result = params.get('aiResult');
+    if (status === 'FAILED') {
+        if (result && !['ALL','UNCHECKED','FAILED'].includes(result)
+            || params.has('confidenceFrom') || params.has('confidenceTo')
+            || params.has('aiVerdict') && params.get('aiVerdict') !== 'ALL') {
+            throw new Error('Failed AI tasks have no verdict or confidence. Remove conflicting filters before sharing.');
+        }
+        params.set('aiResult','FAILED'); params.delete('aiTaskStatus');
+    } else if (status === 'COMPLETED' && (!result || ['ALL','CHECKED','MATCHED','UNMATCHED'].includes(result))) {
+        if (!result || result === 'ALL') params.set('aiResult','CHECKED');
+        params.delete('aiTaskStatus');
+    }
+    const supported = ['createdFrom','createdTo','tokenId','sessionId','gameCode','notification','hasUserHand',
+        'aiResult','aiVerdict','confidenceFrom','confidenceTo'];
+    const unsupported = [...params.keys()].filter(key => !supported.includes(key));
+    if (unsupported.length) throw new Error('These filters are unavailable in operator queues: ' + unsupported.join(', ') + '. Remove them before sharing.');
+    params.set('queue','1');
+    return '/review?' + params;
+}
+
 function formatUtcDate(value) {
     if (!value) return "—";
     return new Intl.DateTimeFormat("en-GB", {
@@ -244,6 +269,7 @@ function filterStatus(liveFilters, appliedFilters, busy) {
 if (typeof module !== "undefined" && module.exports) {
     module.exports = {
         buildSearchParams,
+        operatorQueueUrl,
         filterEntries,
         normalizeExplorerLayout,
         csvExportUrl,
@@ -1137,6 +1163,27 @@ if (typeof document !== "undefined") {
         updateCheckedOnlyControls();
         if (!validateFilters()) return;
         window.open(csvExportUrl(currentFilters()), '_blank', 'noopener');
+    });
+    byId('share-operator-queue').addEventListener('click', async () => {
+        updateCheckedOnlyControls();
+        if (!validateFilters()) return;
+        const message = byId('operator-queue-share-message');
+        const output = byId('operator-queue-share-url');
+        output.hidden = true;
+        try {
+            const url = new URL(operatorQueueUrl(currentFilters()), window.location.origin).href;
+            output.value = url;
+            message.dataset.error = 'false';
+            try {
+                await navigator.clipboard.writeText(url);
+                message.textContent = 'Operator queue link copied. Only available, unreviewed screenshots will be assigned. Sign-in is required.';
+            } catch {
+                output.hidden = false; output.focus(); output.select();
+                message.textContent = 'Copy this link. Only available, unreviewed screenshots will be assigned. Sign-in is required.';
+            }
+        } catch (error) {
+            message.dataset.error = 'true'; message.textContent = error.message;
+        }
     });
     byId("review-state").addEventListener("change", updateCheckedOnlyControls);
     elements.dateField.addEventListener("change", () => {
